@@ -1,0 +1,57 @@
+[graph]
+all-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "warn"
+ignore = [
+    # --- historical GTK3 / webkit2gtk (Tauri Linux stack) ---
+    "RUSTSEC-2024-0370",  # proc-macro-error — unmaintained; no safe upgrade
+    "RUSTSEC-2024-0411",  # atk
+    "RUSTSEC-2024-0412",  # atk-sys
+    "RUSTSEC-2024-0413",  # gdk
+    "RUSTSEC-2024-0414",  # gdk-pixbuf
+    "RUSTSEC-2024-0415",  # gdk-pixbuf-sys
+    "RUSTSEC-2024-0416",  # gdk-sys
+    "RUSTSEC-2024-0417",  # gio
+    "RUSTSEC-2024-0418",  # gio-sys
+    "RUSTSEC-2024-0419",  # glib
+    "RUSTSEC-2024-0420",  # glib-macros
+    "RUSTSEC-2025-0075",  # unic-char-range
+    "RUSTSEC-2025-0080",  # unic-common
+    "RUSTSEC-2025-0081",  # unic-char-property
+    "RUSTSEC-2025-0098",  # unic-ucd-version
+    "RUSTSEC-2025-0100",  # unic-ucd-ident
+    # --- transitive via hf-hub / tokenizers / mongreldb (no safe root upgrade) ---
+    "RUSTSEC-2024-0436",  # paste — unmaintained; via tokenizers
+    "RUSTSEC-2025-0119",  # number_prefix — unmaintained; via indicatif → hf-hub/tokenizers
+    "RUSTSEC-2025-0134",  # rustls-pemfile — unmaintained; via reqwest 0.11 → hf-hub
+    "RUSTSEC-2025-0141",  # bincode — unmaintained; via mongreldb-core
+]
+
+[licenses]
+allow = [
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Zlib",
+    "OpenSSL",
+    "MPL-2.0",
+    "0BSD",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"

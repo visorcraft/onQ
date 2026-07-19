@@ -1,0 +1,12 @@
+[plugin]
+id = "com.example.onq.sample"
+name = "Sample Plugin"
+version = "0.1.0"
+license = "GPL-3.0-only"
+description = "Test plugin for E2E"
+
+[entrypoint]
+library = "libonq_sample_plugin"
+
+[capabilities]
+commands = ["sample:say-hello"]

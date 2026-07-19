@@ -1,0 +1,19 @@
+[workspace]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[package]
+name = "onq-sample-plugin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+onq-plugin-sdk = { path = "../../../crates/onq-plugin-sdk" }

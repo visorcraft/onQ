@@ -1,0 +1,14 @@
+:root.light {
+  --glass-base: #f0f4ff;
+  --glass-surface: #ffffff;
+  --glass-elevated: #f8faff;
+  --glass-periwinkle: #5b8fff;
+  --glass-accent: #2563eb;
+  --glass-gold: #8a5a00;
+  --glass-text: #0a1430;
+  --glass-text-dim: #4a5570;
+  --glass-text-faint: #7a85a0;
+  --glass-border: rgba(10, 20, 48, 0.08);
+  --glass-border-strong: rgba(10, 20, 48, 0.14);
+  color-scheme: light;
+}

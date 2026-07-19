@@ -1,0 +1,17 @@
+name: Perf
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --bench search_bench 2>&1 | tee bench.txt
+      - run: cargo bench --bench merge_bench 2>&1 | tee -a bench.txt
+      - run: ./scripts/check-perf-regression.sh benches/baselines.json bench.txt

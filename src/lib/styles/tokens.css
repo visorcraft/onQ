@@ -1,0 +1,52 @@
+/* Dark color tokens — apply when there's no theme class on <html> (default)
+ * or when the user explicitly opts in via `:root.dark`. The `:root` half of
+ * the selector keeps the previous "dark is the default" behavior so the first
+ * paint matches what shipped in M0.2. */
+:root,
+:root.dark {
+  --glass-base: #1a2138;
+  --glass-surface: #2a3454;
+  --glass-elevated: #3a4a6e;
+  --glass-periwinkle: #b8d2ff;
+  /* #5b8fff was 3.08:1 on white button labels; #2f6fed clears WCAG AA 4.5:1. */
+  --glass-accent: #2f6fed;
+  --glass-gold: #ffd58a;
+  --glass-text: #e0e8ff;
+  --glass-text-dim: #a8b8d8;
+  --glass-text-faint: #7a8aa8;
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  color-scheme: dark;
+  /* Page background — required for WCAG AA color contrast on the dark text
+   * tokens above. Without this, --glass-text on the default white <body>
+   * fails at 1.22:1. */
+  background-color: var(--glass-base);
+  color: var(--glass-text);
+}
+
+:root.light {
+  background-color: var(--glass-base);
+  color: var(--glass-text);
+}
+
+/* Theme-independent tokens — geometry + motion. Both `tokens.css` and
+ * `tokens.light.css` rely on these being available regardless of which
+ * color palette is active. */
+:root {
+  --glass-radius: 14px;
+  --glass-radius-lg: 20px;
+  --glass-blur: 20px;
+  --glass-blur-lg: 30px;
+  --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-duration: 240ms;
+}
+
+body {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0ms;
+  }
+}

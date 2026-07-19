@@ -1,0 +1,20 @@
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+}
+.glass-elevated {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border: 1px solid var(--glass-border-strong);
+  border-radius: var(--glass-radius-lg);
+}
+.glass-elevated[role='dialog'] {
+  background: var(--glass-surface);
+}
+@media (prefers-contrast: more) {
+  .glass, .glass-elevated { background: var(--glass-surface); backdrop-filter: none; }
+}

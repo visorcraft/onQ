@@ -1,0 +1,71 @@
+[package]
+name = "onq-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+argon2 = { workspace = true }
+base64 = { workspace = true }
+bip39 = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+ulid = { workspace = true }
+notify = { workspace = true }
+mongreldb-core = { workspace = true }
+keyring = { workspace = true, optional = true }
+ort = { workspace = true }
+hf-hub = { workspace = true }
+tokenizers = { workspace = true }
+ndarray = { workspace = true }
+tokio = { workspace = true }
+diffy = { workspace = true }
+ed25519-dalek = { workspace = true }
+sha2 = { workspace = true }
+aes-gcm = { workspace = true }
+libloading = { workspace = true }
+onq-plugin-sdk = { workspace = true }
+tar = { workspace = true }
+flate2 = { workspace = true }
+toml = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+onq-test-utils = { workspace = true }
+criterion = { workspace = true }
+
+[[test]]
+name = "db_roundtrip"
+path = "tests/integration/db_roundtrip.rs"
+
+[[test]]
+name = "embed_real"
+path = "tests/integration/embed_real.rs"
+
+[[test]]
+name = "history"
+path = "tests/integration/history.rs"
+
+[[test]]
+name = "plugin_load"
+path = "tests/integration/plugin_load.rs"
+
+[[test]]
+name = "search_ndcg"
+path = "tests/conformance/search_ndcg.rs"
+
+[[bench]]
+name = "search_bench"
+harness = false
+
+[[bench]]
+name = "merge_bench"
+harness = false
+
+[features]
+real-keychain = ["dep:keyring"]

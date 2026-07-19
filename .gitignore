@@ -1,0 +1,62 @@
+# Build artifacts
+/target/
+/node_modules/
+/dist/
+/build/
+*.tsbuildinfo
+
+# Playwright artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Rust toolchain scratch
+**/*.rs.bk
+
+# Tauri build outputs
+/src-tauri/target/
+/src-tauri/gen/
+/crates/onq-app/target/
+/crates/onq-app/gen/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# Local config & secrets
+.env
+.env.local
+*.log
+
+# Generated model cache (downloaded on first run)
+/vault/.onq/cache/models/
+
+# Local vault data (NEVER commit personal prompts)
+/vault/prompts/
+/vault/.onq/locked/
+/vault/.onq/history/
+/vault/.onq/search-index/
+
+# Plugin scratch
+/vault/.onq/plugins/quarantined/
+
+# Brainstorming scratch (visual companion session files)
+/.superpowers/
+/docs/superpowers/
+
+# Playwright MCP scratch (logs, page snapshots)
+.playwright-mcp/
+
+# VitePress build artifacts (built in CI; not source)
+/docs-site/.vitepress/dist/
+/docs-site/.vitepress/cache/
+/docs-site/.vitepress/.temp/
+
+*storybook.log
+storybook-static
