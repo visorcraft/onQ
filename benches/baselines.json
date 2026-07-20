@@ -1,5 +1,0 @@
-{
-  "_comment": "Performance baselines for the perf-regression gate in .github/workflows/perf.yml. Each key is `<bench_name>_<unit>`; the value is the median from the M6.8 measurement run (Task 6.8 commit b71774e). The CI gate fails if any tracked bench regresses >10% vs these numbers. To update after an intentional perf change: run `cargo bench --bench <name>`, paste the new median here, and document the change in the PR description.",
-  "search_warm_p95_ms": 1.0,
-  "merge_10kb_clean_us": 18
-}
