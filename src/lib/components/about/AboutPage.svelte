@@ -350,6 +350,9 @@
   }
   .btn-ghost {
     appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     border: 1px solid var(--glass-border);
     background: rgba(255, 255, 255, 0.04);
     color: var(--glass-text);
@@ -361,6 +364,10 @@
   }
   .btn-ghost:hover {
     background: rgba(255, 255, 255, 0.08);
+  }
+  .btn-icon {
+    flex-shrink: 0;
+    display: block;
   }
   .about-footer {
     text-align: center;
