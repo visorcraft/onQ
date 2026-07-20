@@ -1,14 +1,13 @@
 # Frontend (npm) Third-Party Licenses
 
-JavaScript packages from package.json (runtime UI plus build tooling).
-onQ is licensed under **GPL-3.0-only**; packages keep their own licenses.
+Packages from package.json. onQ is **GPL-3.0-only**.
 
 ## Packages in use
 
 - **MIT** (27 packages)
+- **MIT OR Apache-2.0** (3 packages)
 - **Apache-2.0** (2 packages)
 - **Apache-2.0 OR MIT** (2 packages)
-- **MIT OR Apache-2.0** (2 packages)
 - **0BSD** (1 packages)
 - **MPL-2.0** (1 packages)
 
@@ -59,6 +58,7 @@ onQ is licensed under **GPL-3.0-only**; packages keep their own licenses.
 ## MIT OR Apache-2.0
 
 - `@tauri-apps/plugin-dialog` 2.7.2 (runtime)
+- `@tauri-apps/plugin-opener` 2.5.4 (runtime)
 - `@tauri-apps/plugin-updater` 2.10.1 (runtime)
 
 ## MPL-2.0

@@ -84,6 +84,13 @@
     "role": "runtime"
   },
   {
+    "name": "@tauri-apps/plugin-opener",
+    "version": "2.5.4",
+    "license": "MIT OR Apache-2.0",
+    "repository": "https://github.com/tauri-apps/plugins-workspace",
+    "role": "runtime"
+  },
+  {
     "name": "@tauri-apps/plugin-updater",
     "version": "2.10.1",
     "license": "MIT OR Apache-2.0",

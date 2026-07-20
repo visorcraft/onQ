@@ -1482,10 +1482,22 @@
     "repository": "https://github.com/krisprice/ipnet"
   },
   {
+    "name": "is-docker",
+    "version": "0.2.0",
+    "license": "MIT",
+    "repository": "https://github.com/TheLarkInn/is-docker"
+  },
+  {
     "name": "is-terminal",
     "version": "0.4.17",
     "license": "MIT",
     "repository": "https://github.com/sunfishcode/is-terminal"
+  },
+  {
+    "name": "is-wsl",
+    "version": "0.4.0",
+    "license": "MIT",
+    "repository": "https://github.com/TheLarkInn/is-wsl"
   },
   {
     "name": "itertools",
@@ -1777,25 +1789,25 @@
   },
   {
     "name": "mongreldb-core",
-    "version": "0.60.3",
+    "version": "0.61.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-fault",
-    "version": "0.60.3",
+    "version": "0.61.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-log",
-    "version": "0.60.3",
+    "version": "0.61.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-types",
-    "version": "0.60.3",
+    "version": "0.61.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
@@ -2056,6 +2068,12 @@
     "version": "0.3.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/RustCrypto/utils"
+  },
+  {
+    "name": "open",
+    "version": "5.4.0",
+    "license": "MIT",
+    "repository": "https://github.com/Byron/open-rs"
   },
   {
     "name": "openssl",
@@ -3014,6 +3032,12 @@
   {
     "name": "tauri-plugin-global-shortcut",
     "version": "2.3.2",
+    "license": "Apache-2.0 OR MIT",
+    "repository": "https://github.com/tauri-apps/plugins-workspace"
+  },
+  {
+    "name": "tauri-plugin-opener",
+    "version": "2.5.4",
     "license": "Apache-2.0 OR MIT",
     "repository": "https://github.com/tauri-apps/plugins-workspace"
   },

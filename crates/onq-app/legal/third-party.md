@@ -1,15 +1,15 @@
 # Third-Party Licenses (Rust crates)
 
-This document lists the third-party Rust crates included in this build of onQ, grouped by license expression.
-onQ is licensed under **GPL-3.0-only**; crates listed here keep their own licenses.
+Rust crates included in this build of onQ, grouped by license expression.
+onQ is licensed under **GPL-3.0-only**.
 
-Regenerate with `scripts/regen-credits.sh` after dependency changes.
+Regenerate with `scripts/regen-credits.sh`.
 
 ## Licenses in use
 
 - **MIT OR Apache-2.0** (327 crates)
-- **MIT** (151 crates)
-- **Apache-2.0 OR MIT** (69 crates)
+- **MIT** (154 crates)
+- **Apache-2.0 OR MIT** (70 crates)
 - **MIT/Apache-2.0** (37 crates)
 - **Unicode-3.0** (18 crates)
 - **Zlib OR Apache-2.0 OR MIT** (18 crates)
@@ -156,6 +156,7 @@ Regenerate with `scripts/regen-credits.sh` after dependency changes.
 - `tauri-plugin-dialog` 2.7.2 — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-fs` 2.5.1 — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-global-shortcut` 2.3.2 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-opener` 2.5.4 — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-single-instance` 2.4.3 — https://github.com/tauri-apps/plugins-workspace
 - `tauri-plugin-updater` 2.10.1 — https://github.com/tauri-apps/plugins-workspace
 - `tauri-runtime` 2.11.3 — https://github.com/tauri-apps/tauri
@@ -304,7 +305,9 @@ Regenerate with `scripts/regen-credits.sh` after dependency changes.
 - `ico` 0.5.0 — https://github.com/mdsteele/rust-ico
 - `indicatif` 0.17.11 — https://github.com/console-rs/indicatif
 - `infer` 0.19.0 — https://github.com/bojand/infer
+- `is-docker` 0.2.0 — https://github.com/TheLarkInn/is-docker
 - `is-terminal` 0.4.17 — https://github.com/sunfishcode/is-terminal
+- `is-wsl` 0.4.0 — https://github.com/TheLarkInn/is-wsl
 - `javascriptcore-rs` 1.1.2 — https://github.com/tauri-apps/javascriptcore-rs
 - `javascriptcore-rs-sys` 1.1.1 — https://github.com/tauri-apps/javascriptcore-rs
 - `kqueue` 1.2.0 — https://gitlab.com/rust-kqueue/rust-kqueue
@@ -326,6 +329,7 @@ Regenerate with `scripts/regen-credits.sh` after dependency changes.
 - `onig` 6.5.3 — https://github.com/iwillspeak/rust-onig
 - `onig_sys` 69.9.3 — https://github.com/rust-onig/rust-onig
 - `oorandom` 11.1.5 — https://hg.sr.ht/~icefox/oorandom
+- `open` 5.4.0 — https://github.com/Byron/open-rs
 - `openssl-sys` 0.9.117 — https://github.com/rust-openssl/rust-openssl
 - `pango` 0.18.3 — https://github.com/gtk-rs/gtk-rs-core
 - `pango-sys` 0.18.0 — https://github.com/gtk-rs/gtk-rs-core
