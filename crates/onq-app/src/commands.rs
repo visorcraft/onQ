@@ -1603,9 +1603,14 @@ pub async fn search(
 
     // 4. Read the user-tunable embedding-quant setting from app_state.
     //    "binary" (default) = HNSW binary candidates + exact cosine rerank.
-    //    "dense"            = exact f32 cosine scan.
-    let embedding_quant =
-        read_app_setting(&db, col::APP_EMBED_QUANT).unwrap_or_else(|_| "binary".to_string());
+    //    "dense"            = native cosine HNSW after replace-index publishes;
+    //                         exact scan only while Dense is not yet live.
+    let embedding_quant = read_app_setting(&db, col::APP_EMBED_QUANT)?;
+    let embedding_quant = if embedding_quant.is_empty() {
+        "binary".to_string()
+    } else {
+        embedding_quant
+    };
 
     // 5. Filtered retrieval + RRF inside `spawn_blocking` (sync mongreldb).
     let db_for_blocking = db.clone();
@@ -1695,7 +1700,12 @@ fn run_hybrid_search(
 
     let ann_hits: Vec<mongreldb_core::RowId> =
         if let Some(Retriever::Ann { query, .. }) = ann_retriever {
-            if embedding_quant == "dense" {
+            let pending_dense = embedding_quant == "dense"
+                && embedding_index::dense_readiness(db).map_err(|error| error.to_string())?
+                    == embedding_index::DenseReadiness::PendingExactFallback;
+            if pending_dense {
+                // Dense preference recorded but replace-index has not published
+                // Dense yet. Exact cosine is the interim path only.
                 let scored = embedding_index::exact_cosine_search(
                     db.handle(),
                     "prompts",
@@ -1718,6 +1728,9 @@ fn run_hybrid_search(
                 }
                 hits
             } else {
+                // binary preference, or dense with live Dense ANN — native path.
+                // ANN failures (auth, resource, corruption) surface; we do not
+                // silently fall back to exact cosine once Dense is published.
                 filtered_retriever_rows(
                     db,
                     q,
@@ -2384,20 +2397,9 @@ pub async fn set_app_setting(
         .map_err(|e| e.to_string())
 }
 
-/// Toggle the embedding quantization for the `prompts.embedding` Ann
-/// index. Validates the wire value ("binary" or "dense"), writes it to
-/// `app_state.embedding_quant`, then triggers an index rebuild.
-///
-/// ## Index rebuild semantics
-///
-/// The pinned `mongreldb-core` API does not expose DROP/CREATE INDEX DDL
-/// or a `Dense` variant of `AnnQuantization`, so [`embedding_index::rebuild`]
-/// is currently a no-op that emits a `tracing::warn!`. The user's
-/// preference is recorded and takes effect on the next index creation
-/// (e.g. fresh vault). The `run_hybrid_search` branch — `binary` uses
-/// the existing ANN rerank, `dense` uses the exact-cosine brute-force
-/// scan — honors the recorded setting immediately so the UI feels
-/// responsive even though the on-disk index hasn't changed.
+/// Toggle the `prompts.embedding` ANN representation. The preference is
+/// durable, then a reconstructible replace-index job runs. Dense search uses
+/// exact cosine only until native Dense publication finishes.
 #[tauri::command]
 pub async fn set_embedding_quant(quant: String, state: State<'_, AppState>) -> Result<(), String> {
     // 1. Validate wire shape — refuse anything that isn't one of the
@@ -2432,8 +2434,7 @@ pub async fn set_embedding_quant(quant: String, state: State<'_, AppState>) -> R
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
 
-    // 4. Best-effort rebuild. Currently a no-op + tracing::warn!; see
-    //    `embedding_index::rebuild` for the rationale.
+    // 4. Durable replace-index (hidden-generation rebuild + publish).
     tokio::task::spawn_blocking(move || embedding_index::rebuild(&db, &quant))
         .await
         .map_err(|e| e.to_string())?

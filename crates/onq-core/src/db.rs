@@ -43,7 +43,12 @@ impl Db {
         crate::migrate::Migrator::new(&inner)
             .run()
             .map_err(|e| CoreError::Db(format!("migrate: {e}")))?;
-        Ok(Self { inner })
+        let db = Self { inner };
+        // Align published ANN quantization with app_state.embedding_quant
+        // (authoritative preference). No-op when already matched.
+        crate::embedding_index::reconcile_on_open(&db)
+            .map_err(|e| CoreError::Db(format!("embedding-index reconcile: {e}")))?;
+        Ok(db)
     }
 
     /// Access the underlying [`mongreldb_core::Database`].

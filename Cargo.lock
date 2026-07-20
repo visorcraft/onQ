@@ -3004,12 +3004,12 @@ dependencies = [
 [[package]]
 name = "mongreldb-core"
 version = "0.60.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9704b6060659dce8b5dabc2e2ebf978996f22c7f7e9dbdc1432a0b692e734002"
+source = "git+https://github.com/visorcraft/MongrelDB?rev=b28a511afe6f82df7545d64a22450e3c10e0f8d1#b28a511afe6f82df7545d64a22450e3c10e0f8d1"
 dependencies = [
  "aes-gcm",
  "arc-swap",
  "argon2",
+ "base64 0.22.1",
  "bincode",
  "bytemuck",
  "bytes",
@@ -3026,11 +3026,13 @@ dependencies = [
  "parking_lot",
  "rayon",
  "regex",
+ "ring",
  "roaring",
  "rustix",
  "serde",
  "serde_json",
  "sha2",
+ "subtle",
  "thiserror 1.0.69",
  "tokio",
  "windows-sys 0.61.2",
@@ -3042,8 +3044,7 @@ dependencies = [
 [[package]]
 name = "mongreldb-fault"
 version = "0.60.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d2eb7434676e949864136005eb5c7fbb9fd19a68b4367724eb8ea0bf98f5513"
+source = "git+https://github.com/visorcraft/MongrelDB?rev=b28a511afe6f82df7545d64a22450e3c10e0f8d1#b28a511afe6f82df7545d64a22450e3c10e0f8d1"
 dependencies = [
  "thiserror 1.0.69",
 ]
@@ -3051,8 +3052,7 @@ dependencies = [
 [[package]]
 name = "mongreldb-log"
 version = "0.60.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "092620e2df346b3369591163cc240fa1bcbed27adc7c184a3955a76cf069cbbb"
+source = "git+https://github.com/visorcraft/MongrelDB?rev=b28a511afe6f82df7545d64a22450e3c10e0f8d1#b28a511afe6f82df7545d64a22450e3c10e0f8d1"
 dependencies = [
  "mongreldb-types",
  "serde",
@@ -3063,12 +3063,12 @@ dependencies = [
 [[package]]
 name = "mongreldb-types"
 version = "0.60.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4877d4db6b39406755b69f4a74f9f9cb8cd9448722a6294d38d9476efc9063c0"
+source = "git+https://github.com/visorcraft/MongrelDB?rev=b28a511afe6f82df7545d64a22450e3c10e0f8d1#b28a511afe6f82df7545d64a22450e3c10e0f8d1"
 dependencies = [
  "getrandom 0.2.17",
  "serde",
  "thiserror 1.0.69",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

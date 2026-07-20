@@ -44,15 +44,12 @@ export async function loadBetaChannel(): Promise<void> {
  *
  * - `binary` (default) — binary HNSW candidate generation + exact cosine
  *   rerank. Fast; ~95% recall; low memory.
- * - `dense`            — exact cosine brute-force scan over the filtered
- *   candidates. Slower than HNSW but functionally correct (true cosine
- *   similarity on full f32 vectors). The agreed fallback for the dense
- *   quantization mode — see `crates/onq-core/src/embedding_index.rs`.
+ * - `dense` — full-precision Dense ANN after replace-index publishes;
+ *   exact cosine only while the rebuild is still pending. See
+ *   `crates/onq-core/src/embedding_index.rs`.
  *
- * The `dense` value is recorded to `app_state.embedding_quant`
- * immediately and takes effect on the next search call; the on-disk
- * index stays binary until upstream MongrelDB exposes DROP/CREATE
- * INDEX DDL + a Dense AnnQuantization variant.
+ * Preference is written to `app_state.embedding_quant` and a durable
+ * replace-index job runs for `idx_prompts_embed_ann`.
  */
 export type EmbeddingQuant = 'binary' | 'dense';
 
@@ -65,10 +62,8 @@ export const embeddingQuant = writable<EmbeddingQuant>('binary');
 export const rebuildingIndex = writable<boolean>(false);
 
 /**
- * Switch the active embedding quantization. Persists to the backend,
- * which writes `app_state.embedding_quant` and triggers the
- * `set_embedding_quant` Tauri command (a no-op rebuild until upstream
- * MongrelDB gains the required DDL).
+ * Switch the active embedding quantization. Persists preference and runs
+ * the `set_embedding_quant` Tauri command (durable replace-index).
  *
  * Throws on a failed write — the UI catches and surfaces the error so
  * the user can retry instead of silently believing the toggle worked.

@@ -6,8 +6,8 @@
 use mongreldb_core::embedding::EmbeddingSource;
 use mongreldb_core::memtable::Value;
 use mongreldb_core::schema::{
-    AnnOptions, ColumnDef, ColumnFlags, DefaultExpr, IndexDef, IndexKind, IndexOptions,
-    LearnedRangeOptions, MinHashOptions, Schema, TypeId,
+    AnnOptions, AnnQuantization, ColumnDef, ColumnFlags, DefaultExpr, IndexDef, IndexKind,
+    IndexOptions, LearnedRangeOptions, MinHashOptions, Schema, TypeId,
 };
 
 use crate::error::{CoreError, CoreResult};
@@ -83,8 +83,21 @@ fn embedding_quant() -> ColumnFlags {
     ColumnFlags::empty().with(ColumnFlags::EMBEDDING_BINARY_QUANTIZED)
 }
 
+/// Stable name of the prompts embedding ANN index. Rebuild / replace-index
+/// and readiness inspection key off this string.
+pub const PROMPTS_EMBED_ANN_INDEX: &str = "idx_prompts_embed_ann";
+
 /// `prompts` table: full-text body + tags, ANN embedding, recency, favorites/locks.
+///
+/// Defaults to BinarySign ANN quantization. Prefer
+/// [`prompts_schema_with_quantization`] when the user's `embedding_quant`
+/// setting is known (fresh vaults, rebuild).
 pub fn prompts_schema() -> Schema {
+    prompts_schema_with_quantization(AnnQuantization::BinarySign)
+}
+
+/// Prompts schema using the requested ANN representation.
+pub fn prompts_schema_with_quantization(quantization: AnnQuantization) -> Schema {
     Schema {
         schema_id: 1,
         columns: vec![
@@ -198,15 +211,20 @@ pub fn prompts_schema() -> Schema {
                 embedding_source: None,
             },
         ],
-        indexes: prompts_indexes(),
+        indexes: prompts_indexes_with_quantization(quantization),
         colocation: vec![],
         constraints: Default::default(),
         clustered: false,
     }
 }
 
-/// 11 indexes on prompts covering all six `IndexKind` variants.
+/// 11 indexes on prompts covering all six `IndexKind` variants (BinarySign ANN).
 pub fn prompts_indexes() -> Vec<IndexDef> {
+    prompts_indexes_with_quantization(AnnQuantization::BinarySign)
+}
+
+/// Prompts indexes with the requested ANN quantization on the embedding column.
+pub fn prompts_indexes_with_quantization(quantization: AnnQuantization) -> Vec<IndexDef> {
     vec![
         IndexDef {
             name: "idx_prompts_folder".into(),
@@ -264,12 +282,15 @@ pub fn prompts_indexes() -> Vec<IndexDef> {
             options: IndexOptions::default(),
         },
         IndexDef {
-            name: "idx_prompts_embed_ann".into(),
+            name: PROMPTS_EMBED_ANN_INDEX.into(),
             column_id: col::PROMPTS_EMBED,
             kind: IndexKind::Ann,
             predicate: None,
             options: IndexOptions {
-                ann: Some(AnnOptions::default()),
+                ann: Some(AnnOptions {
+                    quantization,
+                    ..AnnOptions::default()
+                }),
                 ..Default::default()
             },
         },
@@ -682,6 +703,30 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), cols.len(), "duplicate column ids in prompts");
+    }
+
+    #[test]
+    fn prompts_schema_honors_dense_preference() {
+        let schema = prompts_schema_with_quantization(AnnQuantization::Dense);
+        let ann = schema
+            .indexes
+            .iter()
+            .find(|idx| idx.name == PROMPTS_EMBED_ANN_INDEX)
+            .expect("embedding ANN index present");
+        let options = ann.options.ann.as_ref().expect("ann options");
+        assert_eq!(options.quantization, AnnQuantization::Dense);
+    }
+
+    #[test]
+    fn prompts_schema_default_is_binary_sign() {
+        let schema = prompts_schema();
+        let ann = schema
+            .indexes
+            .iter()
+            .find(|idx| idx.name == PROMPTS_EMBED_ANN_INDEX)
+            .expect("embedding ANN index present");
+        let options = ann.options.ann.as_ref().expect("ann options");
+        assert_eq!(options.quantization, AnnQuantization::BinarySign);
     }
 
     #[test]
