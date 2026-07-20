@@ -151,35 +151,33 @@
       >
         {checkingForUpdates ? 'Checking…' : 'Check for updates'}
       </button>
-      {#if hasVault}
-        <button
-          type="button"
-          class="icon-button help-button glass"
-          aria-label="About onQ"
-          title="About onQ"
-          onclick={() => go('about')}
-        >
-          ?
-        </button>
-        <button
-          type="button"
-          class="icon-button settings-button glass"
-          aria-label="Open settings"
-          title="Settings"
-          onclick={() => go('settings')}
-        >
-          ⚙
-        </button>
-        <button
-          type="button"
-          class="icon-button theme-toggle glass"
-          aria-label="Toggle theme"
-          title="Toggle theme"
-          onclick={toggleTheme}
-        >
-          {$theme === 'dark' ? '☀️' : '🌙'}
-        </button>
-      {/if}
+      <button
+        type="button"
+        class="icon-button help-button glass"
+        aria-label="About onQ"
+        title="About onQ"
+        onclick={() => go('about')}
+      >
+        ?
+      </button>
+      <button
+        type="button"
+        class="icon-button settings-button glass"
+        aria-label="Open settings"
+        title="Settings"
+        onclick={() => go('settings')}
+      >
+        ⚙
+      </button>
+      <button
+        type="button"
+        class="icon-button theme-toggle glass"
+        aria-label="Toggle theme"
+        title="Toggle theme"
+        onclick={toggleTheme}
+      >
+        {$theme === 'dark' ? '☀️' : '🌙'}
+      </button>
     </div>
     {#if updateStatus}
       <p class="update-status" role="status">{updateStatus}</p>

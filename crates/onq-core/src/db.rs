@@ -45,9 +45,16 @@ impl Db {
             .map_err(|e| CoreError::Db(format!("migrate: {e}")))?;
         let db = Self { inner };
         // Align published ANN quantization with app_state.embedding_quant
-        // (authoritative preference). No-op when already matched.
-        crate::embedding_index::reconcile_on_open(&db)
-            .map_err(|e| CoreError::Db(format!("embedding-index reconcile: {e}")))?;
+        // (authoritative preference). No-op when already matched. Best-effort:
+        // a failed replace-index must never block vault open — search falls
+        // back to exact cosine while Dense is pending.
+        if let Err(error) = crate::embedding_index::reconcile_on_open(&db) {
+            tracing::warn!(
+                target: "onQ.db",
+                error = %error,
+                "embedding-index reconcile on open failed; vault stays usable"
+            );
+        }
         Ok(db)
     }
 
