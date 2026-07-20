@@ -13,7 +13,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('checks for updates on startup and from the manual menu item', async () => {
+it('checks for updates on startup and from the version badge', async () => {
   navigate('home');
   document.body.replaceChildren();
   const target = document.createElement('div');
@@ -25,11 +25,16 @@ it('checks for updates on startup and from the manual menu item', async () => {
 
   await vi.waitFor(() => expect(checkMock).toHaveBeenCalledTimes(1));
 
-  const checkUpdates = document.querySelector('button[aria-label="Check for updates"]');
-  if (!(checkUpdates instanceof HTMLButtonElement)) {
-    throw new Error('Check for updates menu item missing');
-  }
-  checkUpdates.click();
+  // Top-right Check for updates control is gone; version badge is the manual path.
+  expect(
+    document.querySelector('button[aria-label="Check for updates"]'),
+  ).toBeNull();
+
+  const versionBadge = document.querySelector<HTMLButtonElement>(
+    'button[aria-label="App version, check for updates"]',
+  );
+  if (!versionBadge) throw new Error('version badge missing');
+  versionBadge.click();
 
   await vi.waitFor(() => {
     expect(checkMock).toHaveBeenCalledTimes(2);
@@ -61,7 +66,11 @@ it('clears the up-to-date status after five seconds', async () => {
   const component = mount(App, { target });
   await vi.waitFor(() => expect(checkMock).toHaveBeenCalledTimes(1));
 
-  document.querySelector<HTMLButtonElement>('button[aria-label="Check for updates"]')?.click();
+  document
+    .querySelector<HTMLButtonElement>(
+      'button[aria-label="App version, check for updates"]',
+    )
+    ?.click();
   await vi.waitFor(() =>
     expect(
       [...document.querySelectorAll('[role="status"]')]
@@ -120,7 +129,11 @@ it('only shows update errors for manual checks', async () => {
     ),
   ).toBe(false);
 
-  document.querySelector<HTMLButtonElement>('button[aria-label="Check for updates"]')?.click();
+  document
+    .querySelector<HTMLButtonElement>(
+      'button[aria-label="App version, check for updates"]',
+    )
+    ?.click();
 
   await vi.waitFor(() =>
     expect(

@@ -15,8 +15,6 @@
     checkAndStart,
     tutorialVisible,
   } from '$lib/stores/tutorial';
-  import { getAppSetting } from '$lib/api/settings';
-  import { readPrompt } from '$lib/api/prompts';
   import { paletteShortcut } from '$lib/shortcut';
   import { globalShortcut } from '$lib/stores/globalShortcut';
   import { openLastVault } from '$lib/api/vault';
@@ -99,21 +97,10 @@
     clearUpdateStatusTimer();
   });
 
-  async function restoreLastOpened() {
-    try {
-      const id = await getAppSetting('last_opened_prompt');
-      if (!id) return;
-      await readPrompt(id);
-      lastOpenedId = id;
-    } catch {
-      lastOpenedId = null;
-    }
-  }
-
   $effect(() => {
     if (!hasVault || tutorialChecked) return;
     tutorialChecked = true;
-    void restoreLastOpened();
+    // Do not auto-open the editor (or palette) after unlock — land on home.
     void checkAndStart(hasVault).catch(() => undefined);
   });
 
@@ -142,15 +129,6 @@
 <main class:page-mode={onPage}>
   {#if $appView === 'home'}
     <div class="app-controls">
-      <button
-        type="button"
-        class="update-button glass"
-        aria-label="Check for updates"
-        onclick={() => void checkForUpdates(true)}
-        disabled={checkingForUpdates}
-      >
-        {checkingForUpdates ? 'Checking…' : 'Check for updates'}
-      </button>
       <button
         type="button"
         class="icon-button help-button glass"
@@ -281,26 +259,6 @@
     display: flex;
     gap: 8px;
     z-index: 10;
-  }
-  .update-button {
-    height: 40px;
-    padding: 0 14px;
-    border: 1px solid var(--glass-border);
-    background: rgba(127, 127, 127, 0.08);
-    color: var(--glass-text);
-    cursor: pointer;
-    font: inherit;
-  }
-  .update-button:hover:not(:disabled) {
-    background: rgba(127, 127, 127, 0.16);
-  }
-  .update-button:disabled {
-    cursor: wait;
-    opacity: 0.65;
-  }
-  .update-button:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
   }
   .update-status {
     position: absolute;
