@@ -66,7 +66,6 @@
 
 <div class="about-page credits-page">
   <header class="row-header">
-    <button type="button" class="btn-ghost sm" onclick={onBack}>← About</button>
     <div class="header-grow">
       <h1>Credits</h1>
       <p class="sub">
@@ -225,6 +224,8 @@
       </table>
     </div>
   {/if}
+
+  <button type="button" class="page-back" onclick={onBack}>← About</button>
 </div>
 
 {#if licenseDialog}
@@ -249,9 +250,9 @@
 <style>
   .about-page {
     box-sizing: border-box;
-    width: min(1100px, 100%);
-    margin: 0 auto;
-    padding: 20px 20px 48px;
+    width: 100%;
+    margin: 0;
+    padding: 20px 24px 56px;
     color: var(--glass-text);
   }
   .row-header {
@@ -282,7 +283,7 @@
   .credits-runtime {
     border: 1px solid var(--glass-border);
     border-radius: 14px;
-    background: rgba(16, 22, 34, 0.92);
+    background: var(--glass-panel);
     padding: 16px;
     margin-bottom: 22px;
   }
@@ -306,7 +307,7 @@
     border-radius: 10px;
   }
   .runtime-row:hover {
-    background: rgba(80, 220, 200, 0.04);
+    background: var(--glass-hover);
   }
   .runtime-name {
     font-weight: 600;
@@ -343,7 +344,7 @@
     height: 40px;
     border-radius: 999px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.9);
+    background: var(--glass-input);
     color: var(--glass-text);
     padding: 0 16px;
     font: inherit;
@@ -358,7 +359,7 @@
     border-radius: 14px;
     overflow: auto;
     max-height: 42vh;
-    background: rgba(12, 16, 26, 0.95);
+    background: var(--glass-panel);
     margin-bottom: 8px;
   }
   .credits-table {
@@ -369,7 +370,7 @@
   .credits-table th {
     position: sticky;
     top: 0;
-    background: #121a28;
+    background: var(--glass-table-header);
     text-align: left;
     padding: 10px 12px;
     font-size: 11px;
@@ -380,17 +381,17 @@
   }
   .credits-table td {
     padding: 9px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--glass-border);
   }
   .credits-table tr:hover td {
-    background: rgba(80, 220, 200, 0.04);
+    background: var(--glass-hover);
   }
   .mono {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 12px;
   }
   .name {
-    color: #9ecbff;
+    color: var(--glass-link);
   }
   .chip {
     display: inline-flex;
@@ -402,34 +403,35 @@
     border: 1px solid var(--glass-border);
   }
   .chip.role {
-    color: #c9b8ff;
-    background: rgba(160, 140, 255, 0.1);
+    color: var(--glass-text);
+    background: rgba(120, 100, 200, 0.12);
   }
   .chip.license {
-    color: #8dffc0;
-    background: rgba(80, 220, 140, 0.1);
-    border-color: rgba(80, 220, 140, 0.25);
+    color: var(--glass-text);
+    background: rgba(40, 160, 100, 0.12);
+    border-color: rgba(40, 160, 100, 0.25);
   }
   .icon-btn {
     width: 32px;
     height: 32px;
     border-radius: 999px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     cursor: pointer;
   }
   .icon-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--glass-hover-strong);
   }
   .icon-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
   }
-  .btn-ghost {
+  .btn-ghost,
+  .page-back {
     appearance: none;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     border-radius: 999px;
     padding: 8px 14px;
@@ -441,20 +443,41 @@
     padding: 6px 12px;
     font-size: 12px;
   }
+  .btn-ghost:hover,
+  .page-back:hover {
+    background: var(--glass-hover-strong);
+  }
+  .page-back {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    z-index: 20;
+    opacity: 0.9;
+  }
+  .page-back:hover {
+    opacity: 1;
+  }
+  .page-back:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
+  }
   .error-banner {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 100, 100, 0.35);
-    background: rgba(255, 80, 80, 0.1);
-    color: #ffb4b4;
+    border: 1px solid rgba(200, 80, 80, 0.35);
+    background: rgba(200, 60, 60, 0.08);
+    color: #c04040;
     font-size: 13px;
     margin-bottom: 12px;
+  }
+  :global(:root.dark) .error-banner {
+    color: #ffb4b4;
   }
   .dialog-backdrop {
     position: fixed;
     inset: 0;
     z-index: 80;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.45);
     display: grid;
     place-items: center;
     padding: 24px;
@@ -466,7 +489,7 @@
     flex-direction: column;
     border-radius: 16px;
     border: 1px solid var(--glass-border);
-    background: #0e1420;
+    background: var(--glass-dialog);
     overflow: hidden;
   }
   .dialog-head {
@@ -488,7 +511,8 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 12px;
     line-height: 1.5;
-    color: #c9d4e4;
+    color: var(--glass-code-text);
+    background: var(--glass-code-bg);
     white-space: pre-wrap;
   }
   @media (max-width: 800px) {

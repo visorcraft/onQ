@@ -138,15 +138,6 @@
 <main class:page-mode={onPage}>
   {#if $appView === 'home'}
     <div class="app-controls">
-      <button
-        type="button"
-        class="icon-button help-button glass"
-        aria-label="About onQ"
-        title="About onQ"
-        onclick={() => go('about')}
-      >
-        ?
-      </button>
       {#if hasVault}
         <button
           type="button"
@@ -176,22 +167,30 @@
       >
         {$theme === 'dark' ? '☀️' : '🌙'}
       </button>
+      <button
+        type="button"
+        class="icon-button help-button glass"
+        aria-label="About onQ"
+        title="About onQ"
+        onclick={() => go('about')}
+      >
+        ?
+      </button>
     </div>
     {#if updateStatus}
       <p class="update-status" role="status">{updateStatus}</p>
     {/if}
+    <button
+      type="button"
+      class="app-version"
+      aria-label="App version, check for updates"
+      title="Check for updates"
+      onclick={() => void checkForUpdates(true)}
+      disabled={checkingForUpdates}
+    >
+      v{appVersion}
+    </button>
   {/if}
-
-  <button
-    type="button"
-    class="app-version"
-    aria-label="App version, check for updates"
-    title="Check for updates"
-    onclick={() => void checkForUpdates(true)}
-    disabled={checkingForUpdates}
-  >
-    v{appVersion}
-  </button>
 
   {#if $appView === 'library'}
     <LibraryPage
@@ -212,7 +211,6 @@
   {:else if $appView === 'settings'}
     <SettingsPage
       onBack={() => go('home')}
-      onOpenAbout={() => go('about')}
       onOpenLibrary={hasVault ? () => go('library') : undefined}
     />
   {:else if $appView === 'about'}

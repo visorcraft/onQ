@@ -23,15 +23,13 @@
 
   let {
     onBack,
-    onOpenAbout,
     onOpenLibrary,
   }: {
     onBack: () => void;
-    onOpenAbout: () => void;
     onOpenLibrary?: () => void;
   } = $props();
 
-  type SectionId = 'general' | 'search' | 'vault' | 'updates' | 'about';
+  type SectionId = 'general' | 'search' | 'vault' | 'updates';
 
   const metaKeyLabel = metaModifierLabel();
   const sections: { id: SectionId; label: string }[] = [
@@ -39,7 +37,6 @@
     { id: 'search', label: 'Search' },
     { id: 'vault', label: 'Vault & security' },
     { id: 'updates', label: 'Updates' },
-    { id: 'about', label: 'About' },
   ];
 
   let active = $state<SectionId>('general');
@@ -160,7 +157,6 @@
 
 <div class="settings-page">
   <header class="settings-top">
-    <button type="button" class="btn-ghost" onclick={onBack}>← Back</button>
     <div>
       <h1>Settings</h1>
       <p class="sub">Search-first vault controls, organization, and power tools.</p>
@@ -330,14 +326,6 @@
             <span class="toggle-label">Opt in to beta releases</span>
           </label>
         </section>
-      {:else if active === 'about'}
-        <section class="panel">
-          <h2>About onQ</h2>
-          <p class="help">
-            Version, licenses, third-party credits, and runtime attributions.
-          </p>
-          <button type="button" class="control-btn" onclick={onOpenAbout}>Open About…</button>
-        </section>
       {/if}
 
       {#if errorMessage}
@@ -345,20 +333,19 @@
       {/if}
     </div>
   </div>
+
+  <button type="button" class="page-back" onclick={onBack}>← Back</button>
 </div>
 
 <style>
   .settings-page {
     box-sizing: border-box;
-    width: min(1100px, 100%);
-    margin: 0 auto;
-    padding: 20px 20px 48px;
+    width: 100%;
+    margin: 0;
+    padding: 20px 24px 56px;
     color: var(--glass-text);
   }
   .settings-top {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
     margin-bottom: 20px;
   }
   h1 {
@@ -399,7 +386,7 @@
     padding: 8px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.9);
+    background: var(--glass-inset);
     position: sticky;
     top: 16px;
   }
@@ -416,11 +403,11 @@
     cursor: pointer;
   }
   .nav-item.active {
-    color: #7ee0d0;
-    background: rgba(80, 220, 200, 0.12);
+    color: var(--glass-selected-fg);
+    background: var(--glass-selected-bg);
   }
   .nav-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-hover);
   }
   .settings-main {
     display: flex;
@@ -431,13 +418,13 @@
     padding: 18px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(16, 22, 34, 0.92);
+    background: var(--glass-panel);
   }
   .control-btn,
-  .btn-ghost {
+  .page-back {
     appearance: none;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     border-radius: 10px;
     padding: 10px 14px;
@@ -448,16 +435,30 @@
   .control-btn.recording {
     border-color: var(--glass-periwinkle);
   }
-  .btn-ghost {
-    border-radius: 999px;
-  }
   .control-btn:hover,
-  .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
+  .page-back:hover {
+    background: var(--glass-hover-strong);
   }
   .control-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .page-back {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    z-index: 20;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+  .page-back:hover {
+    opacity: 1;
+  }
+  .page-back:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .hint {
     margin: 8px 0 0;
@@ -466,8 +467,11 @@
   }
   .error {
     margin: 8px 0 0;
-    color: #ffb4b4;
+    color: #c04040;
     font-size: 13px;
+  }
+  :global(:root.dark) .error {
+    color: #ffb4b4;
   }
   .radio-group {
     display: flex;
@@ -489,7 +493,7 @@
   }
   .radio-card.selected {
     border-color: var(--glass-periwinkle);
-    background: rgba(120, 163, 255, 0.1);
+    background: var(--glass-selected-bg);
   }
   .radio-card input {
     grid-row: 1 / span 2;
@@ -524,7 +528,7 @@
     box-sizing: border-box;
     border-radius: 10px;
     border: 1px solid var(--glass-border);
-    background: rgba(10, 14, 22, 0.9);
+    background: var(--glass-input);
     color: var(--glass-text);
     padding: 10px 12px;
     font: inherit;

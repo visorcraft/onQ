@@ -53,12 +53,6 @@
 </script>
 
 <div class="about-page">
-  {#if onBack}
-    <div class="about-toolbar">
-      <button type="button" class="btn-ghost" onclick={onBack}>← Back</button>
-    </div>
-  {/if}
-
   <header class="about-header">
     <h1>About</h1>
     <p class="about-header-sub">{info?.tagline ?? 'Built on Rust + Tauri 2 + Svelte 5.'}</p>
@@ -146,18 +140,19 @@
       Built by VisorCraft · Powered by Rust, Tauri, Svelte, and MongrelDB
     </footer>
   </div>
+
+  {#if onBack}
+    <button type="button" class="page-back" onclick={onBack}>← Back</button>
+  {/if}
 </div>
 
 <style>
   .about-page {
     box-sizing: border-box;
-    width: min(980px, 100%);
-    margin: 0 auto;
-    padding: 24px 20px 48px;
+    width: 100%;
+    margin: 0;
+    padding: 24px 24px 56px;
     color: var(--glass-text);
-  }
-  .about-toolbar {
-    margin-bottom: 12px;
   }
   .about-header h1 {
     margin: 0 0 6px;
@@ -183,7 +178,7 @@
     padding: 24px;
     border-radius: 16px;
     border: 1px solid var(--glass-border);
-    background: linear-gradient(135deg, rgba(16, 22, 34, 0.95), rgba(20, 32, 48, 0.9));
+    background: var(--glass-panel);
     overflow: hidden;
   }
   .about-hero-halo {
@@ -192,7 +187,7 @@
     width: 280px;
     height: 280px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(80, 220, 200, 0.18), transparent 65%);
+    background: radial-gradient(circle, rgba(80, 220, 200, 0.14), transparent 65%);
     pointer-events: none;
   }
   .about-hero-icon {
@@ -225,14 +220,14 @@
     padding: 4px 10px;
     border-radius: 999px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     font-size: 12px;
     color: var(--glass-text-dim);
   }
   .about-pill.accent {
-    color: #7ee0d0;
-    border-color: rgba(80, 220, 200, 0.35);
-    background: rgba(80, 220, 200, 0.1);
+    color: var(--glass-selected-fg);
+    border-color: color-mix(in srgb, var(--glass-selected-fg) 35%, transparent);
+    background: var(--glass-selected-bg);
   }
   .about-pill.mono {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -265,7 +260,7 @@
     padding: 16px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(16, 22, 34, 0.88);
+    background: var(--glass-panel);
   }
   .about-feature-icon {
     width: 40px;
@@ -274,9 +269,9 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    border: 1px solid rgba(80, 220, 200, 0.35);
-    background: rgba(80, 220, 200, 0.1);
-    color: #7ee0d0;
+    border: 1px solid color-mix(in srgb, var(--glass-selected-fg) 35%, transparent);
+    background: var(--glass-selected-bg);
+    color: var(--glass-selected-fg);
     font-size: 18px;
   }
   .about-feature-title {
@@ -298,13 +293,13 @@
     padding: 14px 16px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(16, 22, 34, 0.88);
+    background: var(--glass-panel);
     color: inherit;
     cursor: pointer;
     font: inherit;
   }
   .about-link-card:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-hover-strong);
   }
   .about-link-card img {
     border-radius: 10px;
@@ -319,7 +314,7 @@
   }
   .about-link-card-url {
     font-size: 12px;
-    color: #7ee0d0;
+    color: var(--glass-selected-fg);
   }
   .about-link-card-cta {
     font-size: 13px;
@@ -330,7 +325,7 @@
     padding: 18px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: linear-gradient(180deg, rgba(18, 26, 40, 0.95), rgba(12, 16, 26, 0.95));
+    background: var(--glass-panel);
   }
   .about-legal-title {
     font-weight: 700;
@@ -348,13 +343,14 @@
     gap: 10px;
     flex-wrap: wrap;
   }
-  .btn-ghost {
+  .btn-ghost,
+  .page-back {
     appearance: none;
     display: inline-flex;
     align-items: center;
     gap: 8px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     border-radius: 999px;
     padding: 8px 14px;
@@ -362,8 +358,23 @@
     font-size: 13px;
     cursor: pointer;
   }
-  .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
+  .btn-ghost:hover,
+  .page-back:hover {
+    background: var(--glass-hover-strong);
+  }
+  .page-back {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    z-index: 20;
+    opacity: 0.9;
+  }
+  .page-back:hover {
+    opacity: 1;
+  }
+  .page-back:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .btn-icon {
     flex-shrink: 0;
@@ -378,9 +389,12 @@
   .error-banner {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 100, 100, 0.35);
-    background: rgba(255, 80, 80, 0.1);
-    color: #ffb4b4;
+    border: 1px solid rgba(200, 80, 80, 0.35);
+    background: rgba(200, 60, 60, 0.08);
+    color: #c04040;
     font-size: 13px;
+  }
+  :global(:root.dark) .error-banner {
+    color: #ffb4b4;
   }
 </style>

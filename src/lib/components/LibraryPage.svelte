@@ -488,7 +488,6 @@
 
 <div class="library">
   <header class="lib-top">
-    <button type="button" class="btn-ghost" onclick={onBack}>← Back</button>
     <div class="lib-top-main">
       <h1>Library</h1>
       <p class="sub">Browse projects, review prompts, and run smart folders.</p>
@@ -876,14 +875,16 @@
       </ul>
     </section>
   </div>
+
+  <button type="button" class="page-back" onclick={onBack}>← Back</button>
 </div>
 
 <style>
   .library {
     box-sizing: border-box;
-    width: min(1280px, 100%);
-    margin: 0 auto;
-    padding: 20px 20px 48px;
+    width: 100%;
+    margin: 0;
+    padding: 20px 24px 56px;
     color: var(--glass-text);
   }
   .lib-top {
@@ -933,7 +934,7 @@
     padding: 10px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.92);
+    background: var(--glass-inset);
     position: sticky;
     top: 12px;
     max-height: calc(100vh - 100px);
@@ -980,11 +981,11 @@
     min-width: 0;
   }
   .nav-item.active {
-    color: #7ee0d0;
-    background: rgba(80, 220, 200, 0.12);
+    color: var(--glass-selected-fg);
+    background: var(--glass-selected-bg);
   }
   .nav-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-hover);
   }
   .count {
     font-size: 11px;
@@ -1033,7 +1034,7 @@
   }
   .twist:hover,
   .icon-sm:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--glass-hover-strong);
     color: var(--glass-text);
   }
   .icon-sm.danger:hover {
@@ -1053,7 +1054,7 @@
     padding: 8px;
     border-radius: 10px;
     border: 1px solid var(--glass-border);
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--glass-hover);
     margin: 4px 0;
   }
   .inline-create input,
@@ -1063,7 +1064,7 @@
     box-sizing: border-box;
     border-radius: 8px;
     border: 1px solid var(--glass-border);
-    background: rgba(10, 14, 22, 0.9);
+    background: var(--glass-input);
     color: var(--glass-text);
     padding: 8px 10px;
     font: inherit;
@@ -1107,7 +1108,7 @@
   .tag-chip {
     appearance: none;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text-dim);
     border-radius: 999px;
     padding: 4px 10px;
@@ -1120,14 +1121,14 @@
   }
   .tag-chip.active {
     border-color: var(--glass-periwinkle);
-    color: var(--glass-periwinkle);
-    background: rgba(120, 163, 255, 0.12);
+    color: var(--glass-selected-fg);
+    background: var(--glass-selected-bg);
   }
   .main {
     padding: 16px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(16, 22, 34, 0.92);
+    background: var(--glass-panel);
     min-height: 420px;
   }
   .main-head {
@@ -1155,7 +1156,7 @@
     align-items: stretch;
     border-radius: 12px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--glass-control-bg);
   }
   .prompt-main {
     flex: 1;
@@ -1171,7 +1172,7 @@
     font: inherit;
   }
   .prompt-main:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-hover);
   }
   .prompt-title {
     font-weight: 600;
@@ -1206,7 +1207,7 @@
     border-radius: 999px;
     padding: 2px 8px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
   }
   .folder-badge.muted {
     opacity: 0.7;
@@ -1234,8 +1235,8 @@
     overflow: auto;
     border-radius: 10px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.98);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    background: var(--glass-menu);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     display: flex;
     flex-direction: column;
     padding: 4px;
@@ -1253,7 +1254,7 @@
     cursor: pointer;
   }
   .move-menu button:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-hover-strong);
   }
   .empty-main {
     padding: 32px 16px;
@@ -1266,10 +1267,11 @@
     align-items: center;
   }
   .control-btn,
-  .btn-ghost {
+  .btn-ghost,
+  .page-back {
     appearance: none;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     border-radius: 10px;
     padding: 10px 14px;
@@ -1282,27 +1284,48 @@
     padding: 6px 10px;
     font-size: 12px;
   }
-  .btn-ghost {
+  .btn-ghost,
+  .page-back {
     border-radius: 999px;
   }
   .control-btn:hover,
-  .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
+  .btn-ghost:hover,
+  .page-back:hover {
+    background: var(--glass-hover-strong);
   }
   .control-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .page-back {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    z-index: 20;
+    padding: 8px 14px;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+  .page-back:hover {
+    opacity: 1;
+  }
+  .page-back:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
+  }
   .error {
     margin: 0 0 12px;
-    color: #ffb4b4;
+    color: #c04040;
     font-size: 13px;
+  }
+  :global(:root.dark) .error {
+    color: #ffb4b4;
   }
   .error.banner {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 120, 120, 0.35);
-    background: rgba(80, 20, 20, 0.35);
+    border: 1px solid rgba(200, 80, 80, 0.35);
+    background: rgba(200, 60, 60, 0.08);
   }
   .lock {
     margin-left: 6px;

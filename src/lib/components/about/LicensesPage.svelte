@@ -63,7 +63,6 @@
 
 <div class="about-page licenses-page">
   <header class="row-header">
-    <button type="button" class="btn-ghost sm" onclick={onBack}>← About</button>
     <div class="header-grow">
       <h1>Licenses</h1>
       <p class="sub">Bundled license and attribution documents, available without opening a browser.</p>
@@ -113,14 +112,16 @@
   </div>
 
   <pre class="licenses-body" class:wrap>{loading ? 'Loading…' : visible || '(no matching lines)'}</pre>
+
+  <button type="button" class="page-back" onclick={onBack}>← About</button>
 </div>
 
 <style>
   .about-page {
     box-sizing: border-box;
-    width: min(1100px, 100%);
-    margin: 0 auto;
-    padding: 20px 20px 40px;
+    width: 100%;
+    margin: 0;
+    padding: 20px 24px 56px;
     color: var(--glass-text);
   }
   .row-header {
@@ -155,7 +156,7 @@
     padding: 6px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.9);
+    background: var(--glass-inset);
     margin-bottom: 16px;
   }
   .licenses-tab {
@@ -170,9 +171,9 @@
     cursor: pointer;
   }
   .licenses-tab.active {
-    color: #7ee0d0;
-    background: rgba(80, 220, 200, 0.12);
-    box-shadow: inset 0 -2px 0 #5ad4c0;
+    color: var(--glass-selected-fg);
+    background: var(--glass-selected-bg);
+    box-shadow: inset 0 -2px 0 var(--glass-selected-fg);
   }
   .licenses-doc-meta {
     display: flex;
@@ -198,7 +199,7 @@
     height: 40px;
     border-radius: 999px;
     border: 1px solid var(--glass-border);
-    background: rgba(12, 16, 26, 0.9);
+    background: var(--glass-input);
     color: var(--glass-text);
     padding: 0 16px;
     font: inherit;
@@ -218,8 +219,8 @@
     padding: 16px;
     border-radius: 14px;
     border: 1px solid var(--glass-border);
-    background: #0a0e16;
-    color: #c9d4e4;
+    background: var(--glass-code-bg);
+    color: var(--glass-code-text);
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 12px;
     line-height: 1.5;
@@ -229,10 +230,11 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .btn-ghost {
+  .btn-ghost,
+  .page-back {
     appearance: none;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     border-radius: 999px;
     padding: 8px 14px;
@@ -244,16 +246,34 @@
     padding: 6px 12px;
     font-size: 12px;
   }
-  .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
+  .btn-ghost:hover,
+  .page-back:hover {
+    background: var(--glass-hover-strong);
+  }
+  .page-back {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    z-index: 20;
+    opacity: 0.9;
+  }
+  .page-back:hover {
+    opacity: 1;
+  }
+  .page-back:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .error-banner {
     padding: 10px 12px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 100, 100, 0.35);
-    background: rgba(255, 80, 80, 0.1);
-    color: #ffb4b4;
+    border: 1px solid rgba(200, 80, 80, 0.35);
+    background: rgba(200, 60, 60, 0.08);
+    color: #c04040;
     font-size: 13px;
     margin-bottom: 12px;
+  }
+  :global(:root.dark) .error-banner {
+    color: #ffb4b4;
   }
 </style>

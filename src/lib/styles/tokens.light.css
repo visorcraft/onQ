@@ -10,5 +10,20 @@
   --glass-text-faint: #7a85a0;
   --glass-border: rgba(10, 20, 48, 0.08);
   --glass-border-strong: rgba(10, 20, 48, 0.14);
+  /* Light-readable panels (avoid hardcoded dark navy chrome). */
+  --glass-panel: #ffffff;
+  --glass-inset: #e8eefb;
+  --glass-input: #ffffff;
+  --glass-code-bg: #f4f6fb;
+  --glass-code-text: #1a2438;
+  --glass-table-header: #e8ecf6;
+  --glass-hover: rgba(10, 20, 48, 0.04);
+  --glass-hover-strong: rgba(10, 20, 48, 0.08);
+  --glass-selected-bg: rgba(37, 99, 235, 0.12);
+  --glass-selected-fg: #1d4ed8;
+  --glass-link: #1d4ed8;
+  --glass-control-bg: rgba(10, 20, 48, 0.04);
+  --glass-menu: #ffffff;
+  --glass-dialog: #ffffff;
   color-scheme: light;
 }

@@ -16,6 +16,21 @@
   --glass-text-faint: #7a8aa8;
   --glass-border: rgba(255, 255, 255, 0.12);
   --glass-border-strong: rgba(255, 255, 255, 0.18);
+  /* Theme-aware panel/chrome surfaces used by Settings, Library, About, etc. */
+  --glass-panel: rgba(16, 22, 34, 0.92);
+  --glass-inset: rgba(12, 16, 26, 0.92);
+  --glass-input: rgba(10, 14, 22, 0.9);
+  --glass-code-bg: #0a0e16;
+  --glass-code-text: #c9d4e4;
+  --glass-table-header: #121a28;
+  --glass-hover: rgba(255, 255, 255, 0.04);
+  --glass-hover-strong: rgba(255, 255, 255, 0.08);
+  --glass-selected-bg: rgba(80, 220, 200, 0.12);
+  --glass-selected-fg: #7ee0d0;
+  --glass-link: #9ecbff;
+  --glass-control-bg: rgba(255, 255, 255, 0.04);
+  --glass-menu: rgba(12, 16, 26, 0.98);
+  --glass-dialog: #0e1420;
   color-scheme: dark;
   /* Page background — required for WCAG AA color contrast on the dark text
    * tokens above. Without this, --glass-text on the default white <body>
