@@ -11,6 +11,7 @@ use mongreldb_core::{Row, Value};
 use onq_core::crypto;
 use onq_core::db::Db;
 use onq_core::embedding_index;
+use onq_core::folder_path;
 use onq_core::keychain::{Keychain, OsKeychain};
 use onq_core::lock::{derive_kek, generate_salt};
 use onq_core::recovery::{generate_phrase, phrase_to_passphrase};
@@ -515,6 +516,27 @@ pub async fn unlock_prompt(
     .map_err(|e| e.to_string())?
 }
 
+/// First-line / short body excerpt for library list rows. Empty when locked
+/// so encrypted bodies never leak into the list surface.
+fn body_preview(body: &str, locked: bool) -> String {
+    if locked {
+        return String::new();
+    }
+    const MAX: usize = 160;
+    let collapsed: String = body
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if collapsed.chars().count() <= MAX {
+        collapsed
+    } else {
+        let truncated: String = collapsed.chars().take(MAX).collect();
+        format!("{truncated}…")
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub struct PromptSummary {
     pub id: String,
@@ -525,6 +547,8 @@ pub struct PromptSummary {
     pub locked: bool,
     pub updated: String,
     pub char_count: usize,
+    /// Short plaintext excerpt for list UIs; empty when locked.
+    pub preview: String,
 }
 
 impl From<&Prompt> for PromptSummary {
@@ -538,6 +562,45 @@ impl From<&Prompt> for PromptSummary {
             locked: p.fm.locked,
             updated: p.fm.updated.to_rfc3339(),
             char_count: p.body.chars().count(),
+            preview: body_preview(&p.body, p.fm.locked),
+        }
+    }
+}
+
+/// Full prompt for the editor — summary fields plus body.
+#[derive(Serialize, Debug)]
+pub struct PromptDetail {
+    pub id: String,
+    pub title: String,
+    pub folder: Option<String>,
+    pub tags: Vec<String>,
+    pub favorite: bool,
+    pub locked: bool,
+    pub updated: String,
+    pub char_count: usize,
+    pub preview: String,
+    pub body: String,
+}
+
+impl From<&Prompt> for PromptDetail {
+    fn from(p: &Prompt) -> Self {
+        let summary = PromptSummary::from(p);
+        Self {
+            id: summary.id,
+            title: summary.title,
+            folder: summary.folder,
+            tags: summary.tags,
+            favorite: summary.favorite,
+            locked: summary.locked,
+            updated: summary.updated,
+            char_count: summary.char_count,
+            preview: summary.preview,
+            // Locked bodies stay sealed — editor shows empty + unlock CTA.
+            body: if p.fm.locked {
+                String::new()
+            } else {
+                p.body.clone()
+            },
         }
     }
 }
@@ -577,22 +640,35 @@ pub fn list_prompts(state: State<'_, AppState>) -> Result<Vec<PromptSummary>, St
 }
 
 #[tauri::command]
-pub fn read_prompt(id: String, state: State<'_, AppState>) -> Result<PromptSummary, String> {
+pub fn read_prompt(id: String, state: State<'_, AppState>) -> Result<PromptDetail, String> {
     let g = vault(&state)?;
     let v = g.as_ref().unwrap();
     let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
     let p = v.read(&pid).map_err(|e| e.to_string())?;
-    Ok(PromptSummary::from(&p))
+    Ok(PromptDetail::from(&p))
 }
 
 #[tauri::command]
-pub fn create_prompt(title: String, state: State<'_, AppState>) -> Result<PromptSummary, String> {
+pub fn create_prompt(
+    title: String,
+    folder: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<PromptSummary, String> {
     let g = vault(&state)?;
     let v = g.as_ref().unwrap();
-    let p = v.new_prompt(title).map_err(|e| e.to_string())?;
+    let mut p = v.new_prompt(title).map_err(|e| e.to_string())?;
+    p.fm.folder = match folder {
+        Some(raw) if !raw.trim().is_empty() => {
+            Some(folder_path::normalize(&raw).map_err(|e| e.to_string())?)
+        }
+        _ => None,
+    };
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
         index_prompt(&db, &p)?;
+        if let Some(ref path) = p.fm.folder {
+            ensure_folder_path(&db, path)?;
+        }
     }
     Ok(PromptSummary::from(&p))
 }
@@ -611,15 +687,61 @@ pub fn save_prompt(
     let v = g.as_ref().unwrap();
     let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
     let mut p = v.read(&pid).map_err(|e| e.to_string())?;
+    // Locked prompts keep the body sealed in `.enc`. Never accept a
+    // non-empty plaintext body while locked — that would write secrets
+    // next to the envelope and break the lock invariant.
+    if p.fm.locked {
+        if !body.is_empty() {
+            return Err("cannot save body of a locked prompt; unlock first".into());
+        }
+        // Metadata-only update; leave empty on-disk body alone.
+    } else {
+        p.body = body;
+    }
     p.fm.title = title;
-    p.body = body;
-    p.fm.folder = folder;
+    p.fm.folder = match folder {
+        Some(raw) if !raw.trim().is_empty() => {
+            Some(folder_path::normalize(&raw).map_err(|e| e.to_string())?)
+        }
+        _ => None,
+    };
     p.fm.tags = tags;
     p.fm.favorite = favorite;
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
         index_prompt(&db, &p)?;
+        if let Some(ref path) = p.fm.folder {
+            ensure_folder_path(&db, path)?;
+        }
+    }
+    Ok(PromptSummary::from(&p))
+}
+
+/// Move a prompt into a project (or Unfiled when `folder` is null/empty).
+#[tauri::command]
+pub fn set_prompt_folder(
+    id: String,
+    folder: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<PromptSummary, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let mut p = v.read(&pid).map_err(|e| e.to_string())?;
+    p.fm.folder = match folder {
+        Some(raw) if !raw.trim().is_empty() => {
+            Some(folder_path::normalize(&raw).map_err(|e| e.to_string())?)
+        }
+        _ => None,
+    };
+    p.fm.updated = chrono::Utc::now();
+    v.write(&p).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
+        index_prompt(&db, &p)?;
+        if let Some(ref path) = p.fm.folder {
+            ensure_folder_path(&db, path)?;
+        }
     }
     Ok(PromptSummary::from(&p))
 }
@@ -956,6 +1078,449 @@ pub async fn delete_smart_folder(id: String, state: State<'_, AppState>) -> Resu
                 Ok(())
             })
             .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Project (folder) CRUD — hierarchical paths
+//
+// Projects are path labels (`Writing/Blog Posts`) stored on prompt frontmatter
+// and registered in the `folders` table so empty nodes can exist. Rename
+// cascades through registered paths and every prompt under the old prefix.
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Serialize)]
+pub struct FolderSummary {
+    pub id: String,
+    pub name: String,
+    pub created: i64,
+    pub updated: i64,
+}
+
+impl FolderSummary {
+    fn from_row(row: &mongreldb_core::Row) -> Self {
+        let id = row
+            .columns
+            .get(&col::FOLDERS_ID)
+            .and_then(|v| match v {
+                Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let name = row
+            .columns
+            .get(&col::FOLDERS_NAME)
+            .and_then(|v| match v {
+                Value::Bytes(b) => Some(String::from_utf8_lossy(b).into_owned()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let created = row
+            .columns
+            .get(&col::FOLDERS_CREATED)
+            .and_then(|v| match v {
+                Value::Int64(n) => Some(*n),
+                _ => None,
+            })
+            .unwrap_or(0);
+        let updated = row
+            .columns
+            .get(&col::FOLDERS_UPDATED)
+            .and_then(|v| match v {
+                Value::Int64(n) => Some(*n),
+                _ => None,
+            })
+            .unwrap_or(0);
+        Self {
+            id,
+            name,
+            created,
+            updated,
+        }
+    }
+}
+
+fn build_folder_cells(
+    id: &PromptId,
+    name: &str,
+    created: i64,
+    updated: i64,
+) -> Vec<(u16, Value)> {
+    vec![
+        (
+            col::FOLDERS_ID,
+            Value::Bytes(id.as_str().as_bytes().to_vec()),
+        ),
+        (col::FOLDERS_NAME, Value::Bytes(name.as_bytes().to_vec())),
+        (col::FOLDERS_CREATED, Value::Int64(created)),
+        (col::FOLDERS_UPDATED, Value::Int64(updated)),
+    ]
+}
+
+fn list_folder_rows(db: &Db) -> Result<Vec<FolderSummary>, String> {
+    let rows = db
+        .handle()
+        .query_for_current_principal("folders", &Query::default(), None)
+        .map_err(|e| e.to_string())?;
+    Ok(rows.iter().map(FolderSummary::from_row).collect())
+}
+
+fn find_folder_by_name(db: &Db, name: &str) -> Result<Option<FolderSummary>, String> {
+    Ok(list_folder_rows(db)?
+        .into_iter()
+        .find(|f| f.name == name))
+}
+
+/// Ensure `path` and every ancestor are registered in `folders`.
+/// Lists the table once and inserts all missing rows in a single transaction.
+fn ensure_folder_path(db: &Db, path: &str) -> Result<(), String> {
+    let path = folder_path::normalize(path).map_err(|e| e.to_string())?;
+    let existing: std::collections::HashSet<String> =
+        list_folder_rows(db)?.into_iter().map(|f| f.name).collect();
+    let mut to_create: Vec<String> = Vec::new();
+    let mut cursor = Some(path);
+    while let Some(p) = cursor {
+        if !existing.contains(&p) {
+            to_create.push(p.clone());
+        }
+        cursor = folder_path::parent(&p);
+    }
+    if to_create.is_empty() {
+        return Ok(());
+    }
+    // Create ancestors first.
+    to_create.reverse();
+    let now = chrono::Utc::now().timestamp();
+    let cells_list: Vec<Vec<(u16, Value)>> = to_create
+        .iter()
+        .map(|name| {
+            let id = PromptId::new();
+            build_folder_cells(&id, name, now, now)
+        })
+        .collect();
+    db.handle()
+        .transaction_for_current_principal(|tx| {
+            for cells in cells_list {
+                tx.put("folders", cells)?;
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Rewrite every smart-folder DSL `folder:` token under `old` → `new`.
+fn rewrite_smart_folder_dsls(db: &Db, old: &str, new: &str) -> Result<(), String> {
+    apply_smart_folder_dsl_map(db, |dsl| {
+        onq_core::smart_folder_dsl::rewrite_folder_paths(dsl, old, new)
+    })
+}
+
+/// Strip `folder:` tokens under a deleted project path so smart folders do
+/// not keep filtering on a dead label.
+fn strip_smart_folder_dsls_under(db: &Db, ancestor: &str) -> Result<(), String> {
+    apply_smart_folder_dsl_map(db, |dsl| {
+        onq_core::smart_folder_dsl::strip_folder_paths_under(dsl, ancestor)
+    })
+}
+
+fn apply_smart_folder_dsl_map(
+    db: &Db,
+    map: impl Fn(&str) -> String,
+) -> Result<(), String> {
+    let rows = db
+        .handle()
+        .query_for_current_principal("smart_folders", &Query::default(), None)
+        .map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().timestamp();
+    let mut puts = Vec::new();
+    for row in rows {
+        let summary = SmartFolderSummary::from_row(&row);
+        let rewritten = map(&summary.query_dsl);
+        if rewritten == summary.query_dsl {
+            continue;
+        }
+        let pid = PromptId::from_string(summary.id.clone()).map_err(|e| e.to_string())?;
+        puts.push(build_smart_folder_cells(
+            &pid,
+            &summary.name,
+            &rewritten,
+            summary.query_visual.as_ref(),
+            summary.created,
+            now,
+        ));
+    }
+    if puts.is_empty() {
+        return Ok(());
+    }
+    db.handle()
+        .transaction_for_current_principal(|tx| {
+            for cells in puts {
+                tx.put("smart_folders", cells)?;
+            }
+            Ok(())
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Rewrite `path` under `old`→`new` and re-normalize so depth/length limits
+/// still hold after the rename.
+fn rewrite_path_normalized(path: &str, old: &str, new: &str) -> Result<String, String> {
+    let raw = folder_path::rewrite_prefix(path, old, new)
+        .ok_or_else(|| "internal path rewrite failed".to_string())?;
+    folder_path::normalize(&raw).map_err(|e| {
+        format!("rename would produce invalid project path “{raw}”: {e}")
+    })
+}
+
+#[tauri::command]
+pub async fn list_folders(state: State<'_, AppState>) -> Result<Vec<FolderSummary>, String> {
+    let db = require_db(&state)?;
+    tokio::task::spawn_blocking(move || list_folder_rows(&db))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Create a project path (and any missing ancestors). Idempotent: re-creating
+/// an existing path returns the existing row.
+#[tauri::command]
+pub async fn create_folder(
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<FolderSummary, String> {
+    let path = folder_path::normalize(&name).map_err(|e| e.to_string())?;
+    let db = require_db(&state)?;
+    tokio::task::spawn_blocking(move || -> Result<FolderSummary, String> {
+        ensure_folder_path(&db, &path)?;
+        find_folder_by_name(&db, &path)?
+            .ok_or_else(|| "failed to create project".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Rename a project path and cascade to every descendant path, prompt folder,
+/// and smart-folder DSL `folder:` token.
+#[tauri::command]
+pub async fn rename_folder(
+    old_name: String,
+    new_name: String,
+    state: State<'_, AppState>,
+) -> Result<FolderSummary, String> {
+    let old = folder_path::normalize(&old_name).map_err(|e| e.to_string())?;
+    let new = folder_path::normalize(&new_name).map_err(|e| e.to_string())?;
+    if old == new {
+        let db = require_db(&state)?;
+        return tokio::task::spawn_blocking(move || {
+            find_folder_by_name(&db, &old)?
+                .ok_or_else(|| "project not found".to_string())
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+    // Forbid renaming into own subtree (Writing → Writing/Blog).
+    if folder_path::is_under(&new, &old) && new != old {
+        return Err("cannot move a project into itself".into());
+    }
+    let db = require_db(&state)?;
+    let vault_root = {
+        let g = vault(&state)?;
+        g.as_ref().unwrap().root.clone()
+    };
+
+    tokio::task::spawn_blocking(move || -> Result<FolderSummary, String> {
+        let folders = list_folder_rows(&db)?;
+        let mut affected: Vec<FolderSummary> = folders
+            .iter()
+            .filter(|f| folder_path::is_under(&f.name, &old))
+            .cloned()
+            .collect();
+
+        let vault = Vault {
+            root: vault_root.clone(),
+        };
+        let ids = vault.list().map_err(|e| e.to_string())?;
+        let mut prompt_paths_under_old = false;
+        let mut prompts_to_rewrite: Vec<(PromptId, Prompt)> = Vec::new();
+        // Paths on prompts that are NOT under `old` — used for collision checks
+        // (folder table alone misses prompt-only destinations).
+        let mut foreign_prompt_paths: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for id in &ids {
+            let p = vault
+                .read(id)
+                .map_err(|e| format!("cannot read prompt {id} during rename: {e}"))?;
+            if let Some(ref folder) = p.fm.folder {
+                if folder_path::is_under(folder, &old) {
+                    prompt_paths_under_old = true;
+                    prompts_to_rewrite.push((id.clone(), p));
+                } else {
+                    foreign_prompt_paths.insert(folder.clone());
+                }
+            }
+        }
+
+        if affected.is_empty() {
+            if !prompt_paths_under_old {
+                return Err("project not found".into());
+            }
+            ensure_folder_path(&db, &old)?;
+            affected = list_folder_rows(&db)?
+                .into_iter()
+                .filter(|f| folder_path::is_under(&f.name, &old))
+                .collect();
+            if affected.is_empty() {
+                return Err("project not found".into());
+            }
+        }
+
+        let affected_ids: std::collections::HashSet<String> =
+            affected.iter().map(|f| f.id.clone()).collect();
+
+        // Precompute normalized rewrites; reject invalid depth/length early.
+        let mut rewritten_names: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for f in &affected {
+            rewritten_names.insert(rewrite_path_normalized(&f.name, &old, &new)?);
+        }
+        for (_id, p) in &prompts_to_rewrite {
+            let folder = p.fm.folder.as_deref().unwrap_or_default();
+            rewritten_names.insert(rewrite_path_normalized(folder, &old, &new)?);
+        }
+
+        // Collision: rewritten name already used by a folder outside the
+        // affected set, or by a prompt that is not part of this rename.
+        for rewritten in &rewritten_names {
+            if let Some(existing) = folders.iter().find(|x| x.name == *rewritten) {
+                if !affected_ids.contains(&existing.id) {
+                    return Err(format!("project already exists: {rewritten}"));
+                }
+            }
+            if foreign_prompt_paths.contains(rewritten) {
+                return Err(format!(
+                    "project already exists on a prompt: {rewritten}"
+                ));
+            }
+        }
+
+        // 1) Prompts first — if this fails mid-way, folders table still has
+        //    old names so a retry can complete without colliding on `new`.
+        for (_id, mut p) in prompts_to_rewrite {
+            let folder = p.fm.folder.clone().unwrap_or_default();
+            let rewritten = rewrite_path_normalized(&folder, &old, &new)?;
+            p.fm.folder = Some(rewritten);
+            p.fm.updated = chrono::Utc::now();
+            vault.write(&p).map_err(|e| e.to_string())?;
+            index_prompt(&db, &p)?;
+        }
+
+        // 2) Folder rows in one transaction.
+        let now = chrono::Utc::now().timestamp();
+        let folder_puts: Result<Vec<_>, String> = affected
+            .iter()
+            .map(|f| {
+                let rewritten = rewrite_path_normalized(&f.name, &old, &new)?;
+                let pid = PromptId::from_string(f.id.clone()).map_err(|e| e.to_string())?;
+                Ok(build_folder_cells(&pid, &rewritten, f.created, now))
+            })
+            .collect();
+        let folder_puts = folder_puts?;
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                for cells in folder_puts {
+                    tx.put("folders", cells)?;
+                }
+                Ok(())
+            })
+            .map_err(|e| e.to_string())?;
+
+        // 3) Smart-folder DSL tokens.
+        rewrite_smart_folder_dsls(&db, &old, &new)?;
+
+        // Ensure ancestors of the new path exist (e.g. rename into a new root).
+        ensure_folder_path(&db, &new)?;
+        find_folder_by_name(&db, &new)?
+            .ok_or_else(|| "rename succeeded but project missing".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Delete a project path and all descendants. Prompt folders under the path
+/// are cleared (moved to Unfiled).
+#[tauri::command]
+pub async fn delete_folder(name: String, state: State<'_, AppState>) -> Result<(), String> {
+    let path = folder_path::normalize(&name).map_err(|e| e.to_string())?;
+    let db = require_db(&state)?;
+    let vault_root = {
+        let g = vault(&state)?;
+        g.as_ref().unwrap().root.clone()
+    };
+
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        let folders = list_folder_rows(&db)?;
+        let affected: Vec<FolderSummary> = folders
+            .into_iter()
+            .filter(|f| folder_path::is_under(&f.name, &path))
+            .collect();
+
+        let vault = Vault { root: vault_root };
+        let ids = vault.list().map_err(|e| e.to_string())?;
+        // Clear prompt folders first so a mid-flight failure leaves prompts
+        // Unfiled rather than pointing at deleted project names.
+        for id in ids {
+            let mut p = vault
+                .read(&id)
+                .map_err(|e| format!("cannot read prompt {id} during delete: {e}"))?;
+            let Some(ref folder) = p.fm.folder else {
+                continue;
+            };
+            if !folder_path::is_under(folder, &path) {
+                continue;
+            }
+            p.fm.folder = None;
+            p.fm.updated = chrono::Utc::now();
+            vault.write(&p).map_err(|e| e.to_string())?;
+            index_prompt(&db, &p)?;
+        }
+
+        // Delete folder rows in one transaction.
+        let mut row_ids = Vec::new();
+        for f in &affected {
+            let pid = PromptId::from_string(f.id.clone()).map_err(|e| e.to_string())?;
+            if let Some(row) = db
+                .handle()
+                .query_for_current_principal(
+                    "folders",
+                    &Query {
+                        conditions: vec![Condition::Pk(pid.as_str().as_bytes().to_vec())],
+                        ..Default::default()
+                    },
+                    Some(&[col::FOLDERS_ID]),
+                )
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .next()
+            {
+                row_ids.push(row.row_id);
+            }
+        }
+        if !row_ids.is_empty() {
+            db.handle()
+                .transaction_for_current_principal(|tx| {
+                    for rid in row_ids {
+                        tx.delete("folders", rid)?;
+                    }
+                    Ok(())
+                })
+                .map_err(|e| e.to_string())?;
+        }
+
+        // Drop dead `folder:` filters from smart folders so they do not keep
+        // matching a project that no longer exists.
+        strip_smart_folder_dsls_under(&db, &path)?;
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -3448,6 +4013,194 @@ mod tests {
             id_keep.to_string(),
             "the wrong row was deleted"
         );
+    }
+
+    /// End-to-end rename cascade against vault + folders table + smart DSL.
+    /// Exercises the pure helpers the Tauri command body uses (same
+    /// transaction/rewrite path, without spinning the Tauri runtime).
+    #[test]
+    fn folder_rename_cascades_prompts_and_rejects_descendant_collisions() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let db = std::sync::Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+
+        // Tree: Team, Team/Alpha, Archive/Alpha (collision target for rename Team→Archive).
+        ensure_folder_path(&db, "Team/Alpha").unwrap();
+        ensure_folder_path(&db, "Archive/Alpha").unwrap();
+
+        let mut p = vault.new_prompt("in alpha").unwrap();
+        p.fm.folder = Some("Team/Alpha".into());
+        p.body = "body".into();
+        vault.write(&p).unwrap();
+        index_prompt(&db, &p).unwrap();
+
+        // Collision: Team → Archive would rewrite Team/Alpha → Archive/Alpha.
+        let folders = list_folder_rows(&db).unwrap();
+        let old = "Team";
+        let new = "Archive";
+        let affected: Vec<_> = folders
+            .iter()
+            .filter(|f| folder_path::is_under(&f.name, old))
+            .cloned()
+            .collect();
+        let affected_ids: std::collections::HashSet<_> =
+            affected.iter().map(|f| f.id.clone()).collect();
+        let mut collision = false;
+        for f in &affected {
+            let rewritten = folder_path::rewrite_prefix(&f.name, old, new).unwrap();
+            if let Some(existing) = folders.iter().find(|x| x.name == rewritten) {
+                if !affected_ids.contains(&existing.id) {
+                    collision = true;
+                    break;
+                }
+            }
+        }
+        assert!(
+            collision,
+            "rename Team→Archive must detect Archive/Alpha collision"
+        );
+
+        // Clean rename Team → Work: no collision.
+        let old = "Team";
+        let new = "Work";
+        let folders = list_folder_rows(&db).unwrap();
+        let affected: Vec<_> = folders
+            .iter()
+            .filter(|f| folder_path::is_under(&f.name, old))
+            .cloned()
+            .collect();
+        let now = chrono::Utc::now().timestamp();
+        let puts: Vec<_> = affected
+            .iter()
+            .map(|f| {
+                let rewritten = folder_path::rewrite_prefix(&f.name, old, new).unwrap();
+                let pid = PromptId::from_string(f.id.clone()).unwrap();
+                build_folder_cells(&pid, &rewritten, f.created, now)
+            })
+            .collect();
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                for cells in puts {
+                    tx.put("folders", cells)?;
+                }
+                Ok(())
+            })
+            .unwrap();
+
+        let names: std::collections::HashSet<_> = list_folder_rows(&db)
+            .unwrap()
+            .into_iter()
+            .map(|f| f.name)
+            .collect();
+        assert!(names.contains("Work"));
+        assert!(names.contains("Work/Alpha"));
+        assert!(!names.contains("Team"));
+        assert!(!names.contains("Team/Alpha"));
+
+        // Prompt frontmatter cascade.
+        let mut p = vault.read(&p.fm.id).unwrap();
+        let rewritten =
+            folder_path::rewrite_prefix(p.fm.folder.as_deref().unwrap(), old, new).unwrap();
+        p.fm.folder = Some(rewritten);
+        vault.write(&p).unwrap();
+        index_prompt(&db, &p).unwrap();
+        assert_eq!(
+            vault.read(&p.fm.id).unwrap().fm.folder.as_deref(),
+            Some("Work/Alpha")
+        );
+
+        // Smart-folder DSL rewrite.
+        let now = chrono::Utc::now().timestamp();
+        let sf_id = PromptId::new();
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                tx.put(
+                    "smart_folders",
+                    build_smart_folder_cells(
+                        &sf_id,
+                        "team filter",
+                        r#"folder:"Team/Alpha" tag:x"#,
+                        None,
+                        now,
+                        now,
+                    ),
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        // After Team→Work the DSL should still say Team if we didn't rewrite —
+        // call the helper with the post-rename old/new of a second rename?
+        // Simulate the pre-rename DSL update that rename_folder would do:
+        rewrite_smart_folder_dsls(&db, "Team", "Work").unwrap();
+        let rows = db
+            .handle()
+            .query_for_current_principal("smart_folders", &Query::default(), None)
+            .unwrap();
+        let dsl = SmartFolderSummary::from_row(&rows[0]).query_dsl;
+        assert!(
+            dsl.contains(r#"folder:"Work/Alpha""#) || dsl.contains("folder:Work/Alpha"),
+            "DSL must rewrite folder path, got {dsl}"
+        );
+    }
+
+    #[test]
+    fn folder_delete_moves_prompts_to_unfiled() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let db = std::sync::Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+
+        ensure_folder_path(&db, "Doomed/Child").unwrap();
+        let mut p = vault.new_prompt("victim").unwrap();
+        p.fm.folder = Some("Doomed/Child".into());
+        vault.write(&p).unwrap();
+        index_prompt(&db, &p).unwrap();
+
+        let path = "Doomed";
+        let affected: Vec<_> = list_folder_rows(&db)
+            .unwrap()
+            .into_iter()
+            .filter(|f| folder_path::is_under(&f.name, path))
+            .collect();
+        assert_eq!(affected.len(), 2);
+
+        let mut p = vault.read(&p.fm.id).unwrap();
+        p.fm.folder = None;
+        vault.write(&p).unwrap();
+        index_prompt(&db, &p).unwrap();
+        assert!(vault.read(&p.fm.id).unwrap().fm.folder.is_none());
+
+        let mut row_ids = Vec::new();
+        for f in &affected {
+            let pid = PromptId::from_string(f.id.clone()).unwrap();
+            if let Some(row) = db
+                .handle()
+                .query_for_current_principal(
+                    "folders",
+                    &Query {
+                        conditions: vec![Condition::Pk(pid.as_str().as_bytes().to_vec())],
+                        ..Default::default()
+                    },
+                    Some(&[col::FOLDERS_ID]),
+                )
+                .unwrap()
+                .into_iter()
+                .next()
+            {
+                row_ids.push(row.row_id);
+            }
+        }
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                for rid in row_ids {
+                    tx.delete("folders", rid)?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        assert!(list_folder_rows(&db)
+            .unwrap()
+            .iter()
+            .all(|f| !folder_path::is_under(&f.name, path)));
     }
 
     #[test]

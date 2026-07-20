@@ -1,8 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getVaultAuthMode, retrieveVaultKey } from '$lib/api/vault';
-  import { listPrompts, setPromptFavorite } from '$lib/api/prompts';
-  import type { PromptSummary } from '$lib/types/prompt';
   import {
     captureGlobalShortcut,
     globalShortcut,
@@ -22,37 +20,24 @@
     type EmbeddingQuant,
   } from '$lib/stores/settings';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
-  import {
-    createSmartFolder,
-    deleteSmartFolder,
-    listSmartFolders,
-    type SmartFolder,
-  } from '$lib/api/smartFolders';
 
   let {
     onBack,
     onOpenAbout,
+    onOpenLibrary,
   }: {
     onBack: () => void;
     onOpenAbout: () => void;
+    onOpenLibrary?: () => void;
   } = $props();
 
-  type SectionId =
-    | 'general'
-    | 'search'
-    | 'vault'
-    | 'projects'
-    | 'favorites'
-    | 'updates'
-    | 'about';
+  type SectionId = 'general' | 'search' | 'vault' | 'updates' | 'about';
 
   const metaKeyLabel = metaModifierLabel();
   const sections: { id: SectionId; label: string }[] = [
     { id: 'general', label: 'General' },
     { id: 'search', label: 'Search' },
     { id: 'vault', label: 'Vault & security' },
-    { id: 'projects', label: 'Projects' },
-    { id: 'favorites', label: 'Favorites' },
     { id: 'updates', label: 'Updates' },
     { id: 'about', label: 'About' },
   ];
@@ -70,26 +55,6 @@
   let lastSynced = $state<EmbeddingQuant | null>(null);
   let pendingBeta = $state(false);
   let lastSyncedBeta = $state<boolean | null>(null);
-
-  let prompts = $state<PromptSummary[]>([]);
-  let smartFolders = $state<SmartFolder[]>([]);
-  let orgError = $state<string | null>(null);
-  let newProjectName = $state('');
-  let newSmartName = $state('');
-  let newSmartDsl = $state('favorite:true');
-  let busyId = $state<string | null>(null);
-
-  const favorites = $derived(prompts.filter((p) => p.favorite));
-  const projects = $derived.by(() => {
-    const counts = new Map<string, number>();
-    for (const p of prompts) {
-      const key = (p.folder ?? '').trim() || 'Unfiled';
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  });
 
   $effect(() => {
     const store = $embeddingQuant;
@@ -113,19 +78,7 @@
     void getVaultAuthMode()
       .then((mode) => (authMode = mode))
       .catch(() => undefined);
-    void refreshOrg();
   });
-
-  async function refreshOrg() {
-    orgError = null;
-    try {
-      const [p, sf] = await Promise.all([listPrompts(), listSmartFolders()]);
-      prompts = p;
-      smartFolders = sf;
-    } catch (e) {
-      orgError = e instanceof Error ? e.message : String(e);
-    }
-  }
 
   async function recordShortcut(event: KeyboardEvent) {
     event.preventDefault();
@@ -203,56 +156,6 @@
     void setTheme(next);
   }
 
-  async function unfavorite(p: PromptSummary) {
-    busyId = p.id;
-    orgError = null;
-    try {
-      const full = await setPromptFavorite(p.id, false);
-      prompts = prompts.map((x) => (x.id === full.id ? { ...x, favorite: false } : x));
-    } catch (e) {
-      orgError = e instanceof Error ? e.message : String(e);
-    } finally {
-      busyId = null;
-    }
-  }
-
-  async function assignProject(name: string) {
-    // Create a "project" by renaming unfiled isn't enough — projects are
-    // folder labels. Creating a smart folder named after the project is the
-    // search-oriented way to pin a workspace filter.
-    if (!name.trim()) return;
-    orgError = null;
-    try {
-      const folder = name.trim();
-      await createSmartFolder(folder, `folder:"${folder.replace(/"/g, '')}"`);
-      newProjectName = '';
-      await refreshOrg();
-    } catch (e) {
-      orgError = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  async function addSmartFolder() {
-    if (!newSmartName.trim() || !newSmartDsl.trim()) return;
-    orgError = null;
-    try {
-      await createSmartFolder(newSmartName.trim(), newSmartDsl.trim());
-      newSmartName = '';
-      await refreshOrg();
-    } catch (e) {
-      orgError = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  async function removeSmart(id: string) {
-    orgError = null;
-    try {
-      await deleteSmartFolder(id);
-      await refreshOrg();
-    } catch (e) {
-      orgError = e instanceof Error ? e.message : String(e);
-    }
-  }
 </script>
 
 <div class="settings-page">
@@ -315,6 +218,21 @@
           <button type="button" class="control-btn" onclick={toggleTheme}>
             Theme: {$theme === 'dark' ? 'Dark' : 'Light'} (click to toggle)
           </button>
+        </section>
+
+        <section class="panel">
+          <h2>Library</h2>
+          <p class="help">
+            Projects, smart folders, favorites, and prompt browsing live in the
+            Library — not in Settings.
+          </p>
+          {#if onOpenLibrary}
+            <button type="button" class="control-btn" onclick={onOpenLibrary}
+              >Open Library…</button
+            >
+          {:else}
+            <p class="hint">Use the ☰ button on the home screen.</p>
+          {/if}
         </section>
       {:else if active === 'search'}
         <section class="panel" aria-labelledby="embedding-heading">
@@ -395,106 +313,6 @@
             <p class="hint">Auth mode: {authMode ?? 'unknown'}</p>
           </section>
         {/if}
-      {:else if active === 'projects'}
-        <section class="panel">
-          <h2>Projects</h2>
-          <p class="help">
-            Projects are folder labels on prompts — search-oriented workspaces
-            you can filter in the palette. Smart folders pin reusable DSL
-            queries (favorites, tags, folders).
-          </p>
-          {#if orgError}<p class="error" role="alert">{orgError}</p>{/if}
-
-          <h3 class="subhead">Folder projects</h3>
-          <ul class="list">
-            {#each projects as proj (proj.name)}
-              <li>
-                <span class="list-title">{proj.name}</span>
-                <span class="list-meta">{proj.count} prompts</span>
-              </li>
-            {:else}
-              <li class="empty">No folder labels yet — assign folders when editing prompts.</li>
-            {/each}
-          </ul>
-          <div class="inline-form">
-            <input
-              type="text"
-              placeholder="New project (smart folder for folder:Name)"
-              bind:value={newProjectName}
-            />
-            <button
-              type="button"
-              class="control-btn"
-              onclick={() => void assignProject(newProjectName)}
-              disabled={!newProjectName.trim()}
-            >
-              Add smart project
-            </button>
-          </div>
-
-          <h3 class="subhead">Smart folders</h3>
-          <ul class="list">
-            {#each smartFolders as sf (sf.id)}
-              <li>
-                <div>
-                  <div class="list-title">{sf.name}</div>
-                  <div class="list-meta mono">{sf.query_dsl}</div>
-                </div>
-                <button
-                  type="button"
-                  class="btn-ghost sm"
-                  onclick={() => void removeSmart(sf.id)}>Delete</button
-                >
-              </li>
-            {:else}
-              <li class="empty">No smart folders yet.</li>
-            {/each}
-          </ul>
-          <div class="inline-form stacked">
-            <input type="text" placeholder="Name" bind:value={newSmartName} />
-            <input type="text" placeholder="DSL e.g. favorite:true" bind:value={newSmartDsl} />
-            <button type="button" class="control-btn" onclick={() => void addSmartFolder()}
-              >Create smart folder</button
-            >
-          </div>
-        </section>
-      {:else if active === 'favorites'}
-        <section class="panel">
-          <h2>Favorites</h2>
-          <p class="help">
-            Starred prompts surface in search and smart folders. Manage them
-            here without leaving Settings.
-          </p>
-          {#if orgError}<p class="error" role="alert">{orgError}</p>{/if}
-          <ul class="list">
-            {#each favorites as fav (fav.id)}
-              <li>
-                <div>
-                  <div class="list-title">{fav.title}</div>
-                  <div class="list-meta">
-                    {fav.folder || 'Unfiled'}
-                    {#if fav.tags?.length}
-                      · {fav.tags.join(', ')}
-                    {/if}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="btn-ghost sm"
-                  disabled={busyId === fav.id}
-                  onclick={() => void unfavorite(fav)}
-                >
-                  Unfavorite
-                </button>
-              </li>
-            {:else}
-              <li class="empty">No favorites yet. Star prompts from the editor or palette.</li>
-            {/each}
-          </ul>
-          <button type="button" class="btn-ghost sm" onclick={() => void refreshOrg()}
-            >Refresh</button
-          >
-        </section>
       {:else if active === 'updates'}
         <section class="panel">
           <h2>Beta channel</h2>
@@ -509,7 +327,7 @@
               bind:checked={pendingBeta}
               onchange={(event) => flipBeta(event.currentTarget.checked)}
             />
-            <span>Opt in to beta releases</span>
+            <span class="toggle-label">Opt in to beta releases</span>
           </label>
         </section>
       {:else if active === 'about'}
@@ -559,8 +377,7 @@
     font-size: 13px;
     line-height: 1.45;
   }
-  .help code,
-  .mono {
+  .help code {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 12px;
   }
@@ -634,10 +451,6 @@
   .btn-ghost {
     border-radius: 999px;
   }
-  .btn-ghost.sm {
-    padding: 6px 10px;
-    font-size: 12px;
-  }
   .control-btn:hover,
   .btn-ghost:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -698,9 +511,15 @@
     border: 1px solid var(--glass-border);
     border-radius: 10px;
     cursor: pointer;
+    font-size: 13px;
+    color: var(--glass-text);
   }
-  textarea,
-  input[type='text'] {
+  .toggle-label {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--glass-text);
+  }
+  textarea {
     width: 100%;
     box-sizing: border-box;
     border-radius: 10px;
@@ -710,57 +529,6 @@
     padding: 10px 12px;
     font: inherit;
     margin-bottom: 8px;
-  }
-  .list {
-    list-style: none;
-    margin: 0 0 12px;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .list li {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.03);
-  }
-  .list-title {
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .list-meta {
-    font-size: 12px;
-    color: var(--glass-text-dim);
-  }
-  .list .empty {
-    color: var(--glass-text-dim);
-    font-size: 13px;
-  }
-  .subhead {
-    margin: 16px 0 8px;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--glass-text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .inline-form {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .inline-form.stacked {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .inline-form input {
-    margin: 0;
-    flex: 1;
   }
   .visually-hidden {
     position: absolute;

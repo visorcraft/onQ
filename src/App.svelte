@@ -5,6 +5,7 @@
   import Editor from '$lib/components/Editor.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import SettingsPage from '$lib/components/SettingsPage.svelte';
+  import LibraryPage from '$lib/components/LibraryPage.svelte';
   import AboutPage from '$lib/components/about/AboutPage.svelte';
   import LicensesPage from '$lib/components/about/LicensesPage.svelte';
   import CreditsPage from '$lib/components/about/CreditsPage.svelte';
@@ -24,6 +25,8 @@
   const shortcut = paletteShortcut();
   const STATUS_CLEAR_MS = 5_000;
   let lastOpenedId = $state<string | null>(null);
+  /** Bumped when the editor closes so Library reloads list data. */
+  let libraryEpoch = $state(0);
   let hasVault = $state(false);
   let checkingVault = $state(true);
   let vaultError = $state<string | null>(null);
@@ -126,6 +129,7 @@
 
   function closeEditor() {
     lastOpenedId = null;
+    libraryEpoch += 1;
   }
 
   const onPage = $derived($appView !== 'home');
@@ -143,6 +147,17 @@
       >
         ?
       </button>
+      {#if hasVault}
+        <button
+          type="button"
+          class="icon-button library-button glass"
+          aria-label="Open library"
+          title="Library"
+          onclick={() => go('library')}
+        >
+          ☰
+        </button>
+      {/if}
       <button
         type="button"
         class="icon-button settings-button glass"
@@ -178,8 +193,28 @@
     v{appVersion}
   </button>
 
-  {#if $appView === 'settings'}
-    <SettingsPage onBack={() => go('home')} onOpenAbout={() => go('about')} />
+  {#if $appView === 'library'}
+    <LibraryPage
+      {libraryEpoch}
+      onBack={() => {
+        lastOpenedId = null;
+        go('home');
+      }}
+      onOpenPrompt={(id) => {
+        lastOpenedId = id;
+      }}
+    />
+    {#if lastOpenedId}
+      {#key lastOpenedId}
+        <Editor id={lastOpenedId} onClose={closeEditor} />
+      {/key}
+    {/if}
+  {:else if $appView === 'settings'}
+    <SettingsPage
+      onBack={() => go('home')}
+      onOpenAbout={() => go('about')}
+      onOpenLibrary={hasVault ? () => go('library') : undefined}
+    />
   {:else if $appView === 'about'}
     <AboutPage
       onBack={() => go('home')}
@@ -206,7 +241,9 @@
     </div>
     <Palette />
     {#if lastOpenedId}
-      <Editor id={lastOpenedId} onClose={closeEditor} />
+      {#key lastOpenedId}
+        <Editor id={lastOpenedId} onClose={closeEditor} />
+      {/key}
     {/if}
     {#if $tutorialVisible}
       <TutorialOverlay />
@@ -314,6 +351,9 @@
     cursor: pointer;
     border: 1px solid var(--glass-border);
     background: rgba(127, 127, 127, 0.08);
+  }
+  .library-button {
+    font-size: 18px;
   }
   .help-button {
     font-size: 20px;

@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 
 /** Top-level app surfaces (full pages, not modals). */
-export type AppView = 'home' | 'settings' | 'about' | 'licenses' | 'credits';
+export type AppView = 'home' | 'library' | 'settings' | 'about' | 'licenses' | 'credits';
 
 export const appView = writable<AppView>('home');
 

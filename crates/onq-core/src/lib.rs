@@ -5,6 +5,7 @@ pub mod db;
 pub mod embed;
 pub mod embedding_index;
 pub mod error;
+pub mod folder_path;
 pub mod frontmatter;
 pub mod history;
 pub mod keychain;

@@ -19,6 +19,7 @@
 //! parser never grants the DSL a side-channel to run anything.
 
 use crate::error::{CoreError, CoreResult};
+use crate::folder_path;
 use crate::search::SearchQuery;
 
 /// Parse a smart-folder DSL string into a [`SearchQuery`].
@@ -98,6 +99,65 @@ fn unquote(s: &str) -> String {
     s.trim_matches('"').trim_matches('\'').to_string()
 }
 
+/// Rewrite every `folder:` operand under `old` to the corresponding path
+/// under `new` (same prefix rules as [`folder_path::rewrite_prefix`]).
+/// Non-folder tokens are left unchanged. Used when a project is renamed so
+/// saved smart-folder queries keep matching.
+pub fn rewrite_folder_paths(dsl: &str, old: &str, new: &str) -> String {
+    let tokens = tokenize(dsl);
+    let mut out = Vec::with_capacity(tokens.len());
+    for tok in tokens {
+        if let Some(rest) = tok.strip_prefix("folder:") {
+            let name = unquote(rest);
+            if let Some(rewritten) = folder_path::rewrite_prefix(&name, old, new) {
+                let quoted = rest.starts_with('"')
+                    || rest.starts_with('\'')
+                    || rewritten.contains(char::is_whitespace);
+                if quoted {
+                    out.push(format!(
+                        "folder:\"{}\"",
+                        rewritten.replace('"', "")
+                    ));
+                } else {
+                    out.push(format!("folder:{rewritten}"));
+                }
+            } else {
+                out.push(tok);
+            }
+        } else {
+            out.push(tok);
+        }
+    }
+    out.join(" ")
+}
+
+/// Remove every `folder:` token whose path is under `ancestor` (self or
+/// descendant). Used when a project is deleted so saved searches do not keep
+/// filtering on a dead path. If the DSL becomes empty, returns a filter that
+/// matches nothing (`char:<-1`) so the smart folder does not silently become
+/// "all prompts".
+pub fn strip_folder_paths_under(dsl: &str, ancestor: &str) -> String {
+    let tokens = tokenize(dsl);
+    let mut out = Vec::with_capacity(tokens.len());
+    for tok in tokens {
+        if let Some(rest) = tok.strip_prefix("folder:") {
+            let name = unquote(rest);
+            if folder_path::is_under(&name, ancestor) {
+                continue;
+            }
+            out.push(tok);
+        } else {
+            out.push(tok);
+        }
+    }
+    if out.is_empty() {
+        // Impossible char range — char_count is always >= 0.
+        "char:<-1".to_string()
+    } else {
+        out.join(" ")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +182,30 @@ mod tests {
         let q = parse("char:>100 char:<1000").unwrap();
         assert_eq!(q.char_min, Some(100));
         assert_eq!(q.char_max, Some(1000));
+    }
+
+    #[test]
+    fn rewrite_folder_paths_renames_operands() {
+        let dsl = r#"folder:Writing tag:x folder:"Writing/Blog Posts" text:"keep""#;
+        let out = rewrite_folder_paths(dsl, "Writing", "Drafts");
+        assert!(out.contains("folder:Drafts"));
+        assert!(out.contains(r#"folder:"Drafts/Blog Posts""#));
+        assert!(out.contains("tag:x"));
+        assert!(out.contains(r#"text:"keep""#));
+        // Unrelated root stays put.
+        assert_eq!(
+            rewrite_folder_paths("folder:Coding", "Writing", "Drafts"),
+            "folder:Coding"
+        );
+    }
+
+    #[test]
+    fn strip_folder_paths_under_removes_matching_tokens() {
+        let dsl = r#"folder:Doomed tag:x folder:"Doomed/Child" folder:Keep"#;
+        let out = strip_folder_paths_under(dsl, "Doomed");
+        assert!(out.contains("tag:x"));
+        assert!(out.contains("folder:Keep"));
+        assert!(!out.contains("Doomed"));
+        assert_eq!(strip_folder_paths_under("folder:Doomed", "Doomed"), "char:<-1");
     }
 }
