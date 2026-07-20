@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to attach artifacts to (e.g. v1.0.3)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -38,21 +44,33 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libxdo-dev \
+            libssl-dev
+      # github.event.repository.push_id is not a real field — it expands to ""
+      # and breaks cc-rs / objc2 on macOS (SOURCE_DATE_EPOCH must be a uint).
+      - name: Set SOURCE_DATE_EPOCH from commit time
+        shell: bash
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> "$GITHUB_ENV"
       - name: Build Tauri app
         env:
-          SOURCE_DATE_EPOCH: ${{ github.event.repository.push_id }}
+          # FUSE is unavailable on GHA; extract AppImages instead of mounting.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          # linuxdeploy's bundled strip can't handle modern .relr.dyn ELF sections.
+          NO_STRIP: 'true'
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run build:app -- --target ${{ matrix.target }}
       - uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           fail_on_unmatched_files: false
           files: |
             target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             target/${{ matrix.target }}/release/bundle/macos/*.app.zip
             target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
             target/${{ matrix.target }}/release/bundle/deb/*.deb
+            target/${{ matrix.target }}/release/bundle/rpm/*.rpm
             target/${{ matrix.target }}/release/bundle/msi/*.msi
             target/${{ matrix.target }}/release/bundle/nsis/*.exe
             target/${{ matrix.target }}/release/bundle/**/*.sig
@@ -60,6 +78,7 @@ jobs:
             target/release/bundle/macos/*.app.zip
             target/release/bundle/appimage/*.AppImage
             target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
             target/release/bundle/**/*.sig

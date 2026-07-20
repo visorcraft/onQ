@@ -30,9 +30,9 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run docs:build
+      # Pages site must already exist (GITHUB_TOKEN cannot create it).
+      # Enable once via: gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
       - uses: actions/configure-pages@v6
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs-site/.vitepress/dist
