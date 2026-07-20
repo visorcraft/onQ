@@ -5,12 +5,10 @@ import { getAppSetting } from '$lib/api/settings';
 /**
  * User opt-in for pre-release auto-updates (M7.2).
  *
- * Persisted to `app_state.beta_channel`. The auto-update flow wired in
- * M7.1 still consults a single `latest.json` endpoint — splitting the
- * updater into separate production / beta channels is intentionally a
- * follow-up task, so toggling this today only flips the stored flag.
- * The UI surfaces that limitation inline so the user knows the choice
- * is recorded but does not yet redirect the updater.
+ * Persisted to `app_state.beta_channel`. Production updates use the stable
+ * `updater` release feed (plus a GitHub-latest fallback). Splitting a
+ * dedicated beta feed is intentionally a follow-up — toggling this today
+ * only flips the stored flag. The UI surfaces that limitation inline.
  */
 export const betaChannel = writable<boolean>(false);
 

@@ -24,6 +24,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
+        "https://github.com/visorcraft/onQ/releases/download/updater/latest.json",
         "https://github.com/visorcraft/onQ/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI4MEEzRUUxMzU5Q0ZFRUEKUldUcS9wdzE0VDRLS1BTUjlrM0Z5NnFUaDZyRmZpSFljNDJNalVuVVRrMGFDanJxa05FeEdJbzAK"

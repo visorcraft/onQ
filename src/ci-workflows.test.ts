@@ -63,6 +63,10 @@ describe('release.yml', () => {
     expect(yaml).toMatch(/publish-latest-json/);
     expect(yaml).toMatch(/generate-latest-json\.sh/);
     expect(yaml).toMatch(/latest\.json/);
+    // Stable feed host — not the flaky releases/latest alias.
+    expect(yaml).toMatch(/gh release upload updater latest\.json/);
+    expect(yaml).toMatch(/gh release edit.*--latest/);
+    expect(yaml).toMatch(/make_latest:\s*false/);
     const script = readRepo('scripts', 'generate-latest-json.sh');
     expect(script).toMatch(/platforms/);
     expect(script).toMatch(/linux-x86_64/);

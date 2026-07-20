@@ -10,6 +10,11 @@
 # Requires: gh, jq
 # The release must already have signed updater artifacts uploaded
 # (.AppImage + .sig, .exe/.msi + .sig, .app.tar.gz + .sig).
+#
+# CI uploads the result to:
+#   1. the versioned release tag (e.g. v1.1.3)
+#   2. the permanent `updater` release (stable URL used by the app)
+# so clients never depend solely on GitHub's "latest" release alias.
 
 set -euo pipefail
 

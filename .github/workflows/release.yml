@@ -64,6 +64,9 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          # Only the publish-latest-json job forces --latest after artifacts
+          # land; avoid intermediate matrix jobs flipping "latest" mid-build.
+          make_latest: false
           fail_on_unmatched_files: false
           files: |
             target/${{ matrix.target }}/release/bundle/dmg/*.dmg
@@ -86,7 +89,10 @@ jobs:
             target/release/bundle/**/*.sig
 
   # Matrix jobs upload platform bundles; this job builds the static updater
-  # manifest the app fetches from releases/latest/download/latest.json.
+  # manifest. Primary app endpoint is the stable non-version `updater` release
+  # (immune to GitHub "latest" alias drift when old tags are re-published).
+  # We also attach latest.json to the version tag and force that tag to be
+  # GitHub's "latest" for the secondary fallback URL.
   publish-latest-json:
     needs: build
     runs-on: ubuntu-latest
@@ -102,4 +108,23 @@ jobs:
           # Wait briefly for release asset listing to settle after matrix uploads.
           sleep 5
           ./scripts/generate-latest-json.sh "$RELEASE_TAG" latest.json
+
+          # Version release asset (debugging / direct tag downloads).
           gh release upload "$RELEASE_TAG" latest.json --clobber
+
+          # Stable feed used by the app: always the same URL regardless of
+          # which semver tag GitHub currently marks as "latest".
+          if ! gh release view updater >/dev/null 2>&1; then
+            gh release create updater \
+              --title "Updater feed (stable)" \
+              --notes "Permanent host for Tauri latest.json. Not a product version — do not install assets from this release. CI overwrites latest.json on every versioned release." \
+              --latest=false
+          fi
+          gh release upload updater latest.json --clobber
+
+          # Prefer this version as GitHub "latest" when it is a real v* product
+          # tag (not a manual re-attach of an ancient tag unless the operator
+          # chose that tag as the dispatch input intentionally).
+          if [[ "$RELEASE_TAG" == v* ]]; then
+            gh release edit "$RELEASE_TAG" --latest || true
+          fi

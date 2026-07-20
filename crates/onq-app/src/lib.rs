@@ -329,8 +329,17 @@ mod tests {
     fn updater_uses_production_release_endpoint_and_frontend_permission() {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
+        let endpoints = config["plugins"]["updater"]["endpoints"]
+            .as_array()
+            .expect("updater endpoints array");
+        // Primary: stable non-version `updater` release (immune to "latest" alias drift).
         assert_eq!(
-            config["plugins"]["updater"]["endpoints"][0],
+            endpoints[0],
+            "https://github.com/visorcraft/onQ/releases/download/updater/latest.json"
+        );
+        // Fallback: GitHub "latest" alias (kept for older clients / recovery).
+        assert_eq!(
+            endpoints[1],
             "https://github.com/visorcraft/onQ/releases/latest/download/latest.json"
         );
         assert_eq!(config["bundle"]["createUpdaterArtifacts"], true);

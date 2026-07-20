@@ -76,21 +76,26 @@
     }
   }
 
-  onMount(async () => {
-    try {
-      const status = await openLastVault();
-      if (status.opened) onVaultReady();
-      else if (status.needsPassword && status.path) passwordPath = status.path;
-      else if (status.needsRecovery && status.path) {
-        recoveryPath = status.path;
-        vaultError = 'Encryption key missing from system keychain.';
-      }
-    } catch (error) {
-      vaultError = `Could not open last vault: ${String(error)}`;
-    } finally {
-      checkingVault = false;
-    }
+  onMount(() => {
+    // Updater must not wait on vault open / keychain prompts — it has no
+    // dependency on vault state and should work from the empty-state screen.
     void checkForUpdates();
+
+    void (async () => {
+      try {
+        const status = await openLastVault();
+        if (status.opened) onVaultReady();
+        else if (status.needsPassword && status.path) passwordPath = status.path;
+        else if (status.needsRecovery && status.path) {
+          recoveryPath = status.path;
+          vaultError = 'Encryption key missing from system keychain.';
+        }
+      } catch (error) {
+        vaultError = `Could not open last vault: ${String(error)}`;
+      } finally {
+        checkingVault = false;
+      }
+    })();
   });
 
   onDestroy(() => {
