@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { check } from '@tauri-apps/plugin-updater';
   import Palette from '$lib/components/Palette.svelte';
   import Editor from '$lib/components/Editor.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
-  import SettingsPanel from '$lib/components/SettingsPanel.svelte';
+  import SettingsPage from '$lib/components/SettingsPage.svelte';
+  import AboutPage from '$lib/components/about/AboutPage.svelte';
+  import LicensesPage from '$lib/components/about/LicensesPage.svelte';
+  import CreditsPage from '$lib/components/about/CreditsPage.svelte';
   import TutorialOverlay from '$lib/components/TutorialOverlay.svelte';
   import VaultUnlock from '$lib/components/VaultUnlock.svelte';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import {
     checkAndStart,
-    reset as replayTutorial,
     tutorialVisible,
   } from '$lib/stores/tutorial';
   import { getAppSetting } from '$lib/api/settings';
@@ -18,12 +20,11 @@
   import { paletteShortcut } from '$lib/shortcut';
   import { globalShortcut } from '$lib/stores/globalShortcut';
   import { openLastVault } from '$lib/api/vault';
+  import { appView, navigate, type AppView } from '$lib/stores/navigation';
+  import { version as appVersion } from '../package.json';
 
   const shortcut = paletteShortcut();
-  // Id of the prompt the user had open when the app last quit. Read from
-  // the encrypted `app_state.last_opened_prompt` column once the vault is
-  // ready and, if it still resolves, pre-loaded into the editor so the user
-  // returns to where they left off.
+  const STATUS_CLEAR_MS = 5_000;
   let lastOpenedId = $state<string | null>(null);
   let hasVault = $state(false);
   let checkingVault = $state(true);
@@ -31,27 +32,47 @@
   let passwordPath = $state<string | null>(null);
   let recoveryPath = $state<string | null>(null);
   let tutorialChecked = false;
-  // M6.10: settings drawer state. Bound to the SettingsPanel modal so
-  // the panel can dismiss itself by flipping `open = false`.
-  let settingsOpen = $state(false);
   let checkingForUpdates = $state(false);
   let updateStatus = $state<string | null>(null);
+  let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearUpdateStatusTimer() {
+    if (updateStatusTimer !== undefined) {
+      clearTimeout(updateStatusTimer);
+      updateStatusTimer = undefined;
+    }
+  }
+
+  function setUpdateStatus(message: string | null, autoClearMs?: number) {
+    clearUpdateStatusTimer();
+    updateStatus = message;
+    if (message && autoClearMs !== undefined) {
+      updateStatusTimer = setTimeout(() => {
+        updateStatus = null;
+        updateStatusTimer = undefined;
+      }, autoClearMs);
+    }
+  }
 
   async function checkForUpdates(manual = false) {
     if (checkingForUpdates) return;
     checkingForUpdates = true;
-    if (manual) updateStatus = 'Checking for updates…';
+    if (manual) setUpdateStatus('Checking for updates…');
 
     try {
       const update = await check();
       if (update) {
-        updateStatus = `onQ ${update.version} is available`;
+        setUpdateStatus(`onQ ${update.version} is available`);
         await update.close();
       } else if (manual) {
-        updateStatus = 'onQ is up to date';
+        setUpdateStatus('onQ is up to date', STATUS_CLEAR_MS);
+      } else {
+        setUpdateStatus(null);
       }
     } catch (error) {
-      if (manual) updateStatus = `Unable to check for updates: ${String(error)}`;
+      if (manual) {
+        setUpdateStatus(`Unable to check for updates: ${String(error)}`);
+      }
     } finally {
       checkingForUpdates = false;
     }
@@ -74,13 +95,14 @@
     void checkForUpdates();
   });
 
+  onDestroy(() => {
+    clearUpdateStatusTimer();
+  });
+
   async function restoreLastOpened() {
     try {
       const id = await getAppSetting('last_opened_prompt');
       if (!id) return;
-      // `readPrompt` throws if the id was deleted between sessions — the
-      // catch below swallows it so a stale id never prevents the app
-      // from launching.
       await readPrompt(id);
       lastOpenedId = id;
     } catch {
@@ -106,60 +128,88 @@
     void setTheme(next);
   }
 
-  function openSettings() {
-    settingsOpen = true;
+  function go(view: AppView) {
+    navigate(view);
   }
 
   function closeEditor() {
     lastOpenedId = null;
   }
+
+  const onPage = $derived($appView !== 'home');
 </script>
 
-<main>
-  <div class="app-controls">
-    <button
-      type="button"
-      class="update-button glass"
-      aria-label="Check for updates"
-      onclick={() => void checkForUpdates(true)}
-      disabled={checkingForUpdates}
-    >
-      {checkingForUpdates ? 'Checking…' : 'Check for updates'}
-    </button>
-    {#if hasVault}
+<main class:page-mode={onPage}>
+  {#if $appView === 'home'}
+    <div class="app-controls">
       <button
         type="button"
-        class="icon-button help-button glass"
-        aria-label="Replay tutorial"
-        title="Replay tutorial"
-        onclick={replayTutorial}
+        class="update-button glass"
+        aria-label="Check for updates"
+        onclick={() => void checkForUpdates(true)}
+        disabled={checkingForUpdates}
       >
-        ?
+        {checkingForUpdates ? 'Checking…' : 'Check for updates'}
       </button>
-      <button
-        type="button"
-        class="icon-button settings-button glass"
-        aria-label="Open settings"
-        title="Settings"
-        onclick={openSettings}
-      >
-        ⚙
-      </button>
-      <button
-        type="button"
-        class="icon-button theme-toggle glass"
-        aria-label="Toggle theme"
-        title="Toggle theme"
-        onclick={toggleTheme}
-      >
-        {$theme === 'dark' ? '☀️' : '🌙'}
-      </button>
+      {#if hasVault}
+        <button
+          type="button"
+          class="icon-button help-button glass"
+          aria-label="About onQ"
+          title="About onQ"
+          onclick={() => go('about')}
+        >
+          ?
+        </button>
+        <button
+          type="button"
+          class="icon-button settings-button glass"
+          aria-label="Open settings"
+          title="Settings"
+          onclick={() => go('settings')}
+        >
+          ⚙
+        </button>
+        <button
+          type="button"
+          class="icon-button theme-toggle glass"
+          aria-label="Toggle theme"
+          title="Toggle theme"
+          onclick={toggleTheme}
+        >
+          {$theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+      {/if}
+    </div>
+    {#if updateStatus}
+      <p class="update-status" role="status">{updateStatus}</p>
     {/if}
-  </div>
-  {#if updateStatus}
-    <p class="update-status" role="status">{updateStatus}</p>
   {/if}
-  {#if checkingVault}
+
+  <button
+    type="button"
+    class="app-version"
+    aria-label="App version, check for updates"
+    title="Check for updates"
+    onclick={() => void checkForUpdates(true)}
+    disabled={checkingForUpdates}
+  >
+    v{appVersion}
+  </button>
+
+  {#if $appView === 'settings'}
+    <SettingsPage onBack={() => go('home')} onOpenAbout={() => go('about')} />
+  {:else if $appView === 'about'}
+    <AboutPage
+      onBack={() => go('home')}
+      onLicenses={() => go('licenses')}
+      onCredits={() => go('credits')}
+    />
+  {:else if $appView === 'licenses'}
+    <LicensesPage onBack={() => go('about')} />
+  {:else if $appView === 'credits'}
+    <CreditsPage onBack={() => go('about')} />
+  {:else if checkingVault}
     <p role="status">Opening last vault…</p>
   {:else if passwordPath}
     <VaultUnlock
@@ -180,7 +230,6 @@
     {#if $tutorialVisible}
       <TutorialOverlay />
     {/if}
-    <SettingsPanel bind:open={settingsOpen} />
   {:else}
     <EmptyState
       {onVaultReady}
@@ -198,6 +247,13 @@
     display: grid;
     place-items: center;
     padding: 24px;
+  }
+  main.page-mode {
+    display: block;
+    place-items: unset;
+    align-content: start;
+    padding: 0;
+    overflow: auto;
   }
   .hero {
     padding: 64px 80px;
@@ -226,6 +282,7 @@
     right: 24px;
     display: flex;
     gap: 8px;
+    z-index: 10;
   }
   .update-button {
     height: 40px;
@@ -254,6 +311,37 @@
     margin: 0;
     color: var(--glass-text-dim);
     font-size: 14px;
+    z-index: 10;
+  }
+  .app-version {
+    position: fixed;
+    left: 16px;
+    bottom: 12px;
+    margin: 0;
+    z-index: 20;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    color: var(--glass-text-dim);
+    opacity: 0.75;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    font: inherit;
+  }
+  .app-version:hover:not(:disabled) {
+    opacity: 1;
+    color: var(--glass-text);
+    background: rgba(127, 127, 127, 0.12);
+  }
+  .app-version:disabled {
+    cursor: wait;
+  }
+  .app-version:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .icon-button {
     width: 40px;

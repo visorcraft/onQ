@@ -32,7 +32,7 @@ export async function installTauriMock(page: Page, opts: { vaultOpen?: boolean }
         case 'search':
           return [];
         case 'ping':
-          return 'onQ v1.1.0';
+          return 'onQ v1.1.1';
         case 'set_global_shortcut':
           return {
             backend: 'native',

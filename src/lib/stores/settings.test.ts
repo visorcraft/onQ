@@ -48,7 +48,7 @@ describe('settings store', () => {
 
     await expect(setBetaChannel(true)).rejects.toThrow('vault not unlocked');
     // Critical: the store must not move when the backend rejects, otherwise
-    // the SettingsPanel would silently show the wrong state on next open.
+    // the Settings page would silently show the wrong state on next open.
     expect(get(betaChannel)).toBe(false);
   });
 
@@ -80,7 +80,7 @@ describe('settings store', () => {
   // ---------------------------------------------------------------------
   // M6.10 — embedding quantization (regression coverage so adding the
   // beta block at the top of the file doesn't disturb the existing
-  // contract used by SettingsPanel.svelte).
+  // contract used by Settings page.svelte).
   // ---------------------------------------------------------------------
 
   it('persists an embedding-quant switch and updates the store', async () => {

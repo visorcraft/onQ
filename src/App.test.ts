@@ -1,6 +1,5 @@
 import { expect, it, vi } from 'vitest';
 import { mount, tick, unmount } from 'svelte';
-import { get } from 'svelte/store';
 
 const { invokeMock, openMock, writeTextMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -12,12 +11,20 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: openMock }));
 
 import App from './App.svelte';
 import { globalShortcut } from '$lib/stores/globalShortcut';
+import { navigate } from '$lib/stores/navigation';
 import { tutorialStep, tutorialVisible } from '$lib/stores/tutorial';
 
-it('opens the tutorial after vault creation and replays it from help', async () => {
+function resetUi() {
+  navigate('home');
+  tutorialStep.set(0);
+  tutorialVisible.set(false);
+  document.body.replaceChildren();
+}
+
+it('opens the tutorial after vault creation and opens About from help', async () => {
   const recoveryPhrase =
     'legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth title';
-  document.body.replaceChildren();
+  resetUi();
   const target = document.createElement('div');
   document.body.append(target);
   tutorialStep.set(0);
@@ -137,31 +144,21 @@ it('opens the tutorial after vault creation and replays it from help', async () 
   skip.click();
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
 
-  tutorialStep.set(3);
-  const help = document.querySelector('button[aria-label="Replay tutorial"]');
-  if (!(help instanceof HTMLButtonElement)) throw new Error('Help button missing');
-  help.focus();
-  help.click();
+  const aboutBtn = document.querySelector('button[aria-label="About onQ"]');
+  if (!(aboutBtn instanceof HTMLButtonElement)) throw new Error('About button missing');
+  aboutBtn.click();
   await tick();
 
-  expect(get(tutorialStep)).toBe(0);
-  expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
-    'Open your prompt palette',
-  );
-
-  const dismiss = document.querySelector('button[aria-label="Dismiss tutorial"]');
-  if (!(dismiss instanceof HTMLButtonElement)) throw new Error('Dismiss button missing');
-  dismiss.click();
   await vi.waitFor(() => {
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement).toBe(help);
+    expect(document.body.textContent).toContain('Licenses & Credits');
+    expect(document.body.textContent).toMatch(/What's inside|Hybrid search/);
   });
 
   await unmount(component);
 });
 
 it('opens the remembered vault on launch', async () => {
-  document.body.replaceChildren();
+  resetUi();
   const target = document.createElement('div');
   document.body.append(target);
   tutorialVisible.set(false);
@@ -192,7 +189,7 @@ it('opens the remembered vault on launch', async () => {
 });
 
 it('creates a master-password vault without a recovery phrase', async () => {
-  document.body.replaceChildren();
+  resetUi();
   const target = document.createElement('div');
   document.body.append(target);
   tutorialVisible.set(false);
@@ -255,7 +252,7 @@ it('creates a master-password vault without a recovery phrase', async () => {
 });
 
 it('offers manual recovery when the remembered vault key is missing', async () => {
-  document.body.replaceChildren();
+  resetUi();
   const target = document.createElement('div');
   document.body.append(target);
   tutorialVisible.set(false);
@@ -314,7 +311,7 @@ it('offers manual recovery when the remembered vault key is missing', async () =
 });
 
 it('asks for the master password when the remembered vault uses one', async () => {
-  document.body.replaceChildren();
+  resetUi();
   const target = document.createElement('div');
   document.body.append(target);
   tutorialVisible.set(false);

@@ -1,6 +1,7 @@
 mod auto_lock;
 mod commands;
 mod global_shortcut;
+mod legal;
 mod state;
 
 use commands::apply_auto_lock_on_start;
@@ -250,6 +251,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             global_shortcut::set_global_shortcut,
             global_shortcut::capture_global_shortcut,
+            legal::about_info_cmd,
+            legal::license_docs_cmd,
+            legal::license_document_cmd,
+            legal::credits_data_cmd,
+            legal::runtime_license_text_cmd,
             commands::ping,
             commands::setup_new_vault,
             commands::unlock_vault,
@@ -262,6 +268,7 @@ pub fn run() {
             commands::read_prompt,
             commands::create_prompt,
             commands::save_prompt,
+            commands::set_prompt_favorite,
             commands::delete_prompt,
             commands::lock_prompt,
             commands::unlock_prompt,

@@ -17,7 +17,7 @@ export const betaChannel = writable<boolean>(false);
 /**
  * Persist the user's beta-channel opt-in. Returns the persisted value
  * so the caller doesn't have to re-read the store — Tauri commands
- * surface rejections as typed errors which the SettingsPanel rolls back.
+ * surface rejections as typed errors which the Settings page rolls back.
  */
 export async function setBetaChannel(enabled: boolean): Promise<void> {
   await invoke<void>('set_beta_channel', { enabled });
@@ -59,7 +59,7 @@ export type EmbeddingQuant = 'binary' | 'dense';
 export const embeddingQuant = writable<EmbeddingQuant>('binary');
 
 /**
- * `true` while a `setEmbeddingQuant` call is in flight. The SettingsPanel
+ * `true` while a `setEmbeddingQuant` call is in flight. The Settings page
  * uses this to disable the radio buttons + show a progress affordance.
  */
 export const rebuildingIndex = writable<boolean>(false);

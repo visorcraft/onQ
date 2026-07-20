@@ -1,0 +1,247 @@
+[
+  {
+    "name": "@axe-core/playwright",
+    "version": "4.12.1",
+    "license": "MPL-2.0",
+    "repository": "https://github.com/dequelabs/axe-core-npm",
+    "role": "dev"
+  },
+  {
+    "name": "@eslint/js",
+    "version": "9.39.5",
+    "license": "MIT",
+    "repository": "https://github.com/eslint/eslint",
+    "role": "dev"
+  },
+  {
+    "name": "@playwright/test",
+    "version": "1.61.1",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/microsoft/playwright",
+    "role": "dev"
+  },
+  {
+    "name": "@storybook/addon-a11y",
+    "version": "10.5.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/storybook",
+    "role": "dev"
+  },
+  {
+    "name": "@storybook/addon-docs",
+    "version": "10.5.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/storybook",
+    "role": "dev"
+  },
+  {
+    "name": "@storybook/addon-svelte-csf",
+    "version": "5.1.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/addon-svelte-csf",
+    "role": "dev"
+  },
+  {
+    "name": "@storybook/svelte-vite",
+    "version": "10.5.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/storybook",
+    "role": "dev"
+  },
+  {
+    "name": "@sveltejs/vite-plugin-svelte",
+    "version": "7.2.0",
+    "license": "MIT",
+    "repository": "https://github.com/sveltejs/vite-plugin-svelte",
+    "role": "dev"
+  },
+  {
+    "name": "@tailwindcss/postcss",
+    "version": "4.3.3",
+    "license": "MIT",
+    "repository": "https://github.com/tailwindlabs/tailwindcss",
+    "role": "dev"
+  },
+  {
+    "name": "@tauri-apps/api",
+    "version": "2.11.1",
+    "license": "Apache-2.0 OR MIT",
+    "repository": "https://github.com/tauri-apps/tauri",
+    "role": "runtime"
+  },
+  {
+    "name": "@tauri-apps/cli",
+    "version": "2.11.4",
+    "license": "Apache-2.0 OR MIT",
+    "repository": "https://github.com/tauri-apps/tauri",
+    "role": "dev"
+  },
+  {
+    "name": "@tauri-apps/plugin-dialog",
+    "version": "2.7.2",
+    "license": "MIT OR Apache-2.0",
+    "repository": "https://github.com/tauri-apps/plugins-workspace",
+    "role": "runtime"
+  },
+  {
+    "name": "@tauri-apps/plugin-updater",
+    "version": "2.10.1",
+    "license": "MIT OR Apache-2.0",
+    "repository": "https://github.com/tauri-apps/plugins-workspace",
+    "role": "runtime"
+  },
+  {
+    "name": "@tsconfig/svelte",
+    "version": "5.0.8",
+    "license": "MIT",
+    "repository": "https://github.com/tsconfig/bases",
+    "role": "dev"
+  },
+  {
+    "name": "@typescript-eslint/eslint-plugin",
+    "version": "8.64.0",
+    "license": "MIT",
+    "repository": "https://github.com/typescript-eslint/typescript-eslint",
+    "role": "dev"
+  },
+  {
+    "name": "@typescript-eslint/parser",
+    "version": "8.64.0",
+    "license": "MIT",
+    "repository": "https://github.com/typescript-eslint/typescript-eslint",
+    "role": "dev"
+  },
+  {
+    "name": "@vitest/ui",
+    "version": "4.1.10",
+    "license": "MIT",
+    "repository": "https://github.com/vitest-dev/vitest",
+    "role": "dev"
+  },
+  {
+    "name": "autoprefixer",
+    "version": "10.5.4",
+    "license": "MIT",
+    "repository": "postcss/autoprefixer",
+    "role": "dev"
+  },
+  {
+    "name": "bits-ui",
+    "version": "1.8.0",
+    "license": "MIT",
+    "repository": "github:huntabyte/bits-ui",
+    "role": "runtime"
+  },
+  {
+    "name": "eslint",
+    "version": "9.39.5",
+    "license": "MIT",
+    "repository": "eslint/eslint",
+    "role": "dev"
+  },
+  {
+    "name": "eslint-plugin-storybook",
+    "version": "10.5.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/storybook",
+    "role": "dev"
+  },
+  {
+    "name": "eslint-plugin-svelte",
+    "version": "2.46.1",
+    "license": "MIT",
+    "repository": "https://github.com/sveltejs/eslint-plugin-svelte",
+    "role": "dev"
+  },
+  {
+    "name": "globals",
+    "version": "17.7.0",
+    "license": "MIT",
+    "repository": "sindresorhus/globals",
+    "role": "dev"
+  },
+  {
+    "name": "jsdom",
+    "version": "29.1.1",
+    "license": "MIT",
+    "repository": "https://github.com/jsdom/jsdom",
+    "role": "dev"
+  },
+  {
+    "name": "postcss",
+    "version": "8.5.20",
+    "license": "MIT",
+    "repository": "postcss/postcss",
+    "role": "dev"
+  },
+  {
+    "name": "storybook",
+    "version": "10.5.2",
+    "license": "MIT",
+    "repository": "https://github.com/storybookjs/storybook",
+    "role": "dev"
+  },
+  {
+    "name": "svelte",
+    "version": "5.56.6",
+    "license": "MIT",
+    "repository": "https://github.com/sveltejs/svelte",
+    "role": "dev"
+  },
+  {
+    "name": "svelte-check",
+    "version": "4.7.3",
+    "license": "MIT",
+    "repository": "https://github.com/sveltejs/language-tools",
+    "role": "dev"
+  },
+  {
+    "name": "svelte-eslint-parser",
+    "version": "0.43.0",
+    "license": "MIT",
+    "repository": "https://github.com/sveltejs/svelte-eslint-parser",
+    "role": "dev"
+  },
+  {
+    "name": "tailwindcss",
+    "version": "4.3.3",
+    "license": "MIT",
+    "repository": "https://github.com/tailwindlabs/tailwindcss",
+    "role": "dev"
+  },
+  {
+    "name": "tslib",
+    "version": "2.8.1",
+    "license": "0BSD",
+    "repository": "https://github.com/Microsoft/tslib",
+    "role": "dev"
+  },
+  {
+    "name": "typescript",
+    "version": "5.9.3",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/microsoft/TypeScript",
+    "role": "dev"
+  },
+  {
+    "name": "vite",
+    "version": "8.1.5",
+    "license": "MIT",
+    "repository": "https://github.com/vitejs/vite",
+    "role": "dev"
+  },
+  {
+    "name": "vitepress",
+    "version": "2.0.0-alpha.18",
+    "license": "MIT",
+    "repository": "github:vuejs/vitepress",
+    "role": "dev"
+  },
+  {
+    "name": "vitest",
+    "version": "4.1.10",
+    "license": "MIT",
+    "repository": "https://github.com/vitest-dev/vitest",
+    "role": "dev"
+  }
+]

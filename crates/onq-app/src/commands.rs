@@ -624,6 +624,26 @@ pub fn save_prompt(
     Ok(PromptSummary::from(&p))
 }
 
+/// Toggle favorite without requiring the full body from the frontend.
+#[tauri::command]
+pub fn set_prompt_favorite(
+    id: String,
+    favorite: bool,
+    state: State<'_, AppState>,
+) -> Result<PromptSummary, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let mut p = v.read(&pid).map_err(|e| e.to_string())?;
+    p.fm.favorite = favorite;
+    p.fm.updated = chrono::Utc::now();
+    v.write(&p).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
+        index_prompt(&db, &p)?;
+    }
+    Ok(PromptSummary::from(&p))
+}
+
 #[tauri::command]
 pub fn delete_prompt(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let g = vault(&state)?;
