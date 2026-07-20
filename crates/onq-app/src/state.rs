@@ -16,7 +16,7 @@ pub struct AppState {
     pub db: Mutex<Option<Arc<Db>>>,
     /// ONNX embedder. Optional until the model is downloaded; `search`
     /// degrades to keyword-only when this is `None`.
-    pub embedder: Mutex<Option<Arc<Embedder>>>,
+    pub embedder: Mutex<Option<Arc<Mutex<Embedder>>>>,
     /// Active auto-lock policy. Defaults to `LockOnQuit` so the user
     /// always gets the safe baseline; the frontend can downgrade to
     /// `Disabled` or upgrade to `IdleTimeout(...)` via the

@@ -14,9 +14,9 @@ hero:
       link: https://github.com/visorcraft/onQ
 features:
   - title: Spotlight-centric UI
-    details: Ctrl+L / ⌘K is the app. Search prompts, folders, tags, smart folders, commands, and plugins from a single command palette.
+    details: Ctrl+Q / ⌘Q is the app. Search prompts, folders, tags, smart folders, commands, and plugins from a single command palette.
   - title: Hybrid search
-    details: Keyword (BM25/FTS) + semantic (vector cosine) fused via Reciprocal Rank Fusion. Six MongrelDB index kinds, recency decay.
+    details: Sparse keyword + semantic vector search fused via Reciprocal Rank Fusion. Six MongrelDB index kinds, recency decay.
   - title: Markdown vault
     details: Your prompts live in plain .md files with YAML frontmatter. Sync with Git, Dropbox, iCloud, or Syncthing.
   - title: Two-layer encryption
@@ -30,7 +30,7 @@ features:
 ## What is onQ?
 
 onQ is a desktop prompt manager for AI power users. Search is the heart:
-hybrid BM25 + vector cosine over six MongrelDB index kinds, fused with recency decay.
+hybrid sparse keyword + vector cosine over six MongrelDB index kinds, fused with recency decay.
 
 Your prompts live in plain `.md` files (sync with Git, Dropbox, iCloud, Syncthing — your choice)
 and the search index in encrypted local storage. Local-first means your data stays on your device;

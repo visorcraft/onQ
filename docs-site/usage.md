@@ -4,7 +4,7 @@ title: Usage
 
 # Usage
 
-A quick tour of onQ's key features. Use **Ctrl+L / ⌘K** to open
+A quick tour of onQ's key features. Use **Ctrl+Q / ⌘Q** to open
 the command palette — that is the app.
 
 ## Search
@@ -12,7 +12,7 @@ the command palette — that is the app.
 Search is the heart of onQ. Every keystroke in the command palette runs a hybrid
 query that fuses two scoring streams:
 
-- **Lexical** — BM25 over the full-text index of every prompt body, title, and tag.
+- **Lexical** — normalized sparse term matching over prompt bodies.
 - **Semantic** — cosine similarity over `all-MiniLM-L6-v2` embeddings of each prompt.
 
 Results from both streams are merged via **Reciprocal Rank Fusion** with a recency-decay
@@ -88,7 +88,7 @@ metadata panel — accept with **Tab**, dismiss with **Esc**.
 
 | Shortcut         | Action                          |
 |------------------|---------------------------------|
-| **Ctrl/Cmd + K** | Open command palette            |
+| **Ctrl/Cmd + Q** | Open command palette            |
 | **Ctrl/Cmd + N** | New prompt                      |
 | **Ctrl/Cmd + ,** | Open settings                   |
 | **Ctrl/Cmd + /** | Toggle sidebar                  |

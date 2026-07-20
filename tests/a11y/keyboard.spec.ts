@@ -34,7 +34,7 @@ test('tabbing reveals a visible focus ring', async ({ page }) => {
   ).toBe(true);
 });
 
-test('Ctrl+K opens the command palette from the home page', async ({ page }) => {
+test('Ctrl+Q opens the command palette from the home page', async ({ page }) => {
   await installTauriMock(page, { vaultOpen: true });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'onQ' })).toBeVisible();
@@ -43,4 +43,7 @@ test('Ctrl+K opens the command palette from the home page', async ({ page }) => 
 
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
   await expect(page.getByPlaceholder('Search prompts, or type to create…')).toBeVisible();
+
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('button', { name: '+ New prompt' })).toBeFocused();
 });

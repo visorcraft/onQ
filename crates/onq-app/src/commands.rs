@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use mongreldb_core::query::{
-    AnnRerankRequest, Condition, Fusion, NamedRetriever, Query, Retriever, RetrieverScore,
-    SearchRequest, SetMember, VectorMetric,
+    Condition, Fusion, NamedRetriever, Query, Rerank, Retriever, RetrieverScore, SearchRequest,
+    SetMember, VectorMetric,
 };
 use mongreldb_core::{Row, Value};
 use onq_core::crypto;
@@ -15,7 +15,7 @@ use onq_core::keychain::{Keychain, OsKeychain};
 use onq_core::lock::{derive_kek, generate_salt};
 use onq_core::recovery::{generate_phrase, phrase_to_passphrase};
 use onq_core::schema::col;
-use onq_core::search::{rrf_score, SearchQuery as AppSearchQuery};
+use onq_core::search::{rrf_score, sparse_bytes, SearchQuery as AppSearchQuery};
 use onq_core::ulid::PromptId;
 use onq_core::vault::{Prompt, Vault};
 use rand::RngCore;
@@ -111,9 +111,11 @@ fn remember_vault(app: &AppHandle, vault_path: &Path) -> Result<(), String> {
 
 fn set_open_vault(vault_path: PathBuf, db: Db, state: &State<'_, AppState>) -> Result<(), String> {
     let vault = Vault::new(vault_path.clone()).map_err(|error| error.to_string())?;
+    let db = Arc::new(db);
+    backfill_sparse_vectors(&vault, &db)?;
     *state.vault.lock().map_err(|error| error.to_string())? = Some(vault);
     *state.vault_path.lock().map_err(|error| error.to_string())? = Some(vault_path);
-    *state.db.lock().map_err(|error| error.to_string())? = Some(Arc::new(db));
+    *state.db.lock().map_err(|error| error.to_string())? = Some(db);
     Ok(())
 }
 
@@ -201,6 +203,9 @@ fn build_prompt_cells(
     let tags_json = serde_json::to_vec(&prompt.fm.tags).unwrap_or_else(|_| b"[]".to_vec());
     let folder = prompt.fm.folder.clone().unwrap_or_default().into_bytes();
     let embed = existing_embed.unwrap_or_else(|| vec![0.0f32; EMBED_DIM]);
+    let sparse = sparse_bytes(&String::from_utf8_lossy(&body_bytes))
+        .map(Value::Bytes)
+        .unwrap_or(Value::Null);
     vec![
         (
             col::PROMPTS_ID,
@@ -225,6 +230,7 @@ fn build_prompt_cells(
             Value::Int64(prompt.fm.updated.timestamp()),
         ),
         (col::PROMPTS_EMBED, Value::Embedding(embed)),
+        (col::PROMPTS_BODY_SPARSE, sparse),
     ]
 }
 
@@ -250,6 +256,61 @@ fn fetch_existing_embedding(db: &Arc<Db>, id: &PromptId) -> Result<Option<Vec<f3
         Some(Value::Embedding(v)) if v.len() == EMBED_DIM => Some(v.clone()),
         _ => None,
     }))
+}
+
+fn index_prompt(db: &Arc<Db>, prompt: &Prompt) -> Result<(), String> {
+    let existing_embed = fetch_existing_embedding(db, &prompt.fm.id)?;
+    let cells = build_prompt_cells(
+        prompt,
+        prompt.body.as_bytes().to_vec(),
+        prompt.body.chars().count() as i64,
+        prompt.fm.locked,
+        existing_embed,
+    );
+    db.handle()
+        .transaction_for_current_principal(|tx| {
+            tx.put("prompts", cells)?;
+            Ok(())
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn backfill_sparse_vectors(vault: &Vault, db: &Arc<Db>) -> Result<(), String> {
+    let ready: std::collections::HashSet<Vec<u8>> = db
+        .handle()
+        .query_for_current_principal(
+            "prompts",
+            &Query::default(),
+            Some(&[col::PROMPTS_ID, col::PROMPTS_BODY, col::PROMPTS_BODY_SPARSE]),
+        )
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .filter_map(|row| {
+            match (
+                row.columns.get(&col::PROMPTS_ID),
+                row.columns.get(&col::PROMPTS_BODY),
+                row.columns.get(&col::PROMPTS_BODY_SPARSE),
+            ) {
+                (Some(Value::Bytes(id)), _, Some(Value::Bytes(_))) => Some(id.clone()),
+                (Some(Value::Bytes(id)), Some(Value::Bytes(body)), Some(Value::Null))
+                    if body.is_empty() =>
+                {
+                    Some(id.clone())
+                }
+                _ => None,
+            }
+        })
+        .collect();
+
+    // ponytail: startup scan is O(N); move to a background migration if large
+    // vault startup becomes measurable.
+    for id in vault.list().map_err(|error| error.to_string())? {
+        if !ready.contains(id.as_str().as_bytes()) {
+            let prompt = vault.read(&id).map_err(|error| error.to_string())?;
+            index_prompt(db, &prompt)?;
+        }
+    }
+    Ok(())
 }
 
 /// Core workhorse behind [`lock_prompt`]. Synchronous so tests can call it
@@ -530,6 +591,9 @@ pub fn create_prompt(title: String, state: State<'_, AppState>) -> Result<Prompt
     let v = g.as_ref().unwrap();
     let p = v.new_prompt(title).map_err(|e| e.to_string())?;
     v.write(&p).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
+        index_prompt(&db, &p)?;
+    }
     Ok(PromptSummary::from(&p))
 }
 
@@ -554,6 +618,9 @@ pub fn save_prompt(
     p.fm.favorite = favorite;
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
+        index_prompt(&db, &p)?;
+    }
     Ok(PromptSummary::from(&p))
 }
 
@@ -562,7 +629,31 @@ pub fn delete_prompt(id: String, state: State<'_, AppState>) -> Result<(), Strin
     let g = vault(&state)?;
     let v = g.as_ref().unwrap();
     let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
-    v.delete(&pid).map_err(|e| e.to_string())
+    v.delete(&pid).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
+        if let Some(row) = db
+            .handle()
+            .query_for_current_principal(
+                "prompts",
+                &Query {
+                    conditions: vec![Condition::Pk(pid.as_str().as_bytes().to_vec())],
+                    ..Default::default()
+                },
+                Some(&[col::PROMPTS_ID]),
+            )
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .next()
+        {
+            db.handle()
+                .transaction_for_current_principal(|tx| {
+                    tx.delete("prompts", row.row_id)?;
+                    Ok(())
+                })
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1466,55 +1557,37 @@ pub async fn search(
         .clone()
         .ok_or_else(|| "vault not unlocked".to_string())?;
 
-    // 2. The embedder isn't loaded into AppState yet — M3.5 will wire it.
-    // Until then, return an empty result set so the UI degrades gracefully.
-    // (If we'd rather surface the failure, swap the body for `Err("embedder
-    // not loaded".into())`.)
-    if state.embedder.lock().map_err(|e| e.to_string())?.is_none() {
-        return Ok(Vec::new());
-    }
-
-    // 3. Embed the query text. ONNX is CPU-bound, so we run it off-thread.
-    let qvec = {
-        // Snapshot the text so we can drop the AppSearchQuery's borrow before
-        // moving the embedder into the blocking closure.
-        let text = query.text.clone();
-        let emb_arc = state
-            .embedder
-            .lock()
+    // 2. Embed the query text off-thread when the model is available.
+    // Sparse retrieval remains usable before or without the model.
+    let embedder = state.embedder.lock().map_err(|e| e.to_string())?.clone();
+    let qvec = match embedder {
+        Some(embedder) => {
+            let text = query.text.clone();
+            tokio::task::spawn_blocking(move || {
+                embedder
+                    .lock()
+                    .map_err(|error| onq_core::error::CoreError::Other(error.to_string()))?
+                    .embed(&text)
+            })
+            .await
             .map_err(|e| e.to_string())?
-            .clone()
-            .expect("embedder presence checked above");
-        tokio::task::spawn_blocking(move || {
-            // Embedder::embed takes &mut self, so we serialize through a
-            // dedicated Mutex<Embedder> just for this call. Sharing the
-            // Arc<Embedder> across threads is fine; the inner mutex gives
-            // us the &mut self Session::run needs.
-            //
-            // NOTE: a future refinement will lift this state into
-            // `Arc<Mutex<Embedder>>` to avoid the allocation here.
-            let mut owned = Arc::try_unwrap(emb_arc)
-                .ok()
-                .expect("embedder Arc has multiple owners in search path");
-            owned.embed(&text)
-        })
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?
+        }
+        None => Vec::new(),
     };
 
-    // 4. Build the typed Query + retrievers.
+    // 3. Build the typed Query + available retrievers.
     let q = query.to_query(&qvec);
     let retrievers = query.to_retrievers(&qvec);
     let limit = query.limit;
 
-    // 5. Read the user-tunable embedding-quant setting from app_state.
+    // 4. Read the user-tunable embedding-quant setting from app_state.
     //    "binary" (default) = HNSW binary candidates + exact cosine rerank.
-    //    "dense"            = full f32 HNSW, direct cosine.
+    //    "dense"            = exact f32 cosine scan.
     let embedding_quant =
         read_app_setting(&db, col::APP_EMBED_QUANT).unwrap_or_else(|_| "binary".to_string());
 
-    // 6. Filtered pre-pass + ANN rerank inside `spawn_blocking` (sync mongreldb).
+    // 5. Filtered retrieval + RRF inside `spawn_blocking` (sync mongreldb).
     let db_for_blocking = db.clone();
     let results = tokio::task::spawn_blocking(move || {
         run_hybrid_search(&db_for_blocking, &q, &retrievers, limit, &embedding_quant)
@@ -1549,19 +1622,34 @@ fn read_app_setting(db: &Arc<Db>, column_id: u16) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
-/// Run the filtered pre-pass + ANN rerank and fuse into a ranked hit list.
-///
-/// `embedding_quant` branches the ANN path:
-/// - `"binary"` (default) — `db.ann_rerank_for_current_principal` runs
-///   binary-quantized HNSW candidate generation then exact cosine rerank
-///   against the stored full-precision vectors. Fast; ~95% recall.
-/// - `"dense"` — exact-cosine brute-force scan over the filtered
-///   candidates via [`embedding_index::exact_cosine_search`]. Slower
-///   than HNSW but functionally correct (true cosine similarity on the
-///   full f32 vectors). This is the agreed fallback because the pinned
-///   `mongreldb-core` API only exposes a binary ANN retriever; a true
-///   dense HNSW would need both an `AnnQuantization::Dense` variant and
-///   DROP/CREATE INDEX DDL in upstream MongrelDB.
+fn filtered_retriever_rows(
+    db: &Arc<Db>,
+    q: &Query,
+    name: &str,
+    retriever: Retriever,
+    rerank: Option<Rerank>,
+    limit: usize,
+) -> Result<Vec<mongreldb_core::RowId>, String> {
+    let request = SearchRequest {
+        must: q.conditions.clone(),
+        retrievers: vec![NamedRetriever {
+            name: name.into(),
+            weight: 1.0,
+            retriever,
+        }],
+        fusion: Fusion::ReciprocalRank { constant: 60 },
+        rerank,
+        limit,
+        projection: Some(vec![col::PROMPTS_ID]),
+    };
+    db.handle()
+        .search_for_current_principal("prompts", &request)
+        .map(|hits| hits.into_iter().map(|hit| hit.row_id).collect())
+        .map_err(|error| error.to_string())
+}
+
+/// Rank structured-filter matches independently through semantic and sparse
+/// retrieval, then fuse their real one-based ranks.
 fn run_hybrid_search(
     db: &Arc<Db>,
     q: &Query,
@@ -1569,8 +1657,9 @@ fn run_hybrid_search(
     limit: usize,
     embedding_quant: &str,
 ) -> Result<Vec<SearchHit>, String> {
-    // 1. Filtered pre-pass: rows matching all conjunctive conditions
-    //    (folder/favorite/locked/range/FmContains/Ann).
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
     let candidates: Vec<Row> = db
         .handle()
         .query_for_current_principal("prompts", q, None)
@@ -1580,82 +1669,79 @@ fn run_hybrid_search(
         return Ok(Vec::new());
     }
 
-    // 2. ANN rerank — branch on quantization mode. The dense branch
-    //    bypasses MongrelDB's binary HNSW and scans candidates directly
-    //    for exact cosine similarity; the binary branch keeps the
-    //    existing fast path.
     let ann_retriever = retrievers
         .iter()
         .find(|r| matches!(r, Retriever::Ann { .. }));
-    let Some(Retriever::Ann { query, .. }) = ann_retriever else {
-        return Ok(Vec::new());
-    };
 
-    let ann_hits: Vec<(mongreldb_core::RowId, f32)> = if embedding_quant == "dense" {
-        // Dense fallback — see module docs on `embedding_index`. The
-        // query_vec is the caller's precomputed 384-dim embedding; we
-        // call exact_cosine_search with the same `q` so the structured
-        // pre-filter applies. The helper does its own internal query
-        // (projected to PROMPTS_ID + PROMPTS_EMBED), then returns the
-        // top-`limit` (id, score) pairs.
-        let scored = embedding_index::exact_cosine_search(
-            db.handle(),
-            "prompts",
-            col::PROMPTS_EMBED,
-            query,
-            limit,
-            Some(q),
-        )
-        .map_err(|e| e.to_string())?;
-        // Look up the row_id for each scored id by matching against the
-        // pre-filtered candidate rows. A miss means the dense scan
-        // surfaced a row that didn't pass the structured filter — that
-        // shouldn't happen because we passed `Some(q)` as the filter,
-        // but the guard keeps the RRF position math safe regardless.
-        let mut hits: Vec<(mongreldb_core::RowId, f32)> = Vec::with_capacity(scored.len());
-        for (id_str, score) in &scored {
-            if let Some(row) = candidates.iter().find(|r| {
-                matches!(
-                    r.columns.get(&col::PROMPTS_ID),
-                    Some(Value::Bytes(b)) if b.as_slice() == id_str.as_bytes()
+    let ann_hits: Vec<mongreldb_core::RowId> =
+        if let Some(Retriever::Ann { query, .. }) = ann_retriever {
+            if embedding_quant == "dense" {
+                let scored = embedding_index::exact_cosine_search(
+                    db.handle(),
+                    "prompts",
+                    col::PROMPTS_EMBED,
+                    query,
+                    limit,
+                    Some(q),
                 )
-            }) {
-                hits.push((row.row_id, *score));
+                .map_err(|e| e.to_string())?;
+                let mut hits = Vec::with_capacity(scored.len());
+                for (id_str, _) in &scored {
+                    if let Some(row) = candidates.iter().find(|r| {
+                        matches!(
+                            r.columns.get(&col::PROMPTS_ID),
+                            Some(Value::Bytes(b)) if b.as_slice() == id_str.as_bytes()
+                        )
+                    }) {
+                        hits.push(row.row_id);
+                    }
+                }
+                hits
+            } else {
+                filtered_retriever_rows(
+                    db,
+                    q,
+                    "semantic",
+                    ann_retriever.cloned().expect("ANN retriever checked"),
+                    Some(Rerank::ExactVector {
+                        embedding_column: col::PROMPTS_EMBED,
+                        query: query.clone(),
+                        metric: VectorMetric::Cosine,
+                        candidate_limit: limit,
+                        weight: 1.0,
+                    }),
+                    limit,
+                )?
             }
-        }
-        hits
-    } else {
-        // Binary path — default. Use the HNSW + exact-rerank entry point.
-        let req = AnnRerankRequest {
-            column_id: col::PROMPTS_EMBED,
-            query: query.clone(),
-            candidate_k: limit.min(200),
-            limit,
-            metric: VectorMetric::Cosine,
+        } else {
+            Vec::new()
         };
-        db.handle()
-            .ann_rerank_for_current_principal("prompts", &req)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .map(|h| (h.row_id, h.exact_score))
-            .collect()
+
+    let sparse_hits = match retrievers
+        .iter()
+        .find(|retriever| matches!(retriever, Retriever::Sparse { .. }))
+    {
+        Some(retriever) => {
+            filtered_retriever_rows(db, q, "sparse", retriever.clone(), None, limit)?
+        }
+        None => Vec::new(),
     };
 
-    // 3. Fuse: RRF across (ann_rank, sparse_rank=999 placeholder),
-    //    plus recency + favorite boosts.
     let now = chrono::Utc::now().timestamp();
     let mut hits: Vec<SearchHit> = candidates
         .into_iter()
-        .map(|row| {
-            // row_id is the first-level identifier; the Ann hit list is
-            // keyed by the same row_id. 999 = "this candidate did not appear
-            // in the rerank output" — common for rows that match the
-            // structured filters but not the vector query.
+        .filter_map(|row| {
             let ann_rank = ann_hits
                 .iter()
-                .position(|(rid, _)| *rid == row.row_id)
-                .map(|i| i + 1) // one-based for RRF
-                .unwrap_or(999);
+                .position(|row_id| *row_id == row.row_id)
+                .map(|index| index + 1);
+            let sparse_rank = sparse_hits
+                .iter()
+                .position(|row_id| *row_id == row.row_id)
+                .map(|index| index + 1);
+            if ann_rank.is_none() && sparse_rank.is_none() {
+                return None;
+            }
 
             let id_bytes = match row.columns.get(&col::PROMPTS_ID) {
                 Some(Value::Bytes(b)) => b.clone(),
@@ -1692,12 +1778,9 @@ fn run_hybrid_search(
                 _ => &0,
             };
 
-            // Sparse rank is not yet wired (M3.7). 999 means "no
-            // contribution from this retriever" — the RRF formula still
-            // includes it with near-zero weight (1/(K+999) ≈ 0.00094).
-            let score = rrf_score(ann_rank, 999, *updated, now, favorite);
+            let score = rrf_score(ann_rank, sparse_rank, *updated, now, favorite);
 
-            SearchHit {
+            Some(SearchHit {
                 id: String::from_utf8_lossy(&id_bytes).into_owned(),
                 title: String::from_utf8_lossy(&title_bytes).into_owned(),
                 folder,
@@ -1707,7 +1790,7 @@ fn run_hybrid_search(
                 char_count: *char_count,
                 updated_at: *updated,
                 rrf_score: score,
-            }
+            })
         })
         .collect();
 
@@ -1715,6 +1798,7 @@ fn run_hybrid_search(
         b.rrf_score
             .partial_cmp(&a.rrf_score)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.id.cmp(&b.id))
     });
     hits.truncate(limit);
     Ok(hits)
@@ -2638,6 +2722,58 @@ mod tests {
         assert!(folder.is_none(), "absent folder must read as None");
     }
 
+    #[test]
+    fn hybrid_search_keeps_semantic_only_hits_and_fuses_sparse_rank() {
+        let dir = TempDir::new().unwrap();
+        let db = std::sync::Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+        let mut semantic = vec![0.0; EMBED_DIM];
+        semantic[0] = 1.0;
+        let mut lexical = vec![0.0; EMBED_DIM];
+        lexical[1] = 1.0;
+        insert_prompt_with_embedding(&db, b"semantic", "storage engine internals", &[], semantic);
+        insert_prompt_with_embedding(&db, b"lexical", "database database", &[], lexical);
+
+        let mut query_vec = vec![0.0; EMBED_DIM];
+        query_vec[0] = 1.0;
+        let query = AppSearchQuery::new("database");
+        let hard_filters = query.to_query(&query_vec);
+        let retrievers = query.to_retrievers(&query_vec);
+        for mode in ["binary", "dense"] {
+            let hits = run_hybrid_search(&db, &hard_filters, &retrievers, 10, mode).unwrap();
+            assert_eq!(hits[0].id, "lexical");
+            assert!(
+                hits.iter().any(|hit| hit.id == "semantic"),
+                "semantic-only result must survive without exact text in {mode} mode"
+            );
+        }
+
+        let sparse_only = query.to_retrievers(&[]);
+        let hits = run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary").unwrap();
+        assert_eq!(
+            hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(),
+            vec!["lexical"]
+        );
+    }
+
+    #[test]
+    fn prompt_writes_store_the_shared_sparse_vector() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("Sparse").unwrap();
+        prompt.body = "Rust search search".into();
+        let cells = build_prompt_cells(
+            &prompt,
+            prompt.body.as_bytes().to_vec(),
+            prompt.body.chars().count() as i64,
+            false,
+            None,
+        );
+        assert!(cells.iter().any(|(column, value)| {
+            *column == col::PROMPTS_BODY_SPARSE
+                && value == &Value::Bytes(sparse_bytes(&prompt.body).unwrap())
+        }));
+    }
+
     // -----------------------------------------------------------------------
     // shingle_body: deterministic character n-grams as SetMember::String.
     // -----------------------------------------------------------------------
@@ -2728,8 +2864,13 @@ mod tests {
     /// validate_retriever accepts on read. A 5-character body yields one
     /// trigram; using a slightly longer body for the source exercises the
     /// non-trivial windowing path.
-    fn insert_prompt(db: &onq_core::db::Db, id: &[u8], body: &str, minhash: &[&str]) {
-        let zero_embed = vec![0.0f32; 384];
+    fn insert_prompt_with_embedding(
+        db: &onq_core::db::Db,
+        id: &[u8],
+        body: &str,
+        minhash: &[&str],
+        embedding: Vec<f32>,
+    ) {
         db.handle()
             .transaction_for_current_principal(|tx| {
                 tx.put(
@@ -2742,18 +2883,26 @@ mod tests {
                             col::PROMPTS_BODY_MINHASH,
                             Value::Bytes(serde_json::to_vec(&minhash.to_vec()).unwrap()),
                         ),
+                        (
+                            col::PROMPTS_BODY_SPARSE,
+                            Value::Bytes(sparse_bytes(body).unwrap()),
+                        ),
                         (col::PROMPTS_TAGS, Value::Json(br#"[]"#.to_vec())),
                         (col::PROMPTS_FAVORITE, Value::Bool(false)),
                         (col::PROMPTS_LOCKED, Value::Bool(false)),
                         (col::PROMPTS_CHAR, Value::Int64(body.len() as i64)),
                         (col::PROMPTS_CREATED, Value::Int64(0)),
                         (col::PROMPTS_UPDATED, Value::Int64(0)),
-                        (col::PROMPTS_EMBED, Value::Embedding(zero_embed)),
+                        (col::PROMPTS_EMBED, Value::Embedding(embedding)),
                     ],
                 )?;
                 Ok(())
             })
             .expect("insert_prompt put");
+    }
+
+    fn insert_prompt(db: &onq_core::db::Db, id: &[u8], body: &str, minhash: &[&str]) {
+        insert_prompt_with_embedding(db, id, body, minhash, vec![0.0; EMBED_DIM]);
     }
 
     #[test]

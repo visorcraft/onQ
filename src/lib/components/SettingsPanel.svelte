@@ -309,9 +309,9 @@
       <p class="status rebuilding" role="status">Updating embedding index…</p>
     {:else}
       <p class="status hint">
-        Note: the index itself is binary HNSW on disk until upstream
-        MongrelDB exposes DROP/CREATE INDEX DDL — your choice is recorded
-        and applies to the next index creation.
+        Dense downloads nothing. It immediately scans the stored f32
+        embeddings with exact cosine similarity and bypasses the on-disk
+        binary HNSW index.
       </p>
     {/if}
   </section>

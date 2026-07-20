@@ -438,8 +438,8 @@ mod linux_input {
 
         #[test]
         fn formats_ctrl_and_super_shortcuts() {
-            assert_eq!(shortcut_label(37, Modifiers(1)).as_deref(), Some("Ctrl+K"));
-            assert_eq!(shortcut_label(37, Modifiers(8)).as_deref(), Some("Super+K"));
+            assert_eq!(shortcut_label(16, Modifiers(1)).as_deref(), Some("Ctrl+Q"));
+            assert_eq!(shortcut_label(16, Modifiers(8)).as_deref(), Some("Super+Q"));
         }
     }
 }

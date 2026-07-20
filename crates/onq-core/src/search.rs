@@ -1,5 +1,6 @@
 use mongreldb_core::query::{Condition, Query, Retriever};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::schema::col;
 
@@ -36,10 +37,9 @@ impl SearchQuery {
         }
     }
 
-    /// Build the `Query` (conjunctive conditions) for the filtered pre-pass.
-    /// `query_vec` is needed for the FTS embedding context only — the ANN
-    /// prefilter is intentionally omitted here so that `to_retrievers` can
-    /// run against the full table (see task 3.4's `run_hybrid_search`).
+    /// Build only structured hard filters. Free text belongs in ranked
+    /// retrievers; making it an `FmContains` condition would discard semantic
+    /// matches that do not contain the exact query text.
     pub fn to_query(&self, _query_vec: &[f32]) -> Query {
         let mut conditions = Vec::new();
         if let Some(f) = &self.folder {
@@ -86,16 +86,6 @@ impl SearchQuery {
                 hi,
             });
         }
-        if !self.text.is_empty() {
-            // FTS via FmContains on body. ANN is NOT a hard prefilter here
-            // (Bug 4): the ranked pass in `to_retrievers` runs against the
-            // full table — top-k ANN would drop good candidates before any
-            // other retriever can vote.
-            conditions.push(Condition::FmContains {
-                column_id: col::PROMPTS_BODY,
-                pattern: self.text.as_bytes().to_vec(),
-            });
-        }
         Query {
             conditions,
             ..Default::default()
@@ -107,17 +97,14 @@ impl SearchQuery {
     pub fn to_retrievers(&self, query_vec: &[f32]) -> Vec<Retriever> {
         let mut out = Vec::new();
         if !self.text.is_empty() {
-            out.push(Retriever::Ann {
-                column_id: col::PROMPTS_EMBED,
-                query: query_vec.to_vec(),
-                k: self.limit,
-            });
-            // SparseMatch requires a tokenized sparse query — placeholder; in
-            // a future task the query text will be tokenized via the same
-            // vocabulary used at write time. Bug 2: an empty `vec![]` is
-            // rejected by MongrelDB, so skip emitting the sparse retriever
-            // until real tokenization lands.
-            let sparse_query: Vec<(u32, f32)> = Vec::new();
+            if !query_vec.is_empty() {
+                out.push(Retriever::Ann {
+                    column_id: col::PROMPTS_EMBED,
+                    query: query_vec.to_vec(),
+                    k: self.limit,
+                });
+            }
+            let sparse_query = sparse_vector(&self.text);
             if !sparse_query.is_empty() {
                 out.push(Retriever::Sparse {
                     column_id: col::PROMPTS_BODY_SPARSE,
@@ -130,27 +117,60 @@ impl SearchQuery {
     }
 }
 
-/// Reciprocal Rank Fusion across the actually-emitted retrievers + recency +
-/// favorite boosts.
-///
-/// Bug 3: dropped the unused `bm25_rank` argument — neither the FM retriever
-/// nor any current retriever emits an FM-style rank, and rank fusion only
-/// makes sense across the retrievers we actually run. With the BM25 term gone,
-/// the recency + favorite constants had to be rebalanced (Bug 3) so they no
-/// longer swamp the RRF signal: max RRF for a top-hit across both retrievers
-/// is `2/(60+1) ≈ 0.0327`, so recency/favorite must stay comfortably below it.
+/// Deterministic hashing-trick sparse vector shared by document writes and
+/// queries. L2-normalized term frequency prevents long prompts from winning
+/// only because they contain more words.
+pub fn sparse_vector(text: &str) -> Vec<(u32, f32)> {
+    let mut terms = BTreeMap::<u32, f32>::new();
+    for token in text
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+    {
+        let mut hash = 0x811c9dc5u32;
+        for byte in token.to_lowercase().bytes() {
+            hash = (hash ^ u32::from(byte)).wrapping_mul(0x01000193);
+        }
+        *terms.entry(hash).or_default() += 1.0;
+    }
+    let norm = terms
+        .values()
+        .map(|weight| weight * weight)
+        .sum::<f32>()
+        .sqrt();
+    if norm > 0.0 {
+        for weight in terms.values_mut() {
+            *weight /= norm;
+        }
+    }
+    terms.into_iter().collect()
+}
+
+pub fn sparse_bytes(text: &str) -> Option<Vec<u8>> {
+    let vector = sparse_vector(text);
+    (!vector.is_empty()).then(|| {
+        mongreldb_core::query::encode_sparse_vector(&vector)
+            .expect("sparse vectors are serializable")
+    })
+}
+
+/// Reciprocal Rank Fusion across retrievers that actually returned the row,
+/// plus small recency and favorite tie-breakers.
 pub fn rrf_score(
-    cosine_rank: usize,
-    sparse_rank: usize,
+    cosine_rank: Option<usize>,
+    sparse_rank: Option<usize>,
     updated_at: i64,
     now: i64,
     favorite: bool,
 ) -> f64 {
     const K: f64 = 60.0;
-    let rrf = 1.0 / (K + cosine_rank as f64) + 1.0 / (K + sparse_rank as f64);
+    let rrf = cosine_rank
+        .into_iter()
+        .chain(sparse_rank)
+        .map(|rank| 1.0 / (K + rank as f64))
+        .sum::<f64>();
     let age_days = (now - updated_at) as f64 / 86_400.0;
-    let recency = 0.05 * (-age_days / 30.0).exp();
-    let fav = if favorite { 0.03 } else { 0.0 };
+    let recency = 0.005 * (-age_days / 30.0).exp();
+    let fav = if favorite { 0.003 } else { 0.0 };
     rrf + recency + fav
 }
 
@@ -160,63 +180,58 @@ mod tests {
 
     #[test]
     fn rrf_prefers_top_ranks() {
-        let a = rrf_score(1, 50, 0, 0, false);
-        let b = rrf_score(50, 50, 0, 0, false);
+        let a = rrf_score(Some(1), Some(50), 0, 0, false);
+        let b = rrf_score(Some(50), Some(50), 0, 0, false);
         assert!(a > b);
     }
 
     #[test]
     fn rrf_uses_only_emitted_retrievers() {
-        // Sparse rank must still influence the fused score (Bug 3 regression).
-        let both = rrf_score(10, 10, 0, 0, false);
-        let cosine_only = rrf_score(10, 1_000, 0, 0, false);
+        let both = rrf_score(Some(10), Some(10), 0, 0, false);
+        let cosine_only = rrf_score(Some(10), None, 0, 0, false);
         assert!(both > cosine_only);
     }
 
     #[test]
     fn recency_boost_drops_with_age() {
-        let fresh = rrf_score(50, 50, 1_000_000, 1_000_000, false);
-        let old = rrf_score(50, 50, 1_000_000 - 86_400 * 90, 1_000_000, false);
+        let fresh = rrf_score(Some(50), Some(50), 1_000_000, 1_000_000, false);
+        let old = rrf_score(
+            Some(50),
+            Some(50),
+            1_000_000 - 86_400 * 90,
+            1_000_000,
+            false,
+        );
         assert!(fresh > old);
     }
 
     #[test]
     fn favorite_boost_applies() {
-        let fav = rrf_score(50, 50, 0, 0, true);
-        let no = rrf_score(50, 50, 0, 0, false);
+        let fav = rrf_score(Some(50), Some(50), 0, 0, true);
+        let no = rrf_score(Some(50), Some(50), 0, 0, false);
         assert!(fav > no);
     }
 
     #[test]
     fn recency_and_favorite_bonuses_are_smaller_than_before() {
-        // Bug 3 regression: recency + favorite used to be 0.5 + 0.3 = 0.80,
-        // which dwarfed max RRF (~0.05 for three retrievers at rank 1). The
-        // post-review constants (0.05 + 0.03 = 0.08) are an order of magnitude
-        // smaller, so the rank signal can win on a typical hit.
-        let age_zero_fav = rrf_score(50, 50, 0, 0, true);
+        let age_zero_fav = rrf_score(Some(50), Some(50), 0, 0, true);
         let rrf_only = 1.0 / 61.0 + 1.0 / 110.0;
         assert!(
-            (age_zero_fav - rrf_only) < 0.10,
-            "fresh+favorite bonus should stay under ~0.10: delta = {}",
+            (age_zero_fav - rrf_only) < 0.01,
+            "fresh+favorite bonus should stay under 0.01: delta = {}",
             age_zero_fav - rrf_only
         );
     }
 
     #[test]
-    fn query_with_text_uses_fm_only() {
+    fn free_text_is_not_a_hard_filter() {
         let q = SearchQuery::new("api errors");
         let vec = vec![0.0; 384];
         let query = q.to_query(&vec);
-        assert!(query
-            .conditions
-            .iter()
-            .any(|c| matches!(c, Condition::FmContains { .. })));
-        // Bug 4: the ANN prefilter was removed — text-only queries must NOT
-        // add an Ann condition here (the ranked pass handles ANN).
         assert!(!query
             .conditions
             .iter()
-            .any(|c| matches!(c, Condition::Ann { .. })));
+            .any(|condition| matches!(condition, Condition::FmContains { .. })));
     }
 
     #[test]
@@ -279,6 +294,19 @@ mod tests {
             }
             _ => unreachable!(),
         }
+        let sparse = retrievers
+            .iter()
+            .find(|retriever| matches!(retriever, Retriever::Sparse { .. }))
+            .expect("expected a sparse retriever");
+        match sparse {
+            Retriever::Sparse {
+                column_id, query, ..
+            } => {
+                assert_eq!(*column_id, col::PROMPTS_BODY_SPARSE);
+                assert!(!query.is_empty());
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]
@@ -305,19 +333,22 @@ mod tests {
     }
 
     #[test]
-    fn to_retrievers_does_not_emit_empty_sparse_query() {
-        // Bug 2 regression: placeholder sparse retriever must be omitted
-        // until real tokenization lands, so MongrelDB never sees
-        // `Retriever::Sparse { query: vec![], .. }`.
-        let q = SearchQuery::new("api errors");
-        let vec = vec![0.0; 384];
-        for r in q.to_retrievers(&vec) {
-            if let Retriever::Sparse { query, .. } = r {
-                assert!(
-                    !query.is_empty(),
-                    "Sparse retriever must carry a non-empty query"
-                );
-            }
-        }
+    fn missing_embedder_keeps_sparse_retrieval() {
+        let retrievers = SearchQuery::new("api errors").to_retrievers(&[]);
+        assert_eq!(retrievers.len(), 1);
+        assert!(matches!(retrievers[0], Retriever::Sparse { .. }));
+    }
+
+    #[test]
+    fn sparse_vectors_are_shared_and_normalized() {
+        let document = sparse_vector("Rust rust search");
+        let query = sparse_vector("rust");
+        assert!(document.iter().any(|(token, _)| *token == query[0].0));
+        let norm = document
+            .iter()
+            .map(|(_, weight)| weight * weight)
+            .sum::<f32>();
+        assert!((norm - 1.0).abs() < f32::EPSILON);
+        assert_eq!(sparse_vector(""), Vec::new());
     }
 }

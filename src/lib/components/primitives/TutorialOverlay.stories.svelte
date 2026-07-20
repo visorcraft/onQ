@@ -10,7 +10,7 @@
       step: 1,
       totalSteps: 4,
       title: 'Welcome to onQ',
-      body: 'A local-first prompt vault. Press ⌘K anywhere to search your prompts.',
+      body: 'A local-first prompt vault. Press ⌘Q anywhere to search your prompts.',
     },
   });
 </script>
@@ -21,7 +21,7 @@
     step: 1,
     totalSteps: 4,
     title: 'Welcome to onQ',
-    body: 'A local-first prompt vault. Press ⌘K anywhere to search your prompts.',
+    body: 'A local-first prompt vault. Press ⌘Q anywhere to search your prompts.',
   }}
 />
 <Story

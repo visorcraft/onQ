@@ -51,5 +51,5 @@ export async function installTauriMock(page: Page, opts: { vaultOpen?: boolean }
 
 /** Palette shortcut works with either Meta or Control; CI is Linux. */
 export async function openPalette(page: Page) {
-  await page.locator('body').press('Control+k');
+  await page.locator('body').press('Control+q');
 }

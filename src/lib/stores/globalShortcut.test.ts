@@ -68,30 +68,30 @@ describe('shortcutFromKeyboardEvent', () => {
 it('registers once in Rust and keeps that grab out of the local key handler', async () => {
   mocks.invoke.mockResolvedValue({
     backend: 'native',
-    shortcut: 'Ctrl+K',
+    shortcut: 'Ctrl+Q',
   });
 
-  await setGlobalShortcut('Ctrl+K');
+  await setGlobalShortcut('Ctrl+Q');
 
   expect(mocks.invoke).toHaveBeenCalledWith('set_global_shortcut', {
-    shortcut: 'Ctrl+K',
+    shortcut: 'Ctrl+Q',
     interactive: true,
   });
   expect(
-    matchesGlobalShortcut(keyboardEvent('KeyK', { ctrlKey: true })),
+    matchesGlobalShortcut(keyboardEvent('KeyQ', { ctrlKey: true })),
   ).toBe(true);
 });
 
 it('captures Linux shortcuts in the backend listener', async () => {
   mocks.invoke.mockResolvedValue({
     backend: 'linux-input',
-    shortcut: 'Super+K',
+    shortcut: 'Super+Q',
   });
 
   await captureGlobalShortcut();
 
   expect(mocks.invoke).toHaveBeenCalledWith('capture_global_shortcut');
   expect(
-    matchesGlobalShortcut(keyboardEvent('KeyK', { metaKey: true })),
+    matchesGlobalShortcut(keyboardEvent('KeyQ', { metaKey: true })),
   ).toBe(true);
 });

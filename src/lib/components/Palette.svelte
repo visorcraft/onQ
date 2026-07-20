@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
-  import { Command } from 'cmdk-sv';
+  import { onMount, tick, untrack } from 'svelte';
   import { loadPrompts, createPrompt } from '$lib/stores/prompts';
   import { results as searchResults, runSearch, runMoreLikeThis } from '$lib/stores/search';
   import { recordOpen } from '$lib/api/recent';
@@ -16,8 +15,10 @@
   let open = $state(false);
   let query = $state('');
   let selectedId = $state<string | null>(null);
+  let commandList = $state<HTMLDivElement>();
+  let commandInput = $state<HTMLInputElement>();
   // Title of the prompt currently open in the editor. Lets the palette offer
-  // a "More like this: <title>" command when ⌘K is opened while a prompt is
+  // a "More like this: <title>" command when ⌘Q is opened while a prompt is
   // selected. Reset on editor close.
   let selectedTitle = $state<string | null>(null);
   // Recent-search queries from the encrypted `recent_searches` column.
@@ -40,6 +41,7 @@
     if (open) {
       loadPrompts();
       void refreshRecent();
+      void tick().then(() => commandInput?.focus());
     }
   }
 
@@ -47,7 +49,7 @@
     const handler = (e: KeyboardEvent) => {
       if (
         (e.metaKey || e.ctrlKey) &&
-        e.key.toLowerCase() === 'k' &&
+        e.key.toLowerCase() === 'q' &&
         !matchesGlobalShortcut(e)
       ) {
         e.preventDefault();
@@ -108,6 +110,30 @@
     runMoreLikeThis(selectedId, 10);
   }
 
+  function moveSelection(event: KeyboardEvent) {
+    if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return;
+    if (!commandList) return;
+    const items = Array.from(commandList.querySelectorAll<HTMLButtonElement>('.palette-item'));
+    if (items.length === 0) return;
+    if (event.key === 'Enter') {
+      if (event.target instanceof HTMLInputElement) {
+        event.preventDefault();
+        items[0].click();
+      }
+      return;
+    }
+    event.preventDefault();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const direction = event.key === 'ArrowDown' ? 1 : -1;
+    const next =
+      current < 0
+        ? direction === 1
+          ? 0
+          : items.length - 1
+        : (current + direction + items.length) % items.length;
+    items[next].focus();
+  }
+
   // Drive the debounced search whenever the query string changes.
   // `untrack` keeps the effect from re-firing when `$searchResults` updates,
   // which would otherwise cause an infinite loop.
@@ -131,39 +157,49 @@
     transition:fly={{ y: -20, duration: 240, easing: quintOut }}
     role="dialog"
     aria-label="Command palette"
+    tabindex="-1"
+    onkeydown={moveSelection}
   >
-    <Command.Root bind:value={query} loop>
-      <Command.Input placeholder="Search prompts, or type to create…" autofocus />
-      <Command.List>
-        <Command.Empty>No results.</Command.Empty>
-        <Command.Item onSelect={onNew} value="__new__">+ New prompt</Command.Item>
-        {#if selectedId !== null && selectedTitle !== null}
-          <Command.Item
-            onSelect={onMoreLikeThis}
-            value="__more_like_this__{selectedId}"
+    <input
+      class="palette-input"
+      bind:this={commandInput}
+      bind:value={query}
+      placeholder="Search prompts, or type to create…"
+    />
+    <div class="palette-list" bind:this={commandList}>
+      <button class="palette-item" type="button" onclick={onNew}>+ New prompt</button>
+      {#if hits.length === 0}
+        <div class="palette-empty">No results.</div>
+      {/if}
+      {#if selectedId !== null && selectedTitle !== null}
+        <button class="palette-item" type="button" onclick={onMoreLikeThis}>
+          More like this: {selectedTitle}
+        </button>
+      {/if}
+      {#if query === '' && recentSearches.length > 0}
+        <div class="palette-group-heading">Recent</div>
+        {#each recentSearches as text (text)}
+          <button
+            class="palette-item"
+            type="button"
+            onclick={() => onRecentSearch(text)}
           >
-            More like this: {selectedTitle}
-          </Command.Item>
-        {/if}
-        {#if query === '' && recentSearches.length > 0}
-          <Command.Group heading="Recent">
-            {#each recentSearches as text (text)}
-              <Command.Item onSelect={() => onRecentSearch(text)} value="__recent__{text}">
-                {text}
-              </Command.Item>
-            {/each}
-          </Command.Group>
-        {/if}
-        <Command.Group heading="Prompts">
-          {#each hits as h (h.id)}
-            <Command.Item onSelect={() => onSelect(h.id, h.title)} value={h.id}>
-              {h.title}
-              {#if h.locked}<span aria-label="locked">🔒</span>{/if}
-            </Command.Item>
-          {/each}
-        </Command.Group>
-      </Command.List>
-    </Command.Root>
+            {text}
+          </button>
+        {/each}
+      {/if}
+      <div class="palette-group-heading">Prompts</div>
+      {#each hits as h (h.id)}
+        <button
+          class="palette-item"
+          type="button"
+          onclick={() => onSelect(h.id, h.title)}
+        >
+          {h.title}
+          {#if h.locked}<span aria-label="locked">🔒</span>{/if}
+        </button>
+      {/each}
+    </div>
   </div>
 {/if}
 
@@ -189,7 +225,7 @@
     z-index: 11;
     padding: 12px;
   }
-  :global([data-cmdk-input]) {
+  .palette-input {
     width: 100%;
     padding: 12px 14px;
     background: transparent;
@@ -198,29 +234,35 @@
     font-size: 15px;
     outline: none;
   }
-  :global([data-cmdk-input])::placeholder {
+  .palette-input::placeholder {
     color: var(--glass-text-dim);
   }
-  :global([data-cmdk-list]) {
+  .palette-list {
     max-height: 50vh;
     overflow-y: auto;
     padding: 4px;
   }
-  :global([data-cmdk-item]) {
+  .palette-item {
+    display: block;
+    width: 100%;
     padding: 10px 12px;
+    border: 0;
     border-radius: 8px;
+    background: transparent;
     color: var(--glass-text);
+    font: inherit;
+    text-align: left;
     cursor: pointer;
   }
-  :global([data-cmdk-item][data-selected='true']) {
+  .palette-item:focus-visible {
     background: rgba(91, 143, 255, 0.18);
   }
-  :global([data-cmdk-empty]) {
+  .palette-empty {
     padding: 12px;
     color: var(--glass-text-dim);
     font-size: 13px;
   }
-  :global([data-cmdk-group-heading]) {
+  .palette-group-heading {
     padding: 8px 12px 4px;
     color: var(--glass-text-dim);
     font-size: 11px;

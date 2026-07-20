@@ -8,8 +8,7 @@ import type { SearchHit, SearchQuery } from '$lib/types/search';
  * runtime isn't stalled. The frontend returns immediately and the search
  * itself runs on a worker thread.
  *
- * Returns an empty array when the embedder hasn't been loaded yet — the
- * backend degrades gracefully instead of erroring.
+ * Uses sparse keyword retrieval when the embedding model is unavailable.
  */
 export async function search(query: SearchQuery): Promise<SearchHit[]> {
   return invoke<SearchHit[]>('search', { query });

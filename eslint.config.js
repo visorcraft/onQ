@@ -28,7 +28,14 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'src-tauri/', 'target/', 'storybook-static/'],
+    ignores: [
+      'dist/',
+      'docs-site/.vitepress/dist/',
+      'node_modules/',
+      'src-tauri/',
+      'target/',
+      'storybook-static/',
+    ],
   },
   ...storybook.configs['flat/recommended'],
 ];

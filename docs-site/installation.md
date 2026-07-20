@@ -83,7 +83,7 @@ The produced installer lands in `target/release/bundle/` (or
 
 ## Verifying your install
 
-After launching, the command palette opens with **Ctrl+L / ⌘K**. Type any
+After launching, the command palette opens with **Ctrl+Q / ⌘Q**. Type any
 phrase to search the bundled tutorial prompts. If you see ranked results with snippet
 highlights, your search index and embeddings are working correctly.
 
