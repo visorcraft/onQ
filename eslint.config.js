@@ -18,6 +18,13 @@ export default [
     plugins: { '@typescript-eslint': ts },
     rules: { ...ts.configs.recommended.rules },
   },
+  // Unit tests may use Node built-ins (fs, child_process, process).
+  {
+    files: ['**/*.{test,spec}.ts'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
   ...svelte.configs['flat/recommended'],
   {
     files: ['**/*.svelte'],
