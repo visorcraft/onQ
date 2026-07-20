@@ -1,6 +1,6 @@
 {
   "name": "onQ",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,7 +19,9 @@
     "build-storybook": "storybook build",
     "docs:dev": "vitepress dev docs-site",
     "docs:build": "vitepress build docs-site",
-    "docs:preview": "vitepress preview docs-site"
+    "docs:preview": "vitepress preview docs-site",
+    "dev:app": "tauri dev --config crates/onq-app/tauri.conf.json",
+    "build:app": "tauri build --config crates/onq-app/tauri.conf.json"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

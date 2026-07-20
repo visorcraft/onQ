@@ -66,7 +66,7 @@ npm install
 ### 4. Run in development mode
 
 ```bash
-npm run tauri dev
+npm run dev:app
 ```
 
 This starts Vite for the Svelte frontend and launches the Tauri shell pointing at the dev server.
@@ -75,7 +75,7 @@ The first launch downloads the embedding model (`all-MiniLM-L6-v2`) into the use
 ### 5. Build a production bundle
 
 ```bash
-npm run tauri build
+npm run build:app
 ```
 
 The produced installer lands in `target/release/bundle/` (or

@@ -60,13 +60,13 @@ cd onQ
 
 ```bash
 npm install
-npm run tauri dev
+npm run dev:app
 ```
 
 ## Build
 
 ```bash
-npm run tauri build
+npm run build:app
 ```
 
 Bundles are written under `target/release/bundle/`.

@@ -20,7 +20,7 @@ const KWIN_WATCHER_NAME: &str = "onq-tray-watch";
 
 #[cfg(target_os = "linux")]
 const KWIN_WATCHER_SCRIPT: &str = r#"
-const ids = ["com.visorcraft.onq", "onQ", "onq-app"];
+const ids = ["com.visorcraft.onq", "onq", "onq-app"];
 
 function isOnq(window) {
   const values = ["desktopFileName", "resourceClass", "resourceName", "caption"]
@@ -50,7 +50,7 @@ else if (workspace.clientAdded) workspace.clientAdded.connect(watch);
 
 #[cfg(target_os = "linux")]
 const KWIN_RESTORE_SCRIPT: &str = r#"
-const ids = ["com.visorcraft.onq", "onQ", "onq-app"];
+const ids = ["com.visorcraft.onq", "onq", "onq-app"];
 const windows = workspace.windowList ? workspace.windowList() : workspace.clientList();
 for (const window of windows) {
   const values = ["desktopFileName", "resourceClass", "resourceName", "caption"]
@@ -286,6 +286,13 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn desktop_identity_matches_binary_name() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
+        assert_eq!(config["productName"], env!("CARGO_PKG_NAME"));
+    }
+
     #[test]
     fn updater_uses_production_release_endpoint_and_frontend_permission() {
         let config: serde_json::Value =

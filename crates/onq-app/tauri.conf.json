@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "onQ",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "com.visorcraft.onq",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,7 +26,7 @@
       "endpoints": [
         "https://github.com/visorcraft/onQ/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI4MEEzRUUxMzU5Q0ZFRUEKUldUcS9wdzE0VDRLS1BTUjlrM0Z5NnFUaDZyRmZpSFljNDJNalVuVVRrMGFDanJxa05FeEdJbzAK"
     }
   }
 }

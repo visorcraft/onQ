@@ -18,7 +18,7 @@ npm install
 Run the desktop app:
 
 ```bash
-npm run tauri dev
+npm run dev:app
 ```
 
 ## Before opening a pull request

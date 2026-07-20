@@ -3293,6 +3293,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "onQ"
+version = "1.0.2"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "mongreldb-core",
+ "onq-core",
+ "onq-test-utils",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-updater",
+ "tempfile",
+ "tokio",
+ "toml 0.8.2",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3321,32 +3345,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "onq-app"
-version = "1.0.1"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "mongreldb-core",
- "onq-core",
- "onq-test-utils",
- "rand 0.9.5",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-updater",
- "tempfile",
- "tokio",
- "toml 0.8.2",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "onq-core"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -3383,11 +3383,11 @@ dependencies = [
 
 [[package]]
 name = "onq-plugin-sdk"
-version = "1.0.1"
+version = "1.0.2"
 
 [[package]]
 name = "onq-test-utils"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "mongreldb-core",
  "onq-core",
