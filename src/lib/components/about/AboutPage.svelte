@@ -116,8 +116,29 @@
         licenses and credits views.
       </p>
       <div class="about-legal-actions">
-        <button type="button" class="btn-ghost" onclick={onLicenses}>☰ Licenses</button>
-        <button type="button" class="btn-ghost" onclick={onCredits}>ℹ Credits</button>
+        <button type="button" class="btn-ghost" onclick={onLicenses}>
+          <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M4 4h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2zm2 4h8v2H6V8zm0 4h8v2H6v-2z"
+            />
+          </svg>
+          Licenses
+        </button>
+        <button type="button" class="btn-ghost" onclick={onCredits}>
+          <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
+            <circle cx="12" cy="8" r="1.25" fill="currentColor" />
+            <path
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              d="M12 11.5v5"
+            />
+          </svg>
+          Credits
+        </button>
       </div>
     </section>
 
