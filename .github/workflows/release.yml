@@ -84,3 +84,22 @@ jobs:
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
             target/release/bundle/**/*.sig
+
+  # Matrix jobs upload platform bundles; this job builds the static updater
+  # manifest the app fetches from releases/latest/download/latest.json.
+  publish-latest-json:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Generate and upload latest.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Wait briefly for release asset listing to settle after matrix uploads.
+          sleep 5
+          ./scripts/generate-latest-json.sh "$RELEASE_TAG" latest.json
+          gh release upload "$RELEASE_TAG" latest.json --clobber

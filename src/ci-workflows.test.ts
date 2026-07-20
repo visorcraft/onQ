@@ -56,6 +56,19 @@ describe('release.yml', () => {
   it('uploads Tauri macOS updater .app.tar.gz artifacts', () => {
     expect(yaml).toMatch(/macos\/\*\.app\.tar\.gz/);
   });
+
+  it('publishes latest.json for the Tauri static updater endpoint', () => {
+    // Without this, check-for-updates fails with
+    // "Could not fetch a valid release JSON from the remote".
+    expect(yaml).toMatch(/publish-latest-json/);
+    expect(yaml).toMatch(/generate-latest-json\.sh/);
+    expect(yaml).toMatch(/latest\.json/);
+    const script = readRepo('scripts', 'generate-latest-json.sh');
+    expect(script).toMatch(/platforms/);
+    expect(script).toMatch(/linux-x86_64/);
+    expect(script).toMatch(/windows-x86_64/);
+    expect(script).toMatch(/darwin-aarch64/);
+  });
 });
 
 describe('docs.yml', () => {
