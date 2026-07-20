@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { aboutInfo, type AboutInfo } from '$lib/api/about';
+  import { openExternalUrl } from '$lib/openUrl';
   import onqIcon from '../../../../crates/onq-app/icons/128x128.png';
 
   let {
@@ -47,7 +48,7 @@
 
   function openRepo() {
     const url = info?.repository ?? 'https://github.com/visorcraft/onQ';
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternalUrl(url);
   }
 </script>
 

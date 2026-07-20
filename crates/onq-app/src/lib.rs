@@ -192,6 +192,7 @@ pub fn run() {
             show_main_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
     #[cfg(all(desktop, not(target_os = "linux")))]
     let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());

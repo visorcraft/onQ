@@ -5,6 +5,7 @@
     runtimeLicenseText,
     type CreditsData,
   } from '$lib/api/about';
+  import { openExternalUrl } from '$lib/openUrl';
 
   let { onBack }: { onBack: () => void } = $props();
 
@@ -59,8 +60,7 @@
   }
 
   function openUrl(url: string) {
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    void openExternalUrl(url);
   }
 </script>
 
