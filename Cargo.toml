@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/visorcraft/onQ"
@@ -29,10 +29,9 @@ ulid = "1"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 notify = "6"
-# Dense ANN + replace_index ship on MongrelDB master after crates.io 0.60.3
-# (BinarySign-only). Pin the audited master tip from MONGRELDB_TODO.md until
-# a coordinated engine release publishes Dense on crates.io.
-mongreldb-core = { git = "https://github.com/visorcraft/MongrelDB", rev = "b28a511afe6f82df7545d64a22450e3c10e0f8d1" }
+# Dense ANN + replace_index published in 0.61.0; 0.61.1 restores deterministic
+# NAPI close semantics on top of that release.
+mongreldb-core = "0.61.1"
 onq-core = { path = "crates/onq-core", version = "1.0.1" }
 onq-test-utils = { path = "crates/onq-test-utils", version = "1.0.1" }
 keyring = { version = "3", features = [] }
