@@ -14,7 +14,7 @@ hero:
       link: https://github.com/visorcraft/onQ
 features:
   - title: Spotlight-centric UI
-    details: Ctrl+Q / ⌘Q is the app. Search prompts, folders, tags, smart folders, commands, and plugins from a single command palette.
+    details: Win+Q / Meta+Q / ⌘+Q is the app. Search prompts, folders, tags, smart folders, commands, and plugins from a single command palette.
   - title: Hybrid search
     details: Sparse keyword + semantic vector search fused via Reciprocal Rank Fusion. Six MongrelDB index kinds, recency decay.
   - title: Markdown vault

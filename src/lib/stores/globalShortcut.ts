@@ -1,6 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { writable } from 'svelte/store';
+import {
+  defaultGlobalShortcut,
+  detectShortcutPlatform,
+  metaModifierLabel,
+  normalizeShortcut,
+  toNativeShortcut,
+} from '$lib/shortcut';
 
 const STORAGE_KEY = 'onQ.globalShortcut';
 const PRESSED_EVENT = 'onq-global-shortcut';
@@ -17,11 +24,11 @@ export const globalShortcutBackend = writable<ShortcutBackend>('native');
 let currentShortcut = '';
 let listeners: Promise<void> | undefined;
 
-function applyStatus(status: ShortcutStatus) {
-  currentShortcut = status.shortcut;
-  globalShortcut.set(status.shortcut);
-  globalShortcutBackend.set(status.backend);
-  if (status.shortcut) localStorage.setItem(STORAGE_KEY, status.shortcut);
+function applyDisplayShortcut(display: string, backend: ShortcutBackend) {
+  currentShortcut = display;
+  globalShortcut.set(display);
+  globalShortcutBackend.set(backend);
+  if (display) localStorage.setItem(STORAGE_KEY, display);
   else localStorage.removeItem(STORAGE_KEY);
 }
 
@@ -37,12 +44,25 @@ async function updateShortcut(
   interactive: boolean,
 ): Promise<void> {
   await ensureListeners();
-  applyStatus(
-    await invoke<ShortcutStatus>('set_global_shortcut', {
-      shortcut,
-      interactive,
-    }),
-  );
+  // Always register a concrete chord with the backend. Empty/null must not
+  // leave the tray/global grab unset (first-install bug).
+  const display = shortcut && shortcut.length > 0 ? normalizeShortcut(shortcut) : null;
+  // Linux matches exact UI strings (Meta+…); Windows/macOS tauri only parses Super.
+  const forBackend = display
+    ? detectShortcutPlatform() === 'linux'
+      ? display
+      : toNativeShortcut(display)
+    : null;
+  const status = await invoke<ShortcutStatus>('set_global_shortcut', {
+    shortcut: forBackend,
+    interactive,
+  });
+  // Prefer our platform-facing label over whatever the native backend echoes
+  // (it typically normalizes the meta key to Super).
+  const resolved =
+    display ??
+    (status.shortcut ? normalizeShortcut(status.shortcut) : '');
+  applyDisplayShortcut(resolved, status.backend);
 }
 
 export async function setGlobalShortcut(shortcut: string): Promise<void> {
@@ -51,11 +71,22 @@ export async function setGlobalShortcut(shortcut: string): Promise<void> {
 
 export async function captureGlobalShortcut(): Promise<void> {
   await ensureListeners();
-  applyStatus(await invoke<ShortcutStatus>('capture_global_shortcut'));
+  const status = await invoke<ShortcutStatus>('capture_global_shortcut');
+  const display = status.shortcut ? normalizeShortcut(status.shortcut) : '';
+  applyDisplayShortcut(display, status.backend);
 }
 
+/**
+ * Load the saved chord, or the platform default on first install, and
+ * register it with the native / Linux input backend.
+ */
 export async function loadGlobalShortcut(): Promise<void> {
-  await updateShortcut(localStorage.getItem(STORAGE_KEY), false);
+  const stored = localStorage.getItem(STORAGE_KEY);
+  const shortcut =
+    stored && stored.trim().length > 0
+      ? normalizeShortcut(stored)
+      : defaultGlobalShortcut();
+  await updateShortcut(shortcut, false);
 }
 
 export function matchesGlobalShortcut(event: KeyboardEvent): boolean {
@@ -106,7 +137,7 @@ export function shortcutFromKeyboardEvent(event: KeyboardEvent): string | null {
     event.ctrlKey && 'Ctrl',
     event.altKey && 'Alt',
     event.shiftKey && 'Shift',
-    event.metaKey && 'Super',
+    event.metaKey && metaModifierLabel(),
     key,
   ]
     .filter(Boolean)

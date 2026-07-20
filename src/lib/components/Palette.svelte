@@ -18,7 +18,7 @@
   let commandList = $state<HTMLDivElement>();
   let commandInput = $state<HTMLInputElement>();
   // Title of the prompt currently open in the editor. Lets the palette offer
-  // a "More like this: <title>" command when ⌘Q is opened while a prompt is
+  // a "More like this: <title>" command when the palette is opened while a prompt is
   // selected. Reset on editor close.
   let selectedTitle = $state<string | null>(null);
   // Recent-search queries from the encrypted `recent_searches` column.

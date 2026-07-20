@@ -7,7 +7,7 @@
 <p align="center">
   <b>Quick Prompt - a search-oriented encrypted prompt vault built for speed, ownership, and local control.</b>
   <br />
-  Ctrl+Q / ⌘Q quick access · system tray · Markdown vaults · password or keychain encryption · hybrid search · local embeddings
+  Win+Q / Meta+Q / ⌘+Q quick access · system tray · Markdown vaults · password or keychain encryption · hybrid search · local embeddings
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ files, including Git, Dropbox, iCloud, or Syncthing.
 
 | Surface | What it does |
 |---|---|
-| **Quick access** | Opens with **Ctrl+Q / ⌘Q** or a user-recorded global shortcut, including while hidden in the system tray |
+| **Quick access** | Opens with **Win+Q** (Windows), **Meta+Q** (Linux), or **⌘+Q** (macOS), or a user-recorded global shortcut, including while hidden in the system tray |
 | **Hybrid search** | Fuses sparse keyword and vector similarity results with Reciprocal Rank Fusion |
 | **Markdown vault** | Keeps prompts as portable `.md` files with YAML frontmatter |
 | **Encryption** | Protects the local index with either a master password or an app-generated key stored in the OS keychain |

@@ -32,7 +32,15 @@ export async function installTauriMock(page: Page, opts: { vaultOpen?: boolean }
         case 'search':
           return [];
         case 'ping':
-          return 'onQ v1.0.3';
+          return 'onQ v1.1.0';
+        case 'set_global_shortcut':
+          return {
+            backend: 'native',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            shortcut: (args as any)?.shortcut ?? 'Super+Q',
+          };
+        case 'capture_global_shortcut':
+          return { backend: 'linux-input', shortcut: 'Meta+Q' };
         default:
           return null;
       }

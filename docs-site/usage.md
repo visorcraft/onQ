@@ -4,7 +4,7 @@ title: Usage
 
 # Usage
 
-A quick tour of onQ's key features. Use **Ctrl+Q / ⌘Q** to open
+A quick tour of onQ's key features. Use **Win+Q** / **Meta+Q** / **⌘+Q** to open
 the command palette — that is the app.
 
 ## Search

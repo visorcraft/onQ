@@ -165,7 +165,7 @@ it('opens the remembered vault on launch', async () => {
   const target = document.createElement('div');
   document.body.append(target);
   tutorialVisible.set(false);
-  globalShortcut.set('Super+Space');
+  globalShortcut.set('Meta+Space');
   invokeMock.mockReset();
   invokeMock.mockImplementation((command: string) => {
     if (command === 'open_last_vault') {
@@ -185,7 +185,7 @@ it('opens the remembered vault on launch', async () => {
     expect(document.querySelector('.hero h1')?.textContent).toBe('onQ');
   });
   expect(document.body.textContent).not.toContain('Welcome to onQ');
-  expect(document.body.textContent).toContain('Press Super+Space to begin');
+  expect(document.body.textContent).toContain('Press Meta+Space to begin');
 
   await unmount(component);
   globalShortcut.set('');

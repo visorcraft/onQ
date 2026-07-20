@@ -183,7 +183,13 @@ pub(crate) fn show_main_window(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Single-instance must register first so a second launch exits before
+    // tray/DB/global-shortcut setup runs. The callback focuses the existing
+    // window (taskbar / .desktop re-launch).
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build());
     #[cfg(all(desktop, not(target_os = "linux")))]
@@ -291,6 +297,24 @@ mod tests {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
         assert_eq!(config["productName"], env!("CARGO_PKG_NAME"));
+    }
+
+    #[test]
+    fn single_instance_plugin_is_wired() {
+        let cargo = include_str!("../Cargo.toml");
+        assert!(
+            cargo.contains("tauri-plugin-single-instance"),
+            "Cargo.toml must depend on tauri-plugin-single-instance"
+        );
+        let lib = include_str!("lib.rs");
+        assert!(
+            lib.contains("tauri_plugin_single_instance::init"),
+            "run() must install the single-instance plugin"
+        );
+        assert!(
+            lib.contains("show_main_window(app)"),
+            "second launch must focus the existing main window"
+        );
     }
 
     #[test]

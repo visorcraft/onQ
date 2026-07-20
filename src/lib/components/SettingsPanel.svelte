@@ -9,6 +9,7 @@
     setGlobalShortcut,
     shortcutFromKeyboardEvent,
   } from '$lib/stores/globalShortcut';
+  import { metaModifierLabel } from '$lib/shortcut';
   import {
     betaChannel,
     embeddingQuant,
@@ -21,6 +22,8 @@
   } from '$lib/stores/settings';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
+
+  const metaKeyLabel = metaModifierLabel();
 
   // Tracks the most recent in-flight selection so we can show a one-line
   // error toast if the backend write fails. Cleared automatically when
@@ -210,7 +213,7 @@
 
     {#if recordingShortcut}
       <p class="status hint" role="status">
-        Press Ctrl, Alt, or Super plus another key. Escape cancels.
+        Press Ctrl, Alt, or {metaKeyLabel} plus another key. Escape cancels.
       </p>
     {/if}
     {#if shortcutError}

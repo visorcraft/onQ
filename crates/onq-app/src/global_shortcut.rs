@@ -344,7 +344,8 @@ mod linux_input {
         }
         let key = key_label(code)?;
         let mut parts = Vec::with_capacity(5);
-        for (bit, label) in [(1, "Ctrl"), (2, "Alt"), (4, "Shift"), (8, "Super")] {
+        // Arch / freedesktop call the Windows key "Meta"; do not emit Super.
+        for (bit, label) in [(1, "Ctrl"), (2, "Alt"), (4, "Shift"), (8, "Meta")] {
             if modifiers.0 & bit != 0 {
                 parts.push(label);
             }
@@ -437,9 +438,9 @@ mod linux_input {
         use super::*;
 
         #[test]
-        fn formats_ctrl_and_super_shortcuts() {
+        fn formats_ctrl_and_meta_shortcuts() {
             assert_eq!(shortcut_label(16, Modifiers(1)).as_deref(), Some("Ctrl+Q"));
-            assert_eq!(shortcut_label(16, Modifiers(8)).as_deref(), Some("Super+Q"));
+            assert_eq!(shortcut_label(16, Modifiers(8)).as_deref(), Some("Meta+Q"));
         }
     }
 }
