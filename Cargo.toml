@@ -29,8 +29,9 @@ ulid = "1"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 notify = "6"
-# Dense ANN + replace_index published in 0.61.0; keep aligned with MongrelDB releases.
-mongreldb-core = "0.62.0"
+# Dense ANN + replace_index (0.61+); swappable ANN backends / PQ (0.63+).
+# Keep aligned with MongrelDB releases on crates.io.
+mongreldb-core = "0.63.1"
 onq-core = { path = "crates/onq-core", version = "1.0.1" }
 onq-test-utils = { path = "crates/onq-test-utils", version = "1.0.1" }
 keyring = { version = "3", features = [] }

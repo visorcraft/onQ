@@ -70,7 +70,11 @@ fn live_ann_quantization_on(db: &Database) -> CoreResult<Option<AnnQuantization>
 pub fn dense_readiness(db: &Db) -> CoreResult<DenseReadiness> {
     match live_ann_quantization(db)? {
         Some(AnnQuantization::Dense) => Ok(DenseReadiness::Ready),
-        Some(AnnQuantization::BinarySign) | None => Ok(DenseReadiness::PendingExactFallback),
+        // BinarySign, Product, or missing ANN — Dense preference falls back
+        // to exact cosine until replace-index publishes Dense.
+        Some(AnnQuantization::BinarySign)
+        | Some(AnnQuantization::Product { .. })
+        | None => Ok(DenseReadiness::PendingExactFallback),
     }
 }
 
