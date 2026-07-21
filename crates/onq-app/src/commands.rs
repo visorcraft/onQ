@@ -16,7 +16,10 @@ use onq_core::keychain::{Keychain, OsKeychain};
 use onq_core::lock::{derive_kek, generate_salt};
 use onq_core::recovery::{generate_phrase, phrase_to_passphrase};
 use onq_core::schema::col;
-use onq_core::search::{rrf_score, sparse_bytes, SearchQuery as AppSearchQuery};
+use onq_core::embed::{download_model, Embedder, MODEL_ID};
+use onq_core::search::{
+    rrf_score, searchable_text, sparse_bytes, SearchQuery as AppSearchQuery,
+};
 use onq_core::ulid::PromptId;
 use onq_core::vault::{Prompt, Vault};
 use rand::RngCore;
@@ -189,22 +192,43 @@ fn prompt_keychain_key(id: &PromptId) -> String {
     format!("{PROMPT_KEY_PREFIX}{}", id.as_str())
 }
 
+/// Free-text document for sparse (+ dense) indexing: title, tags, folder, body.
+fn indexable_text(prompt: &Prompt) -> String {
+    searchable_text(
+        &prompt.fm.title,
+        &prompt.fm.tags,
+        prompt.fm.folder.as_deref(),
+        &prompt.body,
+    )
+}
+
 /// Build the `(u16, Value)` cell list for a full PROMPTS row. Embedding is
-/// preserved from `existing_embed` when the DB row had one; otherwise a
-/// deterministic zero vector is supplied (the `embedding` column has no
-/// default). Body, char_count, locked are taken from the caller-supplied
-/// `locked`/`body` snapshot so the same helper serves both lock + unlock.
+/// taken from `embed_override` when supplied (fresh MiniLM encode); otherwise
+/// preserved from `existing_embed`, else a zero vector (column has no default).
+/// Sparse vectors cover title + tags + folder + body so free-text search can
+/// hit tags. Body, char_count, locked come from the caller-supplied snapshot.
 fn build_prompt_cells(
     prompt: &Prompt,
     body_bytes: Vec<u8>,
     char_count: i64,
     locked: bool,
     existing_embed: Option<Vec<f32>>,
+    embed_override: Option<Vec<f32>>,
 ) -> Vec<(u16, Value)> {
     let tags_json = serde_json::to_vec(&prompt.fm.tags).unwrap_or_else(|_| b"[]".to_vec());
     let folder = prompt.fm.folder.clone().unwrap_or_default().into_bytes();
-    let embed = existing_embed.unwrap_or_else(|| vec![0.0f32; EMBED_DIM]);
-    let sparse = sparse_bytes(&String::from_utf8_lossy(&body_bytes))
+    let embed = embed_override
+        .or(existing_embed)
+        .unwrap_or_else(|| vec![0.0f32; EMBED_DIM]);
+    // Sparse index covers title/tags/folder/body — not body alone.
+    let body_str = String::from_utf8_lossy(&body_bytes);
+    let sparse_src = searchable_text(
+        &prompt.fm.title,
+        &prompt.fm.tags,
+        prompt.fm.folder.as_deref(),
+        &body_str,
+    );
+    let sparse = sparse_bytes(&sparse_src)
         .map(Value::Bytes)
         .unwrap_or(Value::Null);
     vec![
@@ -259,14 +283,23 @@ fn fetch_existing_embedding(db: &Arc<Db>, id: &PromptId) -> Result<Option<Vec<f3
     }))
 }
 
-fn index_prompt(db: &Arc<Db>, prompt: &Prompt) -> Result<(), String> {
+fn index_prompt(
+    db: &Arc<Db>,
+    prompt: &Prompt,
+    embedder: Option<&mut Embedder>,
+) -> Result<(), String> {
     let existing_embed = fetch_existing_embedding(db, &prompt.fm.id)?;
+    let embed_override = match embedder {
+        Some(e) => e.embed(&indexable_text(prompt)).ok(),
+        None => None,
+    };
     let cells = build_prompt_cells(
         prompt,
         prompt.body.as_bytes().to_vec(),
         prompt.body.chars().count() as i64,
         prompt.fm.locked,
         existing_embed,
+        embed_override,
     );
     db.handle()
         .transaction_for_current_principal(|tx| {
@@ -276,42 +309,99 @@ fn index_prompt(db: &Arc<Db>, prompt: &Prompt) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-fn backfill_sparse_vectors(vault: &Vault, db: &Arc<Db>) -> Result<(), String> {
-    let ready: std::collections::HashSet<Vec<u8>> = db
-        .handle()
-        .query_for_current_principal(
-            "prompts",
-            &Query::default(),
-            Some(&[col::PROMPTS_ID, col::PROMPTS_BODY, col::PROMPTS_BODY_SPARSE]),
-        )
-        .map_err(|error| error.to_string())?
-        .into_iter()
-        .filter_map(|row| {
-            match (
-                row.columns.get(&col::PROMPTS_ID),
-                row.columns.get(&col::PROMPTS_BODY),
-                row.columns.get(&col::PROMPTS_BODY_SPARSE),
-            ) {
-                (Some(Value::Bytes(id)), _, Some(Value::Bytes(_))) => Some(id.clone()),
-                (Some(Value::Bytes(id)), Some(Value::Bytes(body)), Some(Value::Null))
-                    if body.is_empty() =>
-                {
-                    Some(id.clone())
-                }
-                _ => None,
-            }
-        })
-        .collect();
-
-    // ponytail: startup scan is O(N); move to a background migration if large
-    // vault startup becomes measurable.
-    for id in vault.list().map_err(|error| error.to_string())? {
-        if !ready.contains(id.as_str().as_bytes()) {
-            let prompt = vault.read(&id).map_err(|error| error.to_string())?;
-            index_prompt(db, &prompt)?;
+/// Index using the in-process MiniLM model when loaded; otherwise sparse-only
+/// (preserving any existing embedding column).
+fn index_prompt_with_state(
+    db: &Arc<Db>,
+    prompt: &Prompt,
+    state: &AppState,
+) -> Result<(), String> {
+    let emb = state.embedder.lock().map_err(|e| e.to_string())?.clone();
+    match emb {
+        Some(arc) => {
+            let mut e = arc.lock().map_err(|e| e.to_string())?;
+            index_prompt(db, prompt, Some(&mut e))
         }
+        None => index_prompt(db, prompt, None),
+    }
+}
+
+/// Re-index every vault prompt so sparse vectors include title/tags/folder
+/// (older builds only hashed the body). O(N) on unlock; acceptable for
+/// typical vault sizes.
+fn backfill_sparse_vectors(vault: &Vault, db: &Arc<Db>) -> Result<(), String> {
+    for id in vault.list().map_err(|error| error.to_string())? {
+        let prompt = vault.read(&id).map_err(|error| error.to_string())?;
+        index_prompt(db, &prompt, None)?;
     }
     Ok(())
+}
+
+/// Cache dir for MiniLM ONNX weights: `<app_cache>/all-MiniLM-L6-v2/`.
+fn embed_model_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let cache = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?;
+    Ok(cache.join("all-MiniLM-L6-v2"))
+}
+
+/// Load the MiniLM embedder from cache if present. Does not download.
+fn try_load_embedder_from_cache(app: &AppHandle) -> Option<Embedder> {
+    let dir = embed_model_dir(app).ok()?;
+    if !dir.join("model.onnx").is_file() || !dir.join("tokenizer.json").is_file() {
+        return None;
+    }
+    Embedder::load(&dir).ok()
+}
+
+/// Ensure `state.embedder` is populated when the model is already on disk.
+fn ensure_embedder_loaded(app: &AppHandle, state: &AppState) -> Result<bool, String> {
+    {
+        let guard = state.embedder.lock().map_err(|e| e.to_string())?;
+        if guard.is_some() {
+            return Ok(true);
+        }
+    }
+    if let Some(e) = try_load_embedder_from_cache(app) {
+        *state.embedder.lock().map_err(|e| e.to_string())? =
+            Some(Arc::new(std::sync::Mutex::new(e)));
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// Re-embed every prompt with the loaded model (best-effort; skips failures).
+fn reembed_all_prompts(state: &AppState) -> Result<u32, String> {
+    let vault = state
+        .vault
+        .lock()
+        .map_err(|e| e.to_string())?
+        .as_ref()
+        .ok_or_else(|| "vault not unlocked".to_string())?
+        .root
+        .clone();
+    let vault = Vault::new(vault).map_err(|e| e.to_string())?;
+    let db = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())?;
+    let embedder_arc = state
+        .embedder
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "embedder not loaded".to_string())?;
+    let mut embedder = embedder_arc.lock().map_err(|e| e.to_string())?;
+    let mut n = 0u32;
+    for id in vault.list().map_err(|e| e.to_string())? {
+        let prompt = vault.read(&id).map_err(|e| e.to_string())?;
+        index_prompt(&db, &prompt, Some(&mut embedder))?;
+        n += 1;
+    }
+    Ok(n)
 }
 
 /// Core workhorse behind [`lock_prompt`]. Synchronous so tests can call it
@@ -373,7 +463,7 @@ fn lock_prompt_blocking(
     //    existing embedding so the row's HNSW slot isn't replaced with zeros.
     if let Some(db) = db {
         let existing_embed = fetch_existing_embedding(db, id)?;
-        let cells = build_prompt_cells(&prompt, Vec::new(), 0, true, existing_embed);
+        let cells = build_prompt_cells(&prompt, Vec::new(), 0, true, existing_embed, None);
         db.handle()
             .transaction_for_current_principal(|tx| {
                 tx.put("prompts", cells)?;
@@ -479,6 +569,7 @@ fn unlock_prompt_blocking(
             char_count,
             false,
             existing_embed,
+            None,
         );
         db.handle()
             .transaction_for_current_principal(|tx| {
@@ -665,7 +756,7 @@ pub fn create_prompt(
     };
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt(&db, &p)?;
+        index_prompt_with_state(&db, &p, &state)?;
         if let Some(ref path) = p.fm.folder {
             ensure_folder_path(&db, path)?;
         }
@@ -710,7 +801,7 @@ pub fn save_prompt(
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt(&db, &p)?;
+        index_prompt_with_state(&db, &p, &state)?;
         if let Some(ref path) = p.fm.folder {
             ensure_folder_path(&db, path)?;
         }
@@ -738,7 +829,7 @@ pub fn set_prompt_folder(
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt(&db, &p)?;
+        index_prompt_with_state(&db, &p, &state)?;
         if let Some(ref path) = p.fm.folder {
             ensure_folder_path(&db, path)?;
         }
@@ -761,7 +852,7 @@ pub fn set_prompt_favorite(
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt(&db, &p)?;
+        index_prompt_with_state(&db, &p, &state)?;
     }
     Ok(PromptSummary::from(&p))
 }
@@ -1397,7 +1488,8 @@ pub async fn rename_folder(
             p.fm.folder = Some(rewritten);
             p.fm.updated = chrono::Utc::now();
             vault.write(&p).map_err(|e| e.to_string())?;
-            index_prompt(&db, &p)?;
+            // Sparse-only reindex here (spawn_blocking cannot hold AppState).
+            index_prompt(&db, &p, None)?;
         }
 
         // 2) Folder rows in one transaction.
@@ -1467,7 +1559,8 @@ pub async fn delete_folder(name: String, state: State<'_, AppState>) -> Result<(
             p.fm.folder = None;
             p.fm.updated = chrono::Utc::now();
             vault.write(&p).map_err(|e| e.to_string())?;
-            index_prompt(&db, &p)?;
+            // Sparse-only reindex here (spawn_blocking cannot hold AppState).
+            index_prompt(&db, &p, None)?;
         }
 
         // Delete folder rows in one transaction.
@@ -1786,6 +1879,7 @@ pub async fn retrieve_vault_key(
 #[tauri::command]
 pub async fn run_smart_folder(
     id: String,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<SearchHit>, String> {
     // 1. Pull the open DB out of state. Same prerequisite as `search`.
@@ -1831,7 +1925,7 @@ pub async fn run_smart_folder(
     //    `CoreError::Other("unknown DSL token: …")`, which we convert to a
     //    user-visible String the UI can render.
     let query = onq_core::smart_folder_dsl::parse(&dsl).map_err(|e| e.to_string())?;
-    search(query, state).await
+    search(query, app, state).await
 }
 
 /// Build a character n-gram shingle of `body`. Each n-character window becomes
@@ -2117,6 +2211,7 @@ pub struct SearchHit {
 #[tauri::command]
 pub async fn search(
     query: AppSearchQuery,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<SearchHit>, String> {
     // 1. Pull the open DB out of state. An unlocked vault is a hard prerequisite.
@@ -2126,6 +2221,9 @@ pub async fn search(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "vault not unlocked".to_string())?;
+
+    // Best-effort: load MiniLM from cache if present so Dense/Binary ANN can run.
+    let _ = ensure_embedder_loaded(&app, &state);
 
     // 2. Embed the query text off-thread when the model is available.
     // Sparse retrieval remains usable before or without the model.
@@ -2947,6 +3045,106 @@ pub async fn set_app_setting(
         .map_err(|e| e.to_string())
 }
 
+/// Live search-stack health for Settings / diagnostics.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchStatus {
+    /// MiniLM ONNX session is loaded in-process.
+    pub embedder_loaded: bool,
+    /// Model files exist under the app cache (may still need load).
+    pub model_cached: bool,
+    /// HuggingFace model id when known.
+    pub model_id: String,
+    /// User preference: `"binary"` or `"dense"`.
+    pub embedding_quant: String,
+    /// When preference is dense: `"ready"` | `"pending"`. Otherwise `"n/a"`.
+    pub dense_readiness: String,
+    /// True when searches fall back to keyword/sparse only (no query embeddings).
+    pub sparse_only: bool,
+}
+
+#[tauri::command]
+pub fn get_search_status(app: AppHandle, state: State<'_, AppState>) -> Result<SearchStatus, String> {
+    let _ = ensure_embedder_loaded(&app, &state);
+    let embedder_loaded = state
+        .embedder
+        .lock()
+        .map_err(|e| e.to_string())?
+        .is_some();
+    let model_dir = embed_model_dir(&app)?;
+    let model_cached = model_dir.join("model.onnx").is_file()
+        && model_dir.join("tokenizer.json").is_file();
+
+    let embedding_quant = if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.as_ref() {
+        let v = read_app_setting(db, col::APP_EMBED_QUANT)?;
+        if v.is_empty() {
+            "binary".into()
+        } else {
+            v
+        }
+    } else {
+        "binary".into()
+    };
+
+    let dense_readiness = if embedding_quant == "dense" {
+        if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.as_ref() {
+            match embedding_index::dense_readiness(db).map_err(|e| e.to_string())? {
+                embedding_index::DenseReadiness::Ready => "ready".into(),
+                embedding_index::DenseReadiness::PendingExactFallback => "pending".into(),
+            }
+        } else {
+            "pending".into()
+        }
+    } else {
+        "n/a".into()
+    };
+
+    Ok(SearchStatus {
+        embedder_loaded,
+        model_cached,
+        model_id: MODEL_ID.into(),
+        embedding_quant,
+        dense_readiness,
+        sparse_only: !embedder_loaded,
+    })
+}
+
+/// Download (if needed) and load MiniLM, then re-embed all prompts.
+/// Long-running — UI should show a busy state.
+#[tauri::command]
+pub async fn ensure_search_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<SearchStatus, String> {
+    // Already loaded from cache?
+    if ensure_embedder_loaded(&app, &state)? {
+        if state.db.lock().map_err(|e| e.to_string())?.is_some() {
+            reembed_all_prompts(&state)?;
+        }
+        return get_search_status(app, state);
+    }
+
+    let cache_parent = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?;
+    // download_model is async (HuggingFace hub).
+    let dst = download_model(&cache_parent)
+        .await
+        .map_err(|e| e.to_string())?;
+    let embedder = tokio::task::spawn_blocking(move || Embedder::load(&dst))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    *state.embedder.lock().map_err(|e| e.to_string())? =
+        Some(Arc::new(std::sync::Mutex::new(embedder)));
+
+    if state.db.lock().map_err(|e| e.to_string())?.is_some() {
+        reembed_all_prompts(&state)?;
+    }
+    get_search_status(app, state)
+}
+
 /// Toggle the `prompts.embedding` ANN representation. The preference is
 /// durable, then a reconstructible replace-index job runs. Dense search uses
 /// exact cosine only until native Dense publication finishes.
@@ -3338,10 +3536,17 @@ mod tests {
             prompt.body.chars().count() as i64,
             false,
             None,
+            None,
         );
+        let expected = sparse_bytes(&searchable_text(
+            &prompt.fm.title,
+            &prompt.fm.tags,
+            prompt.fm.folder.as_deref(),
+            &prompt.body,
+        ))
+        .unwrap();
         assert!(cells.iter().any(|(column, value)| {
-            *column == col::PROMPTS_BODY_SPARSE
-                && value == &Value::Bytes(sparse_bytes(&prompt.body).unwrap())
+            *column == col::PROMPTS_BODY_SPARSE && value == &Value::Bytes(expected.clone())
         }));
     }
 
@@ -4017,7 +4222,7 @@ mod tests {
         p.fm.folder = Some("Team/Alpha".into());
         p.body = "body".into();
         vault.write(&p).unwrap();
-        index_prompt(&db, &p).unwrap();
+        index_prompt(&db, &p, None).unwrap();
 
         // Collision: Team → Archive would rewrite Team/Alpha → Archive/Alpha.
         let folders = list_folder_rows(&db).unwrap();
@@ -4088,7 +4293,7 @@ mod tests {
             folder_path::rewrite_prefix(p.fm.folder.as_deref().unwrap(), old, new).unwrap();
         p.fm.folder = Some(rewritten);
         vault.write(&p).unwrap();
-        index_prompt(&db, &p).unwrap();
+        index_prompt(&db, &p, None).unwrap();
         assert_eq!(
             vault.read(&p.fm.id).unwrap().fm.folder.as_deref(),
             Some("Work/Alpha")
@@ -4138,7 +4343,7 @@ mod tests {
         let mut p = vault.new_prompt("victim").unwrap();
         p.fm.folder = Some("Doomed/Child".into());
         vault.write(&p).unwrap();
-        index_prompt(&db, &p).unwrap();
+        index_prompt(&db, &p, None).unwrap();
 
         let path = "Doomed";
         let affected: Vec<_> = list_folder_rows(&db)
@@ -4151,7 +4356,7 @@ mod tests {
         let mut p = vault.read(&p.fm.id).unwrap();
         p.fm.folder = None;
         vault.write(&p).unwrap();
-        index_prompt(&db, &p).unwrap();
+        index_prompt(&db, &p, None).unwrap();
         assert!(vault.read(&p.fm.id).unwrap().fm.folder.is_none());
 
         let mut row_ids = Vec::new();

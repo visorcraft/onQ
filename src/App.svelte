@@ -24,7 +24,8 @@
 
   const shortcut = paletteShortcut();
   const STATUS_CLEAR_MS = 5_000;
-  let lastOpenedId = $state<string | null>(null);
+  /** Open editor target: existing prompt id, or draft (null id). */
+  let editorSession = $state<{ id: string | null; folder: string | null } | null>(null);
   /** Bumped when the editor closes so Library reloads list data. */
   let libraryEpoch = $state(0);
   let hasVault = $state(false);
@@ -127,8 +128,16 @@
     navigate(view);
   }
 
+  function openExistingPrompt(id: string) {
+    editorSession = { id, folder: null };
+  }
+
+  function openDraftPrompt(folder: string | null = null) {
+    editorSession = { id: null, folder };
+  }
+
   function closeEditor() {
-    lastOpenedId = null;
+    editorSession = null;
     libraryEpoch += 1;
   }
 
@@ -136,50 +145,107 @@
 </script>
 
 <main class:page-mode={onPage}>
-  {#if $appView === 'home'}
-    <div class="app-controls">
-      {#if hasVault}
-        <button
-          type="button"
-          class="icon-button library-button glass"
-          aria-label="Open library"
-          title="Library"
-          onclick={() => go('library')}
-        >
-          ☰
-        </button>
-      {/if}
+  <!-- Global chrome: visible on every surface (home, library, settings, about, …). -->
+  <div class="app-controls">
+    <button
+      type="button"
+      class="icon-button home-button glass"
+      aria-label="Home"
+      title="Home"
+      aria-current={$appView === 'home' ? 'page' : undefined}
+      onclick={() => {
+        editorSession = null;
+        go('home');
+      }}
+    >
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+        <path
+          d="M3.5 9.2 10 3.5l6.5 5.7V16a1 1 0 0 1-1 1h-3.4v-4.2H7.9V17H4.5a1 1 0 0 1-1-1V9.2Z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+    {#if hasVault}
       <button
         type="button"
-        class="icon-button settings-button glass"
-        aria-label="Open settings"
-        title="Settings"
-        onclick={() => go('settings')}
+        class="icon-button library-button glass"
+        aria-label="Open library"
+        title="Library"
+        aria-current={$appView === 'library' ? 'page' : undefined}
+        onclick={() => go('library')}
       >
-        ⚙
+        <!-- Scroll / script: rolled parchment with text lines -->
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+          <path
+            d="M5.2 3.2h8.1c1.2 0 2.2 1 2.2 2.2v9.2c0 .9-.7 1.6-1.6 1.6H6.6c-1.2 0-2.2-1-2.2-2.2V5.4c0-1.2 1-2.2 2.2-2.2Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.45"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M5.2 3.2c0 1.1-.9 2-2 2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.45"
+            stroke-linecap="round"
+          />
+          <path
+            d="M14 16.2c1 0 1.8-.8 1.8-1.8"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.45"
+            stroke-linecap="round"
+          />
+          <path
+            d="M7.2 7.2h5.6M7.2 10h5.6M7.2 12.8h3.8"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.35"
+            stroke-linecap="round"
+          />
+        </svg>
       </button>
-      <button
-        type="button"
-        class="icon-button theme-toggle glass"
-        aria-label="Toggle theme"
-        title="Toggle theme"
-        onclick={toggleTheme}
-      >
-        {$theme === 'dark' ? '☀️' : '🌙'}
-      </button>
-      <button
-        type="button"
-        class="icon-button help-button glass"
-        aria-label="About onQ"
-        title="About onQ"
-        onclick={() => go('about')}
-      >
-        ?
-      </button>
-    </div>
-    {#if updateStatus}
-      <p class="update-status" role="status">{updateStatus}</p>
     {/if}
+    <button
+      type="button"
+      class="icon-button settings-button glass"
+      aria-label="Open settings"
+      title="Settings"
+      aria-current={$appView === 'settings' ? 'page' : undefined}
+      onclick={() => go('settings')}
+    >
+      ⚙
+    </button>
+    <button
+      type="button"
+      class="icon-button theme-toggle glass"
+      aria-label="Toggle theme"
+      title="Toggle theme"
+      onclick={toggleTheme}
+    >
+      {$theme === 'dark' ? '☀️' : '🌙'}
+    </button>
+    <button
+      type="button"
+      class="icon-button help-button glass"
+      aria-label="About onQ"
+      title="About onQ"
+      aria-current={$appView === 'about' || $appView === 'licenses' || $appView === 'credits'
+        ? 'page'
+        : undefined}
+      onclick={() => go('about')}
+    >
+      ?
+    </button>
+  </div>
+  {#if $appView === 'home' && updateStatus}
+    <p class="update-status" role="status">{updateStatus}</p>
+  {/if}
+  {#if $appView === 'home'}
     <button
       type="button"
       class="app-version"
@@ -195,34 +261,26 @@
   {#if $appView === 'library'}
     <LibraryPage
       {libraryEpoch}
-      onBack={() => {
-        lastOpenedId = null;
-        go('home');
-      }}
-      onOpenPrompt={(id) => {
-        lastOpenedId = id;
-      }}
+      onOpenPrompt={openExistingPrompt}
+      onNewPrompt={openDraftPrompt}
     />
-    {#if lastOpenedId}
-      {#key lastOpenedId}
-        <Editor id={lastOpenedId} onClose={closeEditor} />
+    {#if editorSession}
+      {#key editorSession.id ?? 'draft'}
+        <Editor
+          id={editorSession.id}
+          initialFolder={editorSession.folder}
+          onClose={closeEditor}
+        />
       {/key}
     {/if}
   {:else if $appView === 'settings'}
-    <SettingsPage
-      onBack={() => go('home')}
-      onOpenLibrary={hasVault ? () => go('library') : undefined}
-    />
+    <SettingsPage />
   {:else if $appView === 'about'}
-    <AboutPage
-      onBack={() => go('home')}
-      onLicenses={() => go('licenses')}
-      onCredits={() => go('credits')}
-    />
+    <AboutPage onLicenses={() => go('licenses')} onCredits={() => go('credits')} />
   {:else if $appView === 'licenses'}
-    <LicensesPage onBack={() => go('about')} />
+    <LicensesPage />
   {:else if $appView === 'credits'}
-    <CreditsPage onBack={() => go('about')} />
+    <CreditsPage />
   {:else if checkingVault}
     <p role="status">Opening last vault…</p>
   {:else if passwordPath}
@@ -238,9 +296,13 @@
       <p>Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</p>
     </div>
     <Palette />
-    {#if lastOpenedId}
-      {#key lastOpenedId}
-        <Editor id={lastOpenedId} onClose={closeEditor} />
+    {#if editorSession}
+      {#key editorSession.id ?? 'draft'}
+        <Editor
+          id={editorSession.id}
+          initialFolder={editorSession.folder}
+          onClose={closeEditor}
+        />
       {/key}
     {/if}
     {#if $tutorialVisible}
@@ -293,21 +355,21 @@
     border-radius: 6px;
   }
   .app-controls {
-    position: absolute;
-    top: 24px;
-    right: 24px;
+    position: fixed;
+    top: 20px;
+    right: 20px;
     display: flex;
     gap: 8px;
-    z-index: 10;
+    z-index: 40;
   }
   .update-status {
-    position: absolute;
+    position: fixed;
     top: 72px;
-    right: 24px;
+    right: 20px;
     margin: 0;
     color: var(--glass-text-dim);
     font-size: 14px;
-    z-index: 10;
+    z-index: 40;
   }
   .app-version {
     position: fixed;
@@ -349,9 +411,15 @@
     cursor: pointer;
     border: 1px solid var(--glass-border);
     background: rgba(127, 127, 127, 0.08);
+    border-radius: var(--glass-radius);
   }
+  .home-button,
   .library-button {
-    font-size: 18px;
+    color: var(--glass-text);
+  }
+  .home-button svg,
+  .library-button svg {
+    display: block;
   }
   .help-button {
     font-size: 20px;
@@ -365,6 +433,11 @@
   }
   .icon-button:hover {
     background: rgba(127, 127, 127, 0.16);
+  }
+  .icon-button[aria-current='page'] {
+    color: var(--glass-selected-fg);
+    border-color: color-mix(in srgb, var(--glass-selected-fg) 40%, transparent);
+    background: var(--glass-selected-bg);
   }
   .icon-button:focus-visible {
     outline: 2px solid var(--glass-periwinkle);

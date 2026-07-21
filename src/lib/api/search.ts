@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { SearchHit, SearchQuery } from '$lib/types/search';
+import type { SearchHit, SearchQuery } from '../types/search';
 
 /**
  * Run a hybrid search against the open vault's encrypted search index.
@@ -12,6 +12,28 @@ import type { SearchHit, SearchQuery } from '$lib/types/search';
  */
 export async function search(query: SearchQuery): Promise<SearchHit[]> {
   return invoke<SearchHit[]>('search', { query });
+}
+
+/** Live search-stack health from the backend. */
+export interface SearchStatus {
+  embedderLoaded: boolean;
+  modelCached: boolean;
+  modelId: string;
+  embeddingQuant: string;
+  denseReadiness: string;
+  sparseOnly: boolean;
+}
+
+export async function getSearchStatus(): Promise<SearchStatus> {
+  return invoke<SearchStatus>('get_search_status');
+}
+
+/**
+ * Download MiniLM if needed, load it, and re-embed all prompts.
+ * Long-running (network + ONNX).
+ */
+export async function ensureSearchModel(): Promise<SearchStatus> {
+  return invoke<SearchStatus>('ensure_search_model');
 }
 
 /**

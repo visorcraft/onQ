@@ -114,24 +114,35 @@
     box-sizing: border-box;
     width: 100%;
     padding: 12px;
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 10px;
+    background: var(--glass-input);
     color: var(--glass-text);
     font: 13px/1.6 'JetBrains Mono', ui-monospace, monospace;
+    transition:
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
   }
   textarea {
     resize: vertical;
   }
+  textarea:hover,
+  input:hover {
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 35%, var(--glass-border-strong));
+  }
   textarea:focus-visible,
-  input:focus-visible,
+  input:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
+  }
   button:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }
   .error {
     margin-top: 12px;
-    color: #ff7a7a;
+    color: var(--glass-danger);
   }
   .actions {
     display: flex;
@@ -143,15 +154,21 @@
     padding: 10px 18px;
     border: 1px solid var(--glass-border);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     cursor: pointer;
     font: inherit;
+  }
+  button:hover:not(:disabled) {
+    background: var(--glass-hover-strong);
   }
   button.primary {
     border-color: transparent;
     background: var(--glass-accent);
     color: #fff;
+  }
+  button.primary:hover:not(:disabled) {
+    filter: brightness(1.05);
   }
   button:disabled {
     cursor: not-allowed;

@@ -117,6 +117,36 @@ impl SearchQuery {
     }
 }
 
+/// Build the free-text document string used for sparse (and ideally dense)
+/// indexing. Title, tags, and folder are included so typing a tag or project
+/// name in the palette can surface matching prompts — not only body tokens.
+pub fn searchable_text(
+    title: &str,
+    tags: &[String],
+    folder: Option<&str>,
+    body: &str,
+) -> String {
+    let mut parts: Vec<&str> = Vec::with_capacity(4 + tags.len());
+    let title = title.trim();
+    if !title.is_empty() {
+        parts.push(title);
+    }
+    for tag in tags {
+        let t = tag.trim();
+        if !t.is_empty() {
+            parts.push(t);
+        }
+    }
+    if let Some(folder) = folder.map(str::trim).filter(|f| !f.is_empty()) {
+        parts.push(folder);
+    }
+    let body = body.trim();
+    if !body.is_empty() {
+        parts.push(body);
+    }
+    parts.join("\n")
+}
+
 /// Deterministic hashing-trick sparse vector shared by document writes and
 /// queries. L2-normalized term frequency prevents long prompts from winning
 /// only because they contain more words.
@@ -350,5 +380,29 @@ mod tests {
             .sum::<f32>();
         assert!((norm - 1.0).abs() < f32::EPSILON);
         assert_eq!(sparse_vector(""), Vec::new());
+    }
+
+    #[test]
+    fn searchable_text_includes_title_tags_folder_and_body() {
+        let text = searchable_text(
+            "Weekly status",
+            &["git".into(), "release".into()],
+            Some("Work/Updates"),
+            "Ship the build.",
+        );
+        assert!(text.contains("Weekly status"));
+        assert!(text.contains("git"));
+        assert!(text.contains("release"));
+        assert!(text.contains("Work/Updates"));
+        assert!(text.contains("Ship the build."));
+        // Tag-only query tokens must appear in the sparse vector of the doc.
+        let doc = sparse_vector(&text);
+        let q = sparse_vector("git");
+        assert!(!q.is_empty());
+        let q_hash = q[0].0;
+        assert!(
+            doc.iter().any(|(h, _)| *h == q_hash),
+            "tag token must be present in document sparse vector"
+        );
     }
 }

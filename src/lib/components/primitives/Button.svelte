@@ -65,17 +65,20 @@
     outline-offset: 2px;
   }
   .btn.primary {
-    background: var(--glass-accent);
-    border-color: transparent;
-    color: #fff;
+    background: color-mix(in srgb, var(--glass-accent) 22%, var(--glass-control-bg));
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 38%, var(--glass-border));
+    color: var(--glass-text);
+    box-shadow: none;
   }
   .btn.primary:hover:not(:disabled) {
-    background: #78a3ff;
+    background: color-mix(in srgb, var(--glass-accent) 32%, var(--glass-control-bg));
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, var(--glass-border));
   }
   .btn.danger {
-    background: rgba(255, 80, 80, 0.7);
+    background: linear-gradient(180deg, #ff7b84 0%, #e24b56 100%);
     border-color: transparent;
     color: #fff;
+    box-shadow: 0 6px 16px rgba(226, 75, 86, 0.3);
   }
   .btn.quiet {
     background: transparent;

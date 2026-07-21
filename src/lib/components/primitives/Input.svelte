@@ -47,24 +47,26 @@
     box-sizing: border-box;
     padding: 9px 12px;
     color: var(--glass-text);
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--glass-border);
+    background: var(--glass-input);
+    border: 1px solid var(--glass-border-strong);
     border-radius: 9px;
     font: inherit;
     font-size: 14px;
     outline: none;
-    transition: border-color var(--motion-duration) ease;
+    transition:
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
   }
   .field::placeholder {
     color: var(--glass-text-faint);
   }
   .field:hover:not(:disabled) {
-    border-color: var(--glass-border-strong);
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 35%, var(--glass-border-strong));
   }
   .field:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 1px;
-    border-color: transparent;
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
   }
   .field:disabled {
     opacity: 0.5;

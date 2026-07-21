@@ -1,12 +1,25 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { readPrompt, savePrompt, deletePrompt } from '$lib/api/prompts';
+  import { createPrompt, readPrompt, savePrompt, deletePrompt } from '$lib/api/prompts';
   import { listFolders } from '$lib/api/folders';
   import { lockPrompt, unlockPrompt } from '$lib/api/lock';
-  import { fly } from 'svelte/transition';
+  import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
+  import ConfirmDialog from './primitives/ConfirmDialog.svelte';
 
-  let { id, onClose }: { id: string; onClose: () => void } = $props();
+  let {
+    /** Existing prompt id, or `null` for an unsaved draft (not written until Save). */
+    id = null,
+    /** Pre-filled project path when opening a new draft. */
+    initialFolder = null,
+    onClose,
+  }: {
+    id?: string | null;
+    initialFolder?: string | null;
+    onClose: () => void;
+  } = $props();
+
+  const isDraft = $derived(id == null);
 
   let title = $state('');
   let body = $state('');
@@ -26,13 +39,25 @@
   // defeating the lock. We force `onClose()` after lock/unlock so the
   // palette reloads and the next `readPrompt` reflects the new state.
   let busy = $state(false);
+  let confirmDeleteOpen = $state(false);
 
   onMount(async () => {
     try {
-      const [p, folders] = await Promise.all([
-        readPrompt(id),
-        listFolders().catch(() => []),
-      ]);
+      const folders = await listFolders().catch(() => []);
+      projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
+
+      if (id == null) {
+        // Unsaved draft — nothing hits the vault until Save.
+        folderInput = initialFolder ?? '';
+        if (initialFolder && !projectOptions.includes(initialFolder)) {
+          projectOptions = [...projectOptions, initialFolder].sort((a, b) =>
+            a.localeCompare(b),
+          );
+        }
+        return;
+      }
+
+      const p = await readPrompt(id);
       title = p.title;
       folderInput = p.folder ?? '';
       tags = p.tags ?? [];
@@ -41,7 +66,6 @@
       locked = p.locked;
       charCount = p.char_count;
       body = p.body ?? '';
-      projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
       if (p.folder && !projectOptions.includes(p.folder)) {
         projectOptions = [...projectOptions, p.folder].sort((a, b) => a.localeCompare(b));
       }
@@ -69,9 +93,16 @@
     busy = true;
     errorMessage = null;
     try {
+      let promptId = id;
+      const resolvedTitle = title.trim() || 'Untitled';
+      // Create only when the user explicitly saves a draft.
+      if (promptId == null) {
+        const created = await createPrompt(resolvedTitle, parseFolder());
+        promptId = created.id;
+      }
       await savePrompt({
-        id,
-        title,
+        id: promptId,
+        title: resolvedTitle,
         body,
         folder: parseFolder(),
         tags: parseTags(),
@@ -85,22 +116,29 @@
     }
   }
 
-  async function del() {
-    if (!confirm('Delete this prompt?')) return;
+  function requestDelete() {
+    if (busy || isDraft) return;
+    confirmDeleteOpen = true;
+  }
+
+  async function confirmDelete() {
+    if (id == null) return;
     busy = true;
     errorMessage = null;
     try {
       await deletePrompt(id);
+      confirmDeleteOpen = false;
       onClose();
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : String(e);
+      confirmDeleteOpen = false;
     } finally {
       busy = false;
     }
   }
 
   async function toggleLock() {
-    if (busy) return;
+    if (busy || isDraft || id == null) return;
     busy = true;
     errorMessage = null;
     try {
@@ -111,7 +149,7 @@
         // Persist current plaintext before sealing it.
         await savePrompt({
           id,
-          title,
+          title: title.trim() || 'Untitled',
           body,
           folder: parseFolder(),
           tags: parseTags(),
@@ -128,10 +166,15 @@
   }
 
   function onEditorKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && !confirmDeleteOpen) {
       event.stopPropagation();
       onClose();
     }
+  }
+
+  function toggleFavorite() {
+    if (locked || busy) return;
+    favorite = !favorite;
   }
 </script>
 
@@ -139,26 +182,138 @@
   type="button"
   class="editor-backdrop"
   aria-label="Close editor"
+  transition:fade={{ duration: 160 }}
   onclick={onClose}
 ></button>
 <div
   class="editor glass-elevated spring"
-  transition:fly={{ y: 20, duration: 240, easing: quintOut }}
+  transition:fly={{ y: 16, duration: 260, easing: quintOut }}
   role="dialog"
   aria-modal="true"
-  aria-label="Edit prompt"
+  aria-label={isDraft ? 'New prompt' : 'Edit prompt'}
   tabindex="-1"
   onkeydown={onEditorKeydown}
 >
+  <div class="ambient" aria-hidden="true"></div>
+
   {#if loading}
-    <p>Loading…</p>
+    <div class="loading-state">
+      <div class="loading-pulse" aria-hidden="true"></div>
+      <p>Loading prompt…</p>
+    </div>
   {:else}
-    <input class="title" bind:value={title} placeholder="Title" aria-label="Prompt title" disabled={locked} />
+    <header class="editor-head">
+      <p class="eyebrow">{isDraft ? 'New prompt' : 'Prompt'}</p>
+      <div class="title-row">
+        <label class="title-field">
+          <span class="field-label">Title</span>
+          <input
+            class="title field-input"
+            bind:value={title}
+            placeholder="Untitled prompt"
+            aria-label="Prompt title"
+            disabled={locked}
+          />
+        </label>
+        <div class="head-actions">
+          <button
+            type="button"
+            class="icon-chip"
+            class:on={favorite}
+            title={favorite ? 'Unfavorite' : 'Favorite'}
+            aria-label={favorite ? 'Unfavorite' : 'Favorite'}
+            aria-pressed={favorite}
+            disabled={locked || busy}
+            onclick={toggleFavorite}
+          >
+            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+              {#if favorite}
+                <path
+                  d="M8 1.8l1.7 3.5 3.9.6-2.8 2.7.7 3.8L8 10.6 4.5 12.4l.7-3.8L2.4 5.9l3.9-.6L8 1.8z"
+                  fill="currentColor"
+                />
+              {:else}
+                <path
+                  d="M8 2.4l1.4 2.9 3.2.5-2.3 2.2.5 3.2L8 9.6 5.2 11.2l.5-3.2L3.4 5.8l3.2-.5L8 2.4z"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linejoin="round"
+                />
+              {/if}
+            </svg>
+          </button>
+          {#if !isDraft}
+            <button
+              type="button"
+              class="icon-chip"
+              class:locked
+              title={locked ? 'Unlock' : 'Lock'}
+              aria-label={locked ? 'Unlock prompt' : 'Lock prompt'}
+              aria-pressed={locked}
+              disabled={busy}
+              onclick={() => void toggleLock()}
+            >
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                {#if locked}
+                  <path
+                    d="M5 7V5.2a3 3 0 0 1 6 0V7"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                  <rect
+                    x="3.5"
+                    y="7"
+                    width="9"
+                    height="6.5"
+                    rx="1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                  />
+                {:else}
+                  <path
+                    d="M5 7V5.2a3 3 0 0 1 5.7-1.3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                  <rect
+                    x="3.5"
+                    y="7"
+                    width="9"
+                    height="6.5"
+                    rx="1.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                  />
+                {/if}
+              </svg>
+            </button>
+          {/if}
+          <button type="button" class="icon-chip close" aria-label="Close" onclick={onClose}>
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M3.5 3.5l9 9M12.5 3.5l-9 9"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
     <div class="meta-row">
       <label class="field">
         <span class="field-label">Project</span>
         <input
-          class="folder"
+          class="field-input"
           list="project-paths"
           bind:value={folderInput}
           placeholder="Unfiled — or Writing/Blog Posts"
@@ -174,7 +329,7 @@
       <label class="field">
         <span class="field-label">Tags</span>
         <input
-          class="folder"
+          class="field-input"
           bind:value={tagsInput}
           placeholder="comma, separated, tags"
           aria-label="Tags"
@@ -182,34 +337,73 @@
         />
       </label>
     </div>
-    <textarea
-      class="body"
-      bind:value={body}
-      oninput={(e) => (charCount = (e.target as HTMLTextAreaElement).value.length)}
-      placeholder={locked ? 'Body is encrypted — unlock to edit' : 'Prompt body…'}
-      aria-label="Prompt body"
-      disabled={locked}
-    ></textarea>
-    <div class="meta">
-      <span>{charCount} characters</span>
-      <label><input type="checkbox" bind:checked={favorite} disabled={locked} /> Favorite</label>
+
+    <div class="body-shell" class:is-locked={locked}>
       {#if locked}
-        <span class="lock-badge" aria-label="locked prompt">🔒 locked</span>
+        <div class="lock-banner" role="status">
+          <span class="lock-dot" aria-hidden="true"></span>
+          Body is encrypted — unlock to edit
+        </div>
+      {/if}
+      <textarea
+        class="body"
+        bind:value={body}
+        oninput={(e) => (charCount = (e.target as HTMLTextAreaElement).value.length)}
+        placeholder={locked ? '' : 'Write the prompt body…'}
+        aria-label="Prompt body"
+        disabled={locked}
+      ></textarea>
+    </div>
+
+    <div class="meta">
+      <span class="char-count">
+        <span class="char-num">{charCount.toLocaleString()}</span>
+        characters
+      </span>
+      {#if locked}
+        <span class="lock-badge">Encrypted</span>
       {/if}
     </div>
+
     {#if errorMessage}
       <p class="error" role="alert">{errorMessage}</p>
     {/if}
-    <div class="actions">
-      <button class="primary" onclick={() => void save()} disabled={locked || busy}>Save</button>
-      <button class="danger" onclick={() => void del()} disabled={busy}>Delete</button>
-      <button onclick={() => void toggleLock()} disabled={busy} aria-pressed={locked}>
-        {locked ? 'Unlock' : 'Lock'}
-      </button>
-      <button onclick={onClose}>Cancel</button>
-    </div>
+
+    <footer class="actions">
+      {#if isDraft}
+        <span class="draft-hint">Not saved yet — cancel discards this draft.</span>
+      {:else}
+        <button type="button" class="btn ghost danger-text" onclick={requestDelete} disabled={busy}>
+          Delete
+        </button>
+      {/if}
+      <div class="actions-right">
+        <button type="button" class="btn ghost" onclick={onClose}>Cancel</button>
+        <button
+          type="button"
+          class="btn primary"
+          onclick={() => void save()}
+          disabled={locked || busy}
+        >
+          {busy && !confirmDeleteOpen ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </footer>
   {/if}
 </div>
+
+{#if !isDraft}
+  <ConfirmDialog
+    bind:open={confirmDeleteOpen}
+    title="Delete this prompt?"
+    description="It will be permanently removed from your vault."
+    itemLabel={title || 'Untitled'}
+    itemKind="Prompt"
+    confirmLabel="Delete prompt"
+    busy={busy && confirmDeleteOpen}
+    onConfirm={confirmDelete}
+  />
+{/if}
 
 <style>
   .editor-backdrop {
@@ -219,33 +413,162 @@
     border: 0;
     padding: 0;
     margin: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background:
+      radial-gradient(ellipse 50% 40% at 50% 40%, rgba(47, 111, 237, 0.12), transparent 70%),
+      rgba(4, 8, 18, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     cursor: default;
   }
   .editor {
     position: fixed;
     inset: 0;
     margin: auto;
-    width: min(800px, 90vw);
-    height: min(80vh, 700px);
-    padding: 24px;
+    width: min(820px, 92vw);
+    height: min(84vh, 740px);
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
     z-index: 20;
+    overflow: hidden;
+    /* Solid surface so content never bleeds through. */
+    background: var(--glass-dialog);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
-  .title {
-    font-size: 24px;
-    font-weight: 600;
-    background: transparent;
-    border: 0;
+  .ambient {
+    position: absolute;
+    top: -30%;
+    right: -10%;
+    width: 360px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--glass-accent-glow), transparent 68%);
+    pointer-events: none;
+  }
+  .loading-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--glass-text-dim);
+    font-size: 14px;
+  }
+  .loading-pulse {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--glass-border-strong);
+    border-top-color: var(--glass-periwinkle);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .loading-pulse {
+      animation: none;
+      border-top-color: var(--glass-border-strong);
+    }
+  }
+  .editor-head {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 22px 24px 12px;
+  }
+  .eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--glass-cyan);
+  }
+  .title-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .title-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .field-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--glass-text-faint);
+  }
+  .title.field-input {
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    /* Match icon-chip height so the row reads as one control strip. */
+    min-height: 42px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .head-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .icon-chip {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-control-bg);
+    color: var(--glass-text-dim);
+    cursor: pointer;
+    line-height: 1;
+    transition:
+      background var(--motion-duration) ease,
+      color var(--motion-duration) ease,
+      border-color var(--motion-duration) ease;
+  }
+  .icon-chip:hover:not(:disabled) {
+    background: var(--glass-hover-strong);
     color: var(--glass-text);
-    outline: none;
+  }
+  .icon-chip.on {
+    color: var(--glass-gold);
+    border-color: color-mix(in srgb, var(--glass-gold) 40%, transparent);
+    background: color-mix(in srgb, var(--glass-gold) 12%, transparent);
+  }
+  .icon-chip.locked {
+    color: var(--glass-periwinkle);
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 40%, transparent);
+    background: color-mix(in srgb, var(--glass-periwinkle) 12%, transparent);
+  }
+  .icon-chip:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .icon-chip:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .meta-row {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 12px;
+    padding: 0 24px 12px;
   }
   @media (max-width: 640px) {
     .meta-row {
@@ -255,86 +578,201 @@
   .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
-  .field-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+  .field-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 13px;
+    background: var(--glass-input);
+    border: 1px solid var(--glass-border);
+    border-radius: 11px;
+    padding: 10px 12px;
+    color: var(--glass-text);
+    font: inherit;
+    transition:
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
+  }
+  .field-input::placeholder {
     color: var(--glass-text-faint);
   }
-  .folder {
-    font-size: 13px;
-    background: rgba(255, 255, 255, 0.06);
+  .field-input:hover:not(:disabled) {
+    border-color: var(--glass-border-strong);
+  }
+  .field-input:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
+  }
+  .body-shell {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    margin: 0 24px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
     border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    padding: 8px 10px;
-    color: var(--glass-text);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+      var(--glass-input);
+    overflow: hidden;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .body-shell.is-locked {
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 30%, var(--glass-border));
+  }
+  .lock-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--glass-periwinkle);
+    background: color-mix(in srgb, var(--glass-periwinkle) 10%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--glass-periwinkle) 22%, transparent);
+  }
+  .lock-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--glass-periwinkle);
+    box-shadow: 0 0 10px var(--glass-periwinkle);
   }
   .body {
     flex: 1;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--glass-border);
-    border-radius: 10px;
-    padding: 12px;
+    min-height: 0;
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    border: 0;
+    padding: 14px 16px;
     color: var(--glass-text);
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 13px;
+    line-height: 1.55;
     resize: none;
     outline: none;
   }
+  .body::placeholder {
+    color: var(--glass-text-faint);
+  }
   .meta {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
     color: var(--glass-text-dim);
     font-size: 12px;
     gap: 12px;
+    padding: 10px 28px 0;
+  }
+  .char-count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .char-num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--glass-text);
   }
   .lock-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     color: var(--glass-periwinkle);
-    font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--glass-periwinkle) 35%, transparent);
+    background: color-mix(in srgb, var(--glass-periwinkle) 12%, transparent);
   }
   .error {
-    margin: 0;
-    color: #ffb4b4;
+    margin: 8px 24px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-danger-border);
+    background: var(--glass-danger-bg);
+    color: var(--glass-danger);
     font-size: 13px;
   }
   .actions {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px 20px;
+    margin-top: 4px;
+  }
+  .actions-right {
     display: flex;
     gap: 8px;
-    justify-content: flex-end;
+    margin-left: auto;
   }
-  button {
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--glass-text);
+  .draft-hint {
+    font-size: 12px;
+    color: var(--glass-text-faint);
+  }
+  .btn {
+    appearance: none;
+    border-radius: 11px;
+    padding: 10px 16px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
+    border: 1px solid transparent;
+    transition:
+      background var(--motion-duration) ease,
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
   }
-  button.primary {
-    background: var(--glass-accent);
-    border-color: transparent;
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
-  button.danger {
-    background: rgba(255, 80, 80, 0.7);
-    border-color: transparent;
-  }
-  button:focus-visible {
+  .btn:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }
-  input:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
+  .btn.ghost {
+    background: transparent;
+    border-color: var(--glass-border);
+    color: var(--glass-text-dim);
   }
-  button:disabled,
+  .btn.ghost:hover:not(:disabled) {
+    background: var(--glass-hover-strong);
+    color: var(--glass-text);
+  }
+  .btn.danger-text {
+    border-color: transparent;
+    color: var(--glass-danger);
+  }
+  .btn.danger-text:hover:not(:disabled) {
+    background: var(--glass-danger-bg);
+    border-color: var(--glass-danger-border);
+    color: var(--glass-danger);
+  }
+  .btn.primary {
+    background: color-mix(in srgb, var(--glass-accent) 22%, var(--glass-control-bg));
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 38%, var(--glass-border));
+    color: var(--glass-text);
+    min-width: 96px;
+    box-shadow: none;
+  }
+  .btn.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--glass-accent) 32%, var(--glass-control-bg));
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, var(--glass-border));
+  }
   input:disabled,
   textarea:disabled {
-    opacity: 0.5;
+    opacity: 0.55;
     cursor: not-allowed;
   }
 </style>

@@ -19,12 +19,12 @@ export const runSearch = debounce(async (query: SearchQuery) => {
   try {
     const hits = await searchApi(query);
     results.set(hits);
-    // Append successful queries to the recent-searches list so the
-    // palette's "Recent" group stays current. `recordSearch` is fire-and-
-    // forget on purpose (errors are swallowed) and runs in parallel with
-    // the next search — by the time the user opens the palette again the
-    // column is current.
-    void recordSearch(query.text);
+    // Palette "Recent" now lists recently used prompts, not typed query
+    // fragments. Still keep vault recent-search history for non-empty
+    // queries (analytics / future use); skip empty keystrokes.
+    if (query.text.trim()) {
+      void recordSearch(query.text);
+    }
   } catch {
     // Search errors should never crash the palette — keep the previous
     // results on screen until the next successful query.

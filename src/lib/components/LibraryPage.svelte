@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listPrompts, createPrompt, setPromptFavorite, setPromptFolder, deletePrompt } from '$lib/api/prompts';
+  import { listPrompts, setPromptFavorite, setPromptFolder, deletePrompt } from '$lib/api/prompts';
   import type { PromptSummary } from '$lib/types/prompt';
   import {
     listFolders,
@@ -27,15 +27,18 @@
     promptCountLabel,
     type ProjectTreeNode,
   } from '$lib/utils/folderPath';
+  import ConfirmDialog from './primitives/ConfirmDialog.svelte';
 
   let {
-    onBack,
     onOpenPrompt,
+    onNewPrompt,
     libraryEpoch = 0,
   }: {
-    onBack: () => void;
     // eslint-disable-next-line no-unused-vars -- type-only callback param
     onOpenPrompt: (promptId: string) => void;
+    /** Open an unsaved draft editor (nothing written until Save). */
+    // eslint-disable-next-line no-unused-vars -- type-only callback param
+    onNewPrompt?: (folder: string | null) => void;
     /** Parent bumps this when the editor closes so the list reloads. */
     libraryEpoch?: number;
   } = $props();
@@ -72,6 +75,53 @@
   let renameValue = $state('');
   let smartHits = $state<PromptSummary[] | null>(null);
   let moveMenuId = $state<string | null>(null);
+
+  type PendingDelete =
+    | { kind: 'prompt'; id: string; label: string }
+    | { kind: 'project'; path: string; label: string }
+    | { kind: 'smart'; id: string; label: string };
+
+  let pendingDelete = $state<PendingDelete | null>(null);
+  let confirmOpen = $state(false);
+
+  const deleteDialog = $derived.by(() => {
+    const p = pendingDelete;
+    if (!p) {
+      return {
+        title: 'Delete?',
+        description: 'This action cannot be undone.',
+        itemLabel: '',
+        itemKind: '',
+        confirmLabel: 'Delete',
+      };
+    }
+    switch (p.kind) {
+      case 'prompt':
+        return {
+          title: 'Delete this prompt?',
+          description: 'It will be permanently removed from your vault.',
+          itemLabel: p.label,
+          itemKind: 'Prompt',
+          confirmLabel: 'Delete prompt',
+        };
+      case 'project':
+        return {
+          title: 'Delete this project?',
+          description: 'Sub-projects are removed too. Prompts inside move to Unfiled.',
+          itemLabel: p.label,
+          itemKind: 'Project',
+          confirmLabel: 'Delete project',
+        };
+      case 'smart':
+        return {
+          title: 'Delete this smart folder?',
+          description: 'Only the saved search is removed — matching prompts stay in your vault.',
+          itemLabel: p.label,
+          itemKind: 'Smart folder',
+          confirmLabel: 'Delete smart folder',
+        };
+    }
+  });
 
   const registeredPaths = $derived.by(() => {
     const set = new Set<string>();
@@ -327,14 +377,12 @@
     }
   }
 
+  function requestRemoveProject(path: string) {
+    pendingDelete = { kind: 'project', path, label: path };
+    confirmOpen = true;
+  }
+
   async function removeProject(path: string) {
-    if (
-      !confirm(
-        `Delete project “${path}” and its sub-projects?\nPrompts inside will move to Unfiled.`,
-      )
-    ) {
-      return;
-    }
     busy = true;
     errorMessage = null;
     try {
@@ -384,8 +432,12 @@
     }
   }
 
+  function requestRemoveSmart(sf: SmartFolder) {
+    pendingDelete = { kind: 'smart', id: sf.id, label: sf.name };
+    confirmOpen = true;
+  }
+
   async function removeSmart(id: string) {
-    if (!confirm('Delete this smart folder?')) return;
     busy = true;
     errorMessage = null;
     try {
@@ -402,20 +454,16 @@
     }
   }
 
-  async function newPromptHere() {
-    busy = true;
-    errorMessage = null;
-    try {
-      const folder =
-        selection.kind === 'project' ? selection.path : null;
-      const p = await createPrompt('Untitled', folder);
-      await refresh();
-      onOpenPrompt(p.id);
-    } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
-    } finally {
-      busy = false;
+  function newPromptHere() {
+    // Do not create a vault entry until the user hits Save in the editor.
+    const folder = selection.kind === 'project' ? selection.path : null;
+    if (onNewPrompt) {
+      onNewPrompt(folder);
+      return;
     }
+    // Fallback: open via parent open handler with a draft signal if only
+    // onOpenPrompt is wired (should not happen in the shipped app).
+    errorMessage = 'Unable to open new prompt editor.';
   }
 
   async function toggleFavorite(p: PromptSummary) {
@@ -452,20 +500,42 @@
     }
   }
 
-  async function removePrompt(p: PromptSummary) {
+  function requestRemovePrompt(p: PromptSummary) {
     if (busy) return;
-    if (!confirm(`Delete prompt “${p.title || 'Untitled'}”?`)) return;
+    pendingDelete = { kind: 'prompt', id: p.id, label: p.title || 'Untitled' };
+    confirmOpen = true;
+  }
+
+  async function removePrompt(id: string) {
     busy = true;
     errorMessage = null;
     try {
-      await deletePrompt(p.id);
-      prompts = prompts.filter((x) => x.id !== p.id);
-      if (smartHits) smartHits = smartHits.filter((x) => x.id !== p.id);
+      await deletePrompt(id);
+      prompts = prompts.filter((x) => x.id !== id);
+      if (smartHits) smartHits = smartHits.filter((x) => x.id !== id);
     } catch (e) {
       errorMessage = e instanceof Error ? e.message : String(e);
     } finally {
       busy = false;
     }
+  }
+
+  async function executePendingDelete() {
+    const p = pendingDelete;
+    if (!p) return;
+    try {
+      if (p.kind === 'prompt') await removePrompt(p.id);
+      else if (p.kind === 'project') await removeProject(p.path);
+      else await removeSmart(p.id);
+    } finally {
+      confirmOpen = false;
+      pendingDelete = null;
+    }
+  }
+
+  function cancelPendingDelete() {
+    confirmOpen = false;
+    pendingDelete = null;
   }
 
   function startRename(path: string) {
@@ -487,13 +557,16 @@
 </script>
 
 <div class="library">
+  <div class="page-glow" aria-hidden="true"></div>
   <header class="lib-top">
     <div class="lib-top-main">
+      <p class="eyebrow">Vault</p>
       <h1>Library</h1>
       <p class="sub">Browse projects, review prompts, and run smart folders.</p>
     </div>
-    <button type="button" class="control-btn" disabled={busy} onclick={() => void newPromptHere()}>
-      + New prompt
+    <button type="button" class="control-btn primary" disabled={busy} onclick={() => void newPromptHere()}>
+      <span class="plus" aria-hidden="true">+</span>
+      New prompt
     </button>
   </header>
 
@@ -637,7 +710,7 @@
                   class="icon-sm danger"
                   title="Delete"
                   aria-label="Delete {node.name}"
-                  onclick={() => void removeProject(node.path)}>×</button
+                  onclick={() => requestRemoveProject(node.path)}>×</button
                 >
               </div>
             {/if}
@@ -729,7 +802,7 @@
                   class="icon-sm danger"
                   title="Delete"
                   aria-label="Delete {sf.name}"
-                  onclick={() => void removeSmart(sf.id)}>×</button
+                  onclick={() => requestRemoveSmart(sf)}>×</button
                 >
               </div>
             </div>
@@ -850,7 +923,7 @@
                 class="icon-sm danger"
                 title="Delete"
                 aria-label="Delete {p.title}"
-                onclick={() => void removePrompt(p)}
+                onclick={() => requestRemovePrompt(p)}
               >
                 ×
               </button>
@@ -858,17 +931,21 @@
           </li>
         {:else}
           <li class="empty-main">
+            <div class="empty-icon" aria-hidden="true">◇</div>
             {#if selection.kind === 'unfiled'}
-              Nothing unfiled — every prompt lives in a project.
+              <p>Nothing unfiled — every prompt lives in a project.</p>
             {:else if selection.kind === 'project'}
-              No prompts in this project yet.
-              <button type="button" class="control-btn sm" onclick={() => void newPromptHere()}
+              <p>No prompts in this project yet.</p>
+              <button type="button" class="control-btn primary sm" onclick={() => void newPromptHere()}
                 >Create one here</button
               >
             {:else if selection.kind === 'smart'}
-              No prompts match this smart folder.
+              <p>No prompts match this smart folder.</p>
             {:else}
-              No prompts yet. Create one to get started.
+              <p>No prompts yet. Create one to get started.</p>
+              <button type="button" class="control-btn primary sm" onclick={() => void newPromptHere()}
+                >New prompt</button
+              >
             {/if}
           </li>
         {/each}
@@ -876,50 +953,92 @@
     </section>
   </div>
 
-  <button type="button" class="page-back" onclick={onBack}>← Back</button>
 </div>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={deleteDialog.title}
+  description={deleteDialog.description}
+  itemLabel={deleteDialog.itemLabel}
+  itemKind={deleteDialog.itemKind}
+  confirmLabel={deleteDialog.confirmLabel}
+  busy={busy && confirmOpen}
+  onConfirm={executePendingDelete}
+  onCancel={cancelPendingDelete}
+/>
 
 <style>
   .library {
+    position: relative;
     box-sizing: border-box;
     width: 100%;
     margin: 0;
-    padding: 20px 24px 56px;
+    padding: 28px 28px 72px;
     color: var(--glass-text);
+    overflow: hidden;
+  }
+  .page-glow {
+    position: absolute;
+    top: -120px;
+    right: -80px;
+    width: 420px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--glass-accent-glow), transparent 68%);
+    pointer-events: none;
   }
   .lib-top {
+    position: relative;
     display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    margin-bottom: 16px;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 22px;
   }
   .lib-top-main {
     flex: 1;
   }
-  h1 {
-    margin: 0 0 4px;
-    font-size: 28px;
+  .eyebrow {
+    margin: 0 0 6px;
+    font-size: 11px;
     font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--glass-cyan);
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
   }
   h2 {
     margin: 0 0 2px;
-    font-size: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .sub,
   .meta {
     margin: 0;
     color: var(--glass-text-dim);
-    font-size: 13px;
+    font-size: 14px;
   }
   .dsl {
-    margin: 6px 0 0;
+    margin: 8px 0 0;
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 8px;
     font-size: 12px;
     color: var(--glass-text-faint);
+    background: var(--glass-control-bg);
+    border: 1px solid var(--glass-border);
   }
   .lib-layout {
+    position: relative;
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 16px;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 18px;
     align-items: start;
   }
   @media (max-width: 860px) {
@@ -930,13 +1049,16 @@
   .sidebar {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 10px;
-    border-radius: 14px;
+    gap: 16px;
+    padding: 12px;
+    border-radius: 18px;
     border: 1px solid var(--glass-border);
-    background: var(--glass-inset);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
+      var(--glass-inset);
+    box-shadow: var(--glass-shadow-md), var(--glass-inset-highlight);
     position: sticky;
-    top: 12px;
+    top: 16px;
     max-height: calc(100vh - 100px);
     overflow: auto;
   }
@@ -949,10 +1071,10 @@
   .nav-label-row .nav-label {
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--glass-text-faint);
-    padding: 6px 8px 4px;
+    padding: 6px 10px 6px;
   }
   .nav-label-row {
     display: flex;
@@ -965,8 +1087,8 @@
     background: transparent;
     color: var(--glass-text-dim);
     text-align: left;
-    padding: 8px 10px;
-    border-radius: 10px;
+    padding: 9px 12px;
+    border-radius: 11px;
     font: inherit;
     font-size: 13px;
     cursor: pointer;
@@ -975,6 +1097,10 @@
     gap: 8px;
     align-items: center;
     width: 100%;
+    transition:
+      background var(--motion-duration) ease,
+      color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
   }
   .nav-item.tree {
     flex: 1;
@@ -983,14 +1109,18 @@
   .nav-item.active {
     color: var(--glass-selected-fg);
     background: var(--glass-selected-bg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-selected-fg) 22%, transparent);
   }
   .nav-item:hover {
     background: var(--glass-hover);
+    color: var(--glass-text);
   }
   .count {
     font-size: 11px;
     color: var(--glass-text-faint);
     font-variant-numeric: tabular-nums;
+    min-width: 1.4em;
+    text-align: right;
   }
   .tree-row {
     display: flex;
@@ -1021,9 +1151,9 @@
     border: 0;
     background: transparent;
     color: var(--glass-text-dim);
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
     cursor: pointer;
     font: inherit;
     font-size: 13px;
@@ -1031,6 +1161,9 @@
     display: grid;
     place-items: center;
     flex-shrink: 0;
+    transition:
+      background var(--motion-duration) ease,
+      color var(--motion-duration) ease;
   }
   .twist:hover,
   .icon-sm:hover {
@@ -1038,37 +1171,49 @@
     color: var(--glass-text);
   }
   .icon-sm.danger:hover {
-    color: #ffb4b4;
+    color: var(--glass-danger);
+    background: var(--glass-danger-bg);
   }
   .icon-sm.star.on {
     color: var(--glass-gold);
   }
   .twist-spacer {
-    width: 24px;
+    width: 26px;
     flex-shrink: 0;
   }
   .inline-create {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    border-radius: 10px;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 12px;
     border: 1px solid var(--glass-border);
-    background: var(--glass-hover);
+    background: color-mix(in srgb, var(--glass-panel) 70%, transparent);
     margin: 4px 0;
+    box-shadow: var(--glass-inset-highlight);
   }
   .inline-create input,
   .rename-input,
   .filter {
     width: 100%;
     box-sizing: border-box;
-    border-radius: 8px;
+    border-radius: 10px;
     border: 1px solid var(--glass-border);
     background: var(--glass-input);
     color: var(--glass-text);
-    padding: 8px 10px;
+    padding: 9px 12px;
     font: inherit;
     font-size: 13px;
+    transition:
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
+  }
+  .inline-create input:focus-visible,
+  .rename-input:focus-visible,
+  .filter:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 16%, transparent);
   }
   .rename-input {
     flex: 1;
@@ -1082,6 +1227,7 @@
     margin: 0;
     font-size: 11px;
     color: var(--glass-text-faint);
+    line-height: 1.45;
   }
   .hint.pad {
     padding: 8px;
@@ -1095,9 +1241,10 @@
     gap: 6px;
   }
   .empty-side {
-    margin: 4px 8px;
+    margin: 4px 10px;
     font-size: 12px;
     color: var(--glass-text-faint);
+    line-height: 1.45;
   }
   .tag-cloud {
     display: flex;
@@ -1111,33 +1258,47 @@
     background: var(--glass-control-bg);
     color: var(--glass-text-dim);
     border-radius: 999px;
-    padding: 4px 10px;
+    padding: 5px 11px;
     font: inherit;
     font-size: 12px;
     cursor: pointer;
     display: inline-flex;
     gap: 6px;
     align-items: center;
+    transition:
+      background var(--motion-duration) ease,
+      border-color var(--motion-duration) ease,
+      color var(--motion-duration) ease;
+  }
+  .tag-chip:hover {
+    background: var(--glass-hover-strong);
+    color: var(--glass-text);
   }
   .tag-chip.active {
-    border-color: var(--glass-periwinkle);
+    border-color: color-mix(in srgb, var(--glass-selected-fg) 40%, transparent);
     color: var(--glass-selected-fg);
     background: var(--glass-selected-bg);
   }
   .main {
-    padding: 16px;
-    border-radius: 14px;
+    position: relative;
+    padding: 18px;
+    border-radius: 18px;
     border: 1px solid var(--glass-border);
-    background: var(--glass-panel);
-    min-height: 420px;
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.035), transparent 40%),
+      var(--glass-panel);
+    box-shadow: var(--glass-shadow-md), var(--glass-inset-highlight);
+    min-height: 440px;
   }
   .main-head {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
     align-items: flex-start;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
     flex-wrap: wrap;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--glass-border);
   }
   .filter {
     width: min(280px, 100%);
@@ -1148,15 +1309,26 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
   .prompt-row {
     display: flex;
-    gap: 8px;
+    gap: 4px;
     align-items: stretch;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--glass-border);
     background: var(--glass-control-bg);
+    transition:
+      border-color var(--motion-duration) ease,
+      background var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease,
+      transform var(--motion-duration) var(--motion-spring);
+  }
+  .prompt-row:hover {
+    border-color: var(--glass-border-strong);
+    background: color-mix(in srgb, var(--glass-control-bg) 70%, var(--glass-hover-strong));
+    box-shadow: 0 8px 24px rgba(2, 6, 18, 0.18);
+    transform: translateY(-1px);
   }
   .prompt-main {
     flex: 1;
@@ -1166,29 +1338,27 @@
     background: transparent;
     color: inherit;
     text-align: left;
-    padding: 12px 14px;
+    padding: 14px 16px;
     cursor: pointer;
-    border-radius: 12px;
+    border-radius: 14px;
     font: inherit;
   }
-  .prompt-main:hover {
-    background: var(--glass-hover);
-  }
   .prompt-title {
-    font-weight: 600;
+    font-weight: 650;
     font-size: 14px;
-    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+    margin-bottom: 5px;
   }
   .prompt-preview {
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--glass-text-dim);
-    line-height: 1.4;
+    line-height: 1.45;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .prompt-preview.dim {
     font-style: italic;
@@ -1205,21 +1375,30 @@
   .folder-badge,
   .tag-badge {
     border-radius: 999px;
-    padding: 2px 8px;
+    padding: 3px 9px;
     border: 1px solid var(--glass-border);
-    background: var(--glass-control-bg);
+    background: color-mix(in srgb, var(--glass-panel) 80%, transparent);
+  }
+  .folder-badge {
+    color: var(--glass-selected-fg);
+    border-color: color-mix(in srgb, var(--glass-selected-fg) 28%, transparent);
+    background: var(--glass-selected-bg);
   }
   .folder-badge.muted {
-    opacity: 0.7;
+    color: var(--glass-text-faint);
+    border-color: var(--glass-border);
+    background: var(--glass-control-bg);
+    opacity: 1;
   }
   .chars {
     margin-left: auto;
+    font-variant-numeric: tabular-nums;
   }
   .prompt-actions {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 8px 8px 8px 0;
+    padding: 10px 10px 10px 0;
     justify-content: flex-start;
   }
   .move-wrap {
@@ -1230,16 +1409,16 @@
     right: 0;
     top: 100%;
     z-index: 5;
-    min-width: 180px;
+    min-width: 190px;
     max-height: 240px;
     overflow: auto;
-    border-radius: 10px;
-    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border-strong);
     background: var(--glass-menu);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--glass-shadow-md);
     display: flex;
     flex-direction: column;
-    padding: 4px;
+    padding: 6px;
   }
   .move-menu button {
     appearance: none;
@@ -1247,8 +1426,8 @@
     background: transparent;
     color: var(--glass-text);
     text-align: left;
-    padding: 8px 10px;
-    border-radius: 8px;
+    padding: 9px 11px;
+    border-radius: 9px;
     font: inherit;
     font-size: 12px;
     cursor: pointer;
@@ -1257,77 +1436,110 @@
     background: var(--glass-hover-strong);
   }
   .empty-main {
-    padding: 32px 16px;
+    padding: 48px 20px;
     text-align: center;
     color: var(--glass-text-dim);
-    font-size: 13px;
+    font-size: 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
   }
+  .empty-main p {
+    margin: 0;
+    max-width: 28ch;
+    line-height: 1.5;
+  }
+  .empty-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    color: var(--glass-selected-fg);
+    border: 1px solid color-mix(in srgb, var(--glass-selected-fg) 30%, transparent);
+    background: var(--glass-selected-bg);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--glass-selected-fg) 6%, transparent);
+  }
   .control-btn,
-  .btn-ghost,
-  .page-back {
+  .btn-ghost {
     appearance: none;
     border: 1px solid var(--glass-border);
     background: var(--glass-control-bg);
     color: var(--glass-text);
-    border-radius: 10px;
-    padding: 10px 14px;
+    border-radius: 12px;
+    padding: 10px 16px;
     font: inherit;
     font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition:
+      background var(--motion-duration) ease,
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease,
+      transform var(--motion-duration) var(--motion-spring);
+  }
+  .control-btn.primary {
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 38%, var(--glass-border));
+    background: color-mix(in srgb, var(--glass-accent) 22%, var(--glass-control-bg));
+    color: var(--glass-text);
+    box-shadow: none;
+  }
+  .control-btn.primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--glass-accent) 32%, var(--glass-control-bg));
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, var(--glass-border));
   }
   .control-btn.sm,
   .btn-ghost.sm {
-    padding: 6px 10px;
+    padding: 7px 12px;
     font-size: 12px;
   }
-  .btn-ghost,
-  .page-back {
+  .plus {
+    font-size: 16px;
+    line-height: 1;
+    font-weight: 500;
+  }
+  .btn-ghost {
     border-radius: 999px;
   }
   .control-btn:hover,
-  .btn-ghost:hover,
-  .page-back:hover {
+  .btn-ghost:hover {
     background: var(--glass-hover-strong);
   }
   .control-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .page-back {
-    position: fixed;
-    left: 16px;
-    bottom: 12px;
-    z-index: 20;
-    padding: 8px 14px;
-    font-size: 13px;
-    opacity: 0.9;
-  }
-  .page-back:hover {
-    opacity: 1;
-  }
-  .page-back:focus-visible {
+  .control-btn:focus-visible,
+  .nav-item:focus-visible,
+  .icon-sm:focus-visible,
+  .tag-chip:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }
   .error {
-    margin: 0 0 12px;
-    color: #c04040;
+    margin: 0 0 14px;
+    color: var(--glass-danger);
     font-size: 13px;
   }
-  :global(:root.dark) .error {
-    color: #ffb4b4;
-  }
   .error.banner {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(200, 80, 80, 0.35);
-    background: rgba(200, 60, 60, 0.08);
+    position: relative;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-danger-border);
+    background: var(--glass-danger-bg);
   }
   .lock {
     margin-left: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prompt-row:hover {
+      transform: none;
+    }
   }
 </style>

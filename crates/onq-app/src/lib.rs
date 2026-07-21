@@ -275,6 +275,8 @@ pub fn run() {
             commands::lock_prompt,
             commands::unlock_prompt,
             commands::search,
+            commands::get_search_status,
+            commands::ensure_search_model,
             commands::run_smart_folder,
             commands::more_like_this,
             commands::create_smart_folder,

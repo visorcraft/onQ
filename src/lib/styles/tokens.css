@@ -31,6 +31,14 @@
   --glass-control-bg: rgba(255, 255, 255, 0.04);
   --glass-menu: rgba(12, 16, 26, 0.98);
   --glass-dialog: #0e1420;
+  --glass-danger: #f07178;
+  --glass-danger-bg: rgba(240, 113, 120, 0.12);
+  --glass-danger-border: rgba(240, 113, 120, 0.38);
+  --glass-accent-glow: rgba(47, 111, 237, 0.35);
+  --glass-cyan: #5eead4;
+  --glass-shadow-lg: 0 28px 80px rgba(2, 6, 18, 0.55), 0 8px 24px rgba(2, 6, 18, 0.35);
+  --glass-shadow-md: 0 12px 36px rgba(2, 6, 18, 0.32);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color-scheme: dark;
   /* Page background — required for WCAG AA color contrast on the dark text
    * tokens above. Without this, --glass-text on the default white <body>

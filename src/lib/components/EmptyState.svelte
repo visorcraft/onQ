@@ -192,15 +192,22 @@
     box-sizing: border-box;
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid var(--glass-border);
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 10px;
+    background: var(--glass-input);
     color: var(--glass-text);
     font: inherit;
+    transition:
+      border-color var(--motion-duration) ease,
+      box-shadow var(--motion-duration) ease;
+  }
+  input:hover {
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 35%, var(--glass-border-strong));
   }
   input:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
   }
   .actions {
     display: flex;
@@ -221,7 +228,7 @@
     padding: 10px 20px;
     border-radius: 10px;
     border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--glass-control-bg);
     color: var(--glass-text);
     cursor: pointer;
     font: inherit;

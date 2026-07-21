@@ -59,9 +59,9 @@
     gap: 8px;
     width: 100%;
     padding: 14px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--glass-border-strong);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--glass-input);
   }
   .preview span {
     color: var(--glass-text-faint);
@@ -108,17 +108,18 @@
   textarea {
     width: 100%;
     padding: 12px;
-    border-radius: 8px;
-    border: 1px solid var(--glass-border);
-    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    border: 1px solid var(--glass-border-strong);
+    background: var(--glass-input);
     color: var(--glass-text);
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 13px;
     resize: vertical;
   }
   textarea:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
+    outline: none;
+    border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
   }
   .ack {
     display: flex;

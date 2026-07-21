@@ -7,8 +7,6 @@
   } from '$lib/api/about';
   import { openExternalUrl } from '$lib/openUrl';
 
-  let { onBack }: { onBack: () => void } = $props();
-
   let data = $state<CreditsData | null>(null);
   let err = $state<string | null>(null);
   let npmFilter = $state('');
@@ -225,7 +223,6 @@
     </div>
   {/if}
 
-  <button type="button" class="page-back" onclick={onBack}>← About</button>
 </div>
 
 {#if licenseDialog}
@@ -252,7 +249,7 @@
     box-sizing: border-box;
     width: 100%;
     margin: 0;
-    padding: 20px 24px 56px;
+    padding: 28px 28px 56px;
     color: var(--glass-text);
   }
   .row-header {
@@ -427,8 +424,7 @@
     opacity: 0.35;
     cursor: not-allowed;
   }
-  .btn-ghost,
-  .page-back {
+  .btn-ghost {
     appearance: none;
     border: 1px solid var(--glass-border);
     background: var(--glass-control-bg);
@@ -443,21 +439,10 @@
     padding: 6px 12px;
     font-size: 12px;
   }
-  .btn-ghost:hover,
-  .page-back:hover {
+  .btn-ghost:hover {
     background: var(--glass-hover-strong);
   }
-  .page-back {
-    position: fixed;
-    left: 16px;
-    bottom: 12px;
-    z-index: 20;
-    opacity: 0.9;
-  }
-  .page-back:hover {
-    opacity: 1;
-  }
-  .page-back:focus-visible {
+  .btn-ghost:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }

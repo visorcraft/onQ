@@ -2,14 +2,13 @@
   import { onMount } from 'svelte';
   import { aboutInfo, type AboutInfo } from '$lib/api/about';
   import { openExternalUrl } from '$lib/openUrl';
-  import onqIcon from '../../../../crates/onq-app/icons/128x128.png';
+  // Served from src/ so Vite always resolves the asset (crates/ path can 404 in webview).
+  import onqIcon from '$lib/assets/onq-128.png';
 
   let {
-    onBack,
     onLicenses,
     onCredits,
   }: {
-    onBack?: () => void;
     onLicenses: () => void;
     onCredits: () => void;
   } = $props();
@@ -113,22 +112,39 @@
         <button type="button" class="btn-ghost" onclick={onLicenses}>
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
             <path
-              fill="currentColor"
-              d="M4 4h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V6a2 2 0 0 1 2-2zm2 4h8v2H6V8zm0 4h8v2H6v-2z"
+              d="M7 3.5h7.5L18.5 8v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1Z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M14.5 3.5V8H18.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M9 12.5h6M9 16h6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
             />
           </svg>
           Licenses
         </button>
         <button type="button" class="btn-ghost" onclick={onCredits}>
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
-            <circle cx="12" cy="8" r="1.25" fill="currentColor" />
+            <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.75" />
+            <circle cx="12" cy="8.25" r="1.15" fill="currentColor" />
             <path
+              d="M12 11.25v5.5"
               fill="none"
               stroke="currentColor"
-              stroke-width="2"
+              stroke-width="1.75"
               stroke-linecap="round"
-              d="M12 11.5v5"
             />
           </svg>
           Credits
@@ -141,9 +157,6 @@
     </footer>
   </div>
 
-  {#if onBack}
-    <button type="button" class="page-back" onclick={onBack}>← Back</button>
-  {/if}
 </div>
 
 <style>
@@ -151,7 +164,7 @@
     box-sizing: border-box;
     width: 100%;
     margin: 0;
-    padding: 24px 24px 56px;
+    padding: 28px 28px 56px;
     color: var(--glass-text);
   }
   .about-header h1 {
@@ -194,6 +207,8 @@
     border-radius: 18px;
     flex-shrink: 0;
     z-index: 1;
+    object-fit: cover;
+    background: var(--glass-control-bg);
   }
   .about-hero-text {
     z-index: 1;
@@ -343,8 +358,7 @@
     gap: 10px;
     flex-wrap: wrap;
   }
-  .btn-ghost,
-  .page-back {
+  .btn-ghost {
     appearance: none;
     display: inline-flex;
     align-items: center;
@@ -358,21 +372,10 @@
     font-size: 13px;
     cursor: pointer;
   }
-  .btn-ghost:hover,
-  .page-back:hover {
+  .btn-ghost:hover {
     background: var(--glass-hover-strong);
   }
-  .page-back {
-    position: fixed;
-    left: 16px;
-    bottom: 12px;
-    z-index: 20;
-    opacity: 0.9;
-  }
-  .page-back:hover {
-    opacity: 1;
-  }
-  .page-back:focus-visible {
+  .btn-ghost:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }
