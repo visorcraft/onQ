@@ -114,10 +114,7 @@ pub fn rewrite_folder_paths(dsl: &str, old: &str, new: &str) -> String {
                     || rest.starts_with('\'')
                     || rewritten.contains(char::is_whitespace);
                 if quoted {
-                    out.push(format!(
-                        "folder:\"{}\"",
-                        rewritten.replace('"', "")
-                    ));
+                    out.push(format!("folder:\"{}\"", rewritten.replace('"', "")));
                 } else {
                     out.push(format!("folder:{rewritten}"));
                 }
@@ -206,6 +203,9 @@ mod tests {
         assert!(out.contains("tag:x"));
         assert!(out.contains("folder:Keep"));
         assert!(!out.contains("Doomed"));
-        assert_eq!(strip_folder_paths_under("folder:Doomed", "Doomed"), "char:<-1");
+        assert_eq!(
+            strip_folder_paths_under("folder:Doomed", "Doomed"),
+            "char:<-1"
+        );
     }
 }

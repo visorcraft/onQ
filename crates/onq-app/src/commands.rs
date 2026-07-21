@@ -1142,12 +1142,7 @@ impl FolderSummary {
     }
 }
 
-fn build_folder_cells(
-    id: &PromptId,
-    name: &str,
-    created: i64,
-    updated: i64,
-) -> Vec<(u16, Value)> {
+fn build_folder_cells(id: &PromptId, name: &str, created: i64, updated: i64) -> Vec<(u16, Value)> {
     vec![
         (
             col::FOLDERS_ID,
@@ -1168,9 +1163,7 @@ fn list_folder_rows(db: &Db) -> Result<Vec<FolderSummary>, String> {
 }
 
 fn find_folder_by_name(db: &Db, name: &str) -> Result<Option<FolderSummary>, String> {
-    Ok(list_folder_rows(db)?
-        .into_iter()
-        .find(|f| f.name == name))
+    Ok(list_folder_rows(db)?.into_iter().find(|f| f.name == name))
 }
 
 /// Ensure `path` and every ancestor are registered in `folders`.
@@ -1225,10 +1218,7 @@ fn strip_smart_folder_dsls_under(db: &Db, ancestor: &str) -> Result<(), String> 
     })
 }
 
-fn apply_smart_folder_dsl_map(
-    db: &Db,
-    map: impl Fn(&str) -> String,
-) -> Result<(), String> {
+fn apply_smart_folder_dsl_map(db: &Db, map: impl Fn(&str) -> String) -> Result<(), String> {
     let rows = db
         .handle()
         .query_for_current_principal("smart_folders", &Query::default(), None)
@@ -1269,9 +1259,8 @@ fn apply_smart_folder_dsl_map(
 fn rewrite_path_normalized(path: &str, old: &str, new: &str) -> Result<String, String> {
     let raw = folder_path::rewrite_prefix(path, old, new)
         .ok_or_else(|| "internal path rewrite failed".to_string())?;
-    folder_path::normalize(&raw).map_err(|e| {
-        format!("rename would produce invalid project path “{raw}”: {e}")
-    })
+    folder_path::normalize(&raw)
+        .map_err(|e| format!("rename would produce invalid project path “{raw}”: {e}"))
 }
 
 #[tauri::command]
@@ -1293,8 +1282,7 @@ pub async fn create_folder(
     let db = require_db(&state)?;
     tokio::task::spawn_blocking(move || -> Result<FolderSummary, String> {
         ensure_folder_path(&db, &path)?;
-        find_folder_by_name(&db, &path)?
-            .ok_or_else(|| "failed to create project".to_string())
+        find_folder_by_name(&db, &path)?.ok_or_else(|| "failed to create project".to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1313,8 +1301,7 @@ pub async fn rename_folder(
     if old == new {
         let db = require_db(&state)?;
         return tokio::task::spawn_blocking(move || {
-            find_folder_by_name(&db, &old)?
-                .ok_or_else(|| "project not found".to_string())
+            find_folder_by_name(&db, &old)?.ok_or_else(|| "project not found".to_string())
         })
         .await
         .map_err(|e| e.to_string())?;
@@ -1398,9 +1385,7 @@ pub async fn rename_folder(
                 }
             }
             if foreign_prompt_paths.contains(rewritten) {
-                return Err(format!(
-                    "project already exists on a prompt: {rewritten}"
-                ));
+                return Err(format!("project already exists on a prompt: {rewritten}"));
             }
         }
 

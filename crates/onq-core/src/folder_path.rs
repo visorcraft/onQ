@@ -32,7 +32,9 @@ pub fn normalize(raw: &str) -> CoreResult<String> {
                 "project path segments cannot be '.' or '..'".into(),
             ));
         }
-        if s.chars().any(|c| c.is_control() || c == '\0' || c == '"' || c == '\'') {
+        if s.chars()
+            .any(|c| c.is_control() || c == '\0' || c == '"' || c == '\'')
+        {
             return Err(CoreError::Other(
                 "project path contains invalid characters".into(),
             ));

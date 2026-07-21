@@ -59,11 +59,7 @@ fn live_ann_quantization_on(db: &Database) -> CoreResult<Option<AnnQuantization>
     };
     for index in &entry.schema.indexes {
         if index.name == PROMPTS_EMBED_ANN_INDEX {
-            return Ok(index
-                .options
-                .ann
-                .as_ref()
-                .map(|ann| ann.quantization));
+            return Ok(index.options.ann.as_ref().map(|ann| ann.quantization));
         }
     }
     Ok(None)
@@ -258,10 +254,7 @@ mod tests {
             parse_quantization("binary").unwrap(),
             AnnQuantization::BinarySign
         );
-        assert_eq!(
-            parse_quantization("dense").unwrap(),
-            AnnQuantization::Dense
-        );
+        assert_eq!(parse_quantization("dense").unwrap(), AnnQuantization::Dense);
         assert!(parse_quantization("garbage").is_err());
     }
 
