@@ -72,9 +72,9 @@ pub fn dense_readiness(db: &Db) -> CoreResult<DenseReadiness> {
         Some(AnnQuantization::Dense) => Ok(DenseReadiness::Ready),
         // BinarySign, Product, or missing ANN — Dense preference falls back
         // to exact cosine until replace-index publishes Dense.
-        Some(AnnQuantization::BinarySign)
-        | Some(AnnQuantization::Product { .. })
-        | None => Ok(DenseReadiness::PendingExactFallback),
+        Some(AnnQuantization::BinarySign) | Some(AnnQuantization::Product { .. }) | None => {
+            Ok(DenseReadiness::PendingExactFallback)
+        }
     }
 }
 
