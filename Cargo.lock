@@ -2310,7 +2310,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.5",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -3022,9 +3022,9 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-core"
-version = "0.61.1"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4cb6b1cd9dd9cbb482e7e6305efc858bcb19eb7bb5a652b2b2de4db73e92a0b"
+checksum = "de5b4388e4f92e65399ce3b6524e487bf7b59aea37934096553869a19b2bd72e"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -3063,18 +3063,18 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-fault"
-version = "0.61.1"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5848221e2c5a04d48a252fe35105155d425aee8a74c07dbf71e8f7c58ba9440"
+checksum = "7609dffe22d18499cc2afbbacff9f63290db877f2679e2954c11cd4ecf70823f"
 dependencies = [
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "mongreldb-log"
-version = "0.61.1"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a1efd76e89454f47c090de3b8c0caafe17d978b47258cf93a08015c00734ab"
+checksum = "d779202b0f8671dd5827814b9b2646ec7716a5cfe215c27141a279ec224a1ebb"
 dependencies = [
  "mongreldb-types",
  "serde",
@@ -3084,9 +3084,9 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-types"
-version = "0.61.1"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47f15bd548d355e4afdbb318caf1822cf78e3fd8434df68111be9e88e0bfd216"
+checksum = "fa17252fbe38de00ac1fc58e14bd3ed4a84dff8f5729944dcda9df4e7b92ccd5"
 dependencies = [
  "getrandom 0.2.17",
  "serde",
@@ -3531,7 +3531,7 @@ dependencies = [
 
 [[package]]
 name = "onQ"
-version = "1.3.2"
+version = "1.3.3"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3585,7 +3585,7 @@ dependencies = [
 
 [[package]]
 name = "onq-core"
-version = "1.3.2"
+version = "1.3.3"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -3622,11 +3622,11 @@ dependencies = [
 
 [[package]]
 name = "onq-plugin-sdk"
-version = "1.3.2"
+version = "1.3.3"
 
 [[package]]
 name = "onq-test-utils"
-version = "1.3.2"
+version = "1.3.3"
 dependencies = [
  "mongreldb-core",
  "onq-core",
@@ -5661,7 +5661,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -6685,7 +6685,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

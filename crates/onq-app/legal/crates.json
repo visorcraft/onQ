@@ -1789,25 +1789,25 @@
   },
   {
     "name": "mongreldb-core",
-    "version": "0.61.1",
+    "version": "0.62.0",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-fault",
-    "version": "0.61.1",
+    "version": "0.62.0",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-log",
-    "version": "0.61.1",
+    "version": "0.62.0",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
   {
     "name": "mongreldb-types",
-    "version": "0.61.1",
+    "version": "0.62.0",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/visorcraft/MongrelDB"
   },
