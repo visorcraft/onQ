@@ -41,39 +41,50 @@
   let busy = $state(false);
   let confirmDeleteOpen = $state(false);
 
-  onMount(async () => {
-    try {
-      const folders = await listFolders().catch(() => []);
-      projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
+  onMount(() => {
+    // Suppress page/sidebar scrollbars while open. Native OS scrollbars can
+    // composite above backdrop-filter layers (common on Linux/WebKit), so the
+    // Library nav scrollbar would otherwise remain visible over this dialog.
+    document.documentElement.classList.add('editor-open');
 
-      if (id == null) {
-        // Unsaved draft — nothing hits the vault until Save.
-        folderInput = initialFolder ?? '';
-        if (initialFolder && !projectOptions.includes(initialFolder)) {
-          projectOptions = [...projectOptions, initialFolder].sort((a, b) =>
-            a.localeCompare(b),
-          );
+    void (async () => {
+      try {
+        const folders = await listFolders().catch(() => []);
+        projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
+
+        if (id == null) {
+          // Unsaved draft — nothing hits the vault until Save.
+          folderInput = initialFolder ?? '';
+          if (initialFolder && !projectOptions.includes(initialFolder)) {
+            projectOptions = [...projectOptions, initialFolder].sort((a, b) =>
+              a.localeCompare(b),
+            );
+          }
+          return;
         }
-        return;
-      }
 
-      const p = await readPrompt(id);
-      title = p.title;
-      folderInput = p.folder ?? '';
-      tags = p.tags ?? [];
-      tagsInput = tags.join(', ');
-      favorite = p.favorite;
-      locked = p.locked;
-      charCount = p.char_count;
-      body = p.body ?? '';
-      if (p.folder && !projectOptions.includes(p.folder)) {
-        projectOptions = [...projectOptions, p.folder].sort((a, b) => a.localeCompare(b));
+        const p = await readPrompt(id);
+        title = p.title;
+        folderInput = p.folder ?? '';
+        tags = p.tags ?? [];
+        tagsInput = tags.join(', ');
+        favorite = p.favorite;
+        locked = p.locked;
+        charCount = p.char_count;
+        body = p.body ?? '';
+        if (p.folder && !projectOptions.includes(p.folder)) {
+          projectOptions = [...projectOptions, p.folder].sort((a, b) => a.localeCompare(b));
+        }
+      } catch (e) {
+        errorMessage = e instanceof Error ? e.message : String(e);
+      } finally {
+        loading = false;
       }
-    } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
-    } finally {
-      loading = false;
-    }
+    })();
+
+    return () => {
+      document.documentElement.classList.remove('editor-open');
+    };
   });
 
   function parseFolder(): string | null {
@@ -409,7 +420,8 @@
   .editor-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 19;
+    /* Above app chrome (z-index 40) and Library sticky nav; match Modal. */
+    z-index: 100;
     border: 0;
     padding: 0;
     margin: 0;
@@ -429,12 +441,23 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    z-index: 20;
+    z-index: 101;
     overflow: hidden;
     /* Solid surface so content never bleeds through. */
     background: var(--glass-dialog);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+  /* Hide scrollable ancestors' scrollbars while the editor is open (see onMount). */
+  :global(html.editor-open),
+  :global(html.editor-open body) {
+    overflow: hidden;
+  }
+  :global(html.editor-open) :global(main.page-mode) {
+    overflow: hidden;
+  }
+  :global(html.editor-open) :global(aside.sidebar) {
+    overflow: hidden;
   }
   .ambient {
     position: absolute;

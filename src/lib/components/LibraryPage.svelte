@@ -1061,6 +1061,9 @@
     top: 16px;
     max-height: calc(100vh - 100px);
     overflow: auto;
+    /* Stay under modal layers; sticky can otherwise form a stacking context
+     * that competes with fixed dialogs on some compositors. */
+    z-index: 0;
   }
   .nav-group {
     display: flex;
