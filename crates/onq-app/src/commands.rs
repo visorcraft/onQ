@@ -10,16 +10,14 @@ use mongreldb_core::query::{
 use mongreldb_core::{Row, Value};
 use onq_core::crypto;
 use onq_core::db::Db;
+use onq_core::embed::{download_model, Embedder, MODEL_ID};
 use onq_core::embedding_index;
 use onq_core::folder_path;
 use onq_core::keychain::{Keychain, OsKeychain};
 use onq_core::lock::{derive_kek, generate_salt};
 use onq_core::recovery::{generate_phrase, phrase_to_passphrase};
 use onq_core::schema::col;
-use onq_core::embed::{download_model, Embedder, MODEL_ID};
-use onq_core::search::{
-    rrf_score, searchable_text, sparse_bytes, SearchQuery as AppSearchQuery,
-};
+use onq_core::search::{rrf_score, searchable_text, sparse_bytes, SearchQuery as AppSearchQuery};
 use onq_core::ulid::PromptId;
 use onq_core::vault::{Prompt, Vault};
 use rand::RngCore;
@@ -311,11 +309,7 @@ fn index_prompt(
 
 /// Index using the in-process MiniLM model when loaded; otherwise sparse-only
 /// (preserving any existing embedding column).
-fn index_prompt_with_state(
-    db: &Arc<Db>,
-    prompt: &Prompt,
-    state: &AppState,
-) -> Result<(), String> {
+fn index_prompt_with_state(db: &Arc<Db>, prompt: &Prompt, state: &AppState) -> Result<(), String> {
     let emb = state.embedder.lock().map_err(|e| e.to_string())?.clone();
     match emb {
         Some(arc) => {
@@ -3064,16 +3058,15 @@ pub struct SearchStatus {
 }
 
 #[tauri::command]
-pub fn get_search_status(app: AppHandle, state: State<'_, AppState>) -> Result<SearchStatus, String> {
+pub fn get_search_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<SearchStatus, String> {
     let _ = ensure_embedder_loaded(&app, &state);
-    let embedder_loaded = state
-        .embedder
-        .lock()
-        .map_err(|e| e.to_string())?
-        .is_some();
+    let embedder_loaded = state.embedder.lock().map_err(|e| e.to_string())?.is_some();
     let model_dir = embed_model_dir(&app)?;
-    let model_cached = model_dir.join("model.onnx").is_file()
-        && model_dir.join("tokenizer.json").is_file();
+    let model_cached =
+        model_dir.join("model.onnx").is_file() && model_dir.join("tokenizer.json").is_file();
 
     let embedding_quant = if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.as_ref() {
         let v = read_app_setting(db, col::APP_EMBED_QUANT)?;
@@ -3124,10 +3117,7 @@ pub async fn ensure_search_model(
         return get_search_status(app, state);
     }
 
-    let cache_parent = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?;
+    let cache_parent = app.path().app_cache_dir().map_err(|e| e.to_string())?;
     // download_model is async (HuggingFace hub).
     let dst = download_model(&cache_parent)
         .await

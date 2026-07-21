@@ -120,12 +120,7 @@ impl SearchQuery {
 /// Build the free-text document string used for sparse (and ideally dense)
 /// indexing. Title, tags, and folder are included so typing a tag or project
 /// name in the palette can surface matching prompts — not only body tokens.
-pub fn searchable_text(
-    title: &str,
-    tags: &[String],
-    folder: Option<&str>,
-    body: &str,
-) -> String {
+pub fn searchable_text(title: &str, tags: &[String], folder: Option<&str>, body: &str) -> String {
     let mut parts: Vec<&str> = Vec::with_capacity(4 + tags.len());
     let title = title.trim();
     if !title.is_empty() {
