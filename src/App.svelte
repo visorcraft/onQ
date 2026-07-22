@@ -22,6 +22,7 @@
   import { openLastVault } from '$lib/api/vault';
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
+  import onqIcon from '$lib/assets/onq-128.png';
 
   const shortcut = paletteShortcut();
   const STATUS_CLEAR_MS = 5_000;
@@ -292,8 +293,9 @@
       type="button"
       class="hero glass spring hero-button"
       onclick={() => openPalette()}
+      aria-label="Open onQ palette"
     >
-      <span class="hero-title">onQ</span>
+      <img class="hero-logo" src={onqIcon} alt="onQ" width="96" height="96" draggable="false" />
       <span class="hero-sub">Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span>
     </button>
     <Palette />
@@ -335,16 +337,21 @@
     overflow: auto;
   }
   .hero {
-    padding: 64px 80px;
+    padding: 48px 72px;
     text-align: center;
     color: var(--glass-text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
   }
-  .hero-title {
+  .hero-logo {
     display: block;
-    font-size: 40px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    margin: 0 0 12px;
+    width: 96px;
+    height: 96px;
+    border-radius: 22%;
+    user-select: none;
+    -webkit-user-drag: none;
   }
   .hero-sub {
     display: block;

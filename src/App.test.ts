@@ -179,7 +179,7 @@ it('opens the remembered vault on launch', async () => {
 
   const component = mount(App, { target });
   await vi.waitFor(() => {
-    expect(document.querySelector('.hero .hero-title')?.textContent).toBe('onQ');
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
   });
   expect(document.body.textContent).not.toContain('Welcome to onQ');
   expect(document.body.textContent).toContain('Press Meta+Space to begin');
@@ -244,7 +244,7 @@ it('creates a master-password vault without a recovery phrase', async () => {
       path: '/tmp/password-vault',
       masterPassword: 'correct horse battery staple',
     });
-    expect(document.querySelector('.hero .hero-title')?.textContent).toBe('onQ');
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
   });
   expect(document.querySelector('textarea[aria-label="Recovery phrase"]')).toBeNull();
 
@@ -304,7 +304,7 @@ it('offers manual recovery when the remembered vault key is missing', async () =
       path: '/tmp/recovery-vault',
       recoveryPhrase: phrase.value,
     });
-    expect(document.querySelector('.hero .hero-title')?.textContent).toBe('onQ');
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
   });
 
   await unmount(component);
@@ -357,7 +357,7 @@ it('asks for the master password when the remembered vault uses one', async () =
       path: '/tmp/password-vault',
       masterPassword: password.value,
     });
-    expect(document.querySelector('.hero .hero-title')?.textContent).toBe('onQ');
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
   });
 
   await unmount(component);
