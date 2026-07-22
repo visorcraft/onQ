@@ -20,6 +20,7 @@
 //! New entries must never be reordered or removed — `version` is a durable
 //! contract with on-disk databases.
 
+use mongreldb_core::schema::{ColumnFlags, DefaultExpr, TypeId};
 use mongreldb_core::{Database, Query, Value};
 use tracing::info;
 
@@ -37,11 +38,18 @@ pub struct Migration {
 
 /// All known migrations in ascending version order. Version is durable — never
 /// reorder, never remove, never reuse.
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "0001_initial",
-    run: migration_0001_initial,
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "0001_initial",
+        run: migration_0001_initial,
+    },
+    Migration {
+        version: 2,
+        name: "0002_minimize_on_copy",
+        run: migration_0002_minimize_on_copy,
+    },
+];
 
 /// Migration 0001 — create the six core tables and seed the singleton
 /// `app_state` row with `schema_version = 1` and `embedding_quant = "binary"`.
@@ -71,6 +79,32 @@ fn migration_0001_initial(db: &Database) -> CoreResult<()> {
             )
         })
         .map_err(|e| CoreError::Db(format!("0001_initial seed app_state: {e}")))?;
+    }
+    Ok(())
+}
+
+/// Migration 0002 — add the `minimize_on_copy` boolean column to the
+/// `app_state` row. Idempotent: mongreldb-core refuses `add_column` when
+/// the column id is already known, so re-running on a fresh DB that has
+/// the column baked into the schema is a no-op (and we'll detect that
+/// via `current_version` returning >= 2 anyway).
+fn migration_0002_minimize_on_copy(db: &Database) -> CoreResult<()> {
+    let already_present = db
+        .query_for_current_principal("app_state", &Query::default(), None)
+        .map_err(|e| CoreError::Db(format!("0002 probe app_state: {e}")))?
+        .first()
+        .map(|row| row.columns.contains_key(&col::APP_MINIMIZE_ON_COPY))
+        .unwrap_or(false);
+    if !already_present {
+        db.add_column_with_id(
+            "app_state",
+            "minimize_on_copy",
+            TypeId::Bool,
+            ColumnFlags::empty(),
+            Some(DefaultExpr::Static(Value::Bool(false))),
+            Some(col::APP_MINIMIZE_ON_COPY),
+        )
+        .map_err(|e| CoreError::Db(format!("0002 add_column minimize_on_copy: {e}")))?;
     }
     Ok(())
 }

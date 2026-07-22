@@ -28,6 +28,12 @@
     type ProjectTreeNode,
   } from '$lib/utils/folderPath';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
+  import Pager from './primitives/Pager.svelte';
+
+  /** Number of prompts shown per Library page. Tuned so a typical vault
+   * (10-200 prompts) fits on a single screen on a 1080p monitor; vaults
+   * above ~100 prompts get a pager without the user having to ask for it. */
+  const PAGE_SIZE = 25;
 
   let {
     onOpenPrompt,
@@ -57,6 +63,7 @@
   let smartFolders = $state<SmartFolder[]>([]);
   let selection = $state<Selection>({ kind: 'all' });
   let filterText = $state('');
+  let currentPage = $state(1);
   let errorMessage = $state<string | null>(null);
   let busy = $state(false);
   let expanded = $state<Record<string, boolean>>({});
@@ -243,6 +250,38 @@
     return list;
   });
 
+  // Pagination: page count off the un-paged visible list; the actual slice
+  // clamps to the visible page so callers can mutate `currentPage` freely
+  // without intermediate renders flashing an empty list.
+  const pageCount = $derived(Math.max(1, Math.ceil(visiblePrompts.length / PAGE_SIZE)));
+  const pagedPrompts = $derived(
+    visiblePrompts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+  );
+  const pageRangeLabel = $derived.by(() => {
+    const total = visiblePrompts.length;
+    if (total === 0) return '';
+    const start = (currentPage - 1) * PAGE_SIZE + 1;
+    const end = Math.min(total, currentPage * PAGE_SIZE);
+    return `Showing ${start}–${end} of ${total}`;
+  });
+
+  // Snap `currentPage` back into bounds whenever the visible list shrinks
+  // (filter change, selection change, prompt deletion) so the user never
+  // lands on an empty page after deleting the last entry.
+  $effect(() => {
+    if (currentPage > pageCount) currentPage = pageCount;
+  });
+
+  // Reset to the first page on every filter-text change. Tracked off a
+  // separate `prevFilter` so the effect doesn't fire on first render.
+  let prevFilter = $state('');
+  $effect(() => {
+    if (filterText !== prevFilter) {
+      prevFilter = filterText;
+      currentPage = 1;
+    }
+  });
+
   const activeSmartDsl = $derived.by(() => {
     const sel = selection;
     if (sel.kind !== 'smart') return null;
@@ -309,6 +348,7 @@
   async function select(next: Selection) {
     selection = next;
     filterText = '';
+    currentPage = 1;
     smartHits = null;
     moveMenuId = null;
     if (next.kind === 'smart') {
@@ -853,7 +893,7 @@
       </div>
 
       <ul class="prompt-list">
-        {#each visiblePrompts as p (p.id)}
+        {#each pagedPrompts as p (p.id)}
           <li class="prompt-row">
             <button type="button" class="prompt-main" onclick={() => onOpenPrompt(p.id)}>
               <div class="prompt-title">
@@ -950,6 +990,15 @@
           </li>
         {/each}
       </ul>
+
+      <footer class="list-footer">
+        <span class="range-label">{pageRangeLabel}</span>
+        <Pager
+          page={currentPage}
+          pageCount={pageCount}
+          onPage={(next) => (currentPage = next)}
+        />
+      </footer>
     </section>
   </div>
 
@@ -1448,9 +1497,24 @@
     gap: 14px;
     align-items: center;
   }
+  .list-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-border);
+    flex-wrap: wrap;
+  }
+  .range-label {
+    font-size: 12px;
+    color: var(--glass-text-dim);
+    font-variant-numeric: tabular-nums;
+  }
   .empty-main p {
     margin: 0;
-    max-width: 28ch;
+    max-width: 48ch;
     line-height: 1.5;
   }
   .empty-icon {

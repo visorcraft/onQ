@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { getVaultAuthMode, retrieveVaultKey } from '$lib/api/vault';
   import {
     captureGlobalShortcut,
@@ -14,9 +14,12 @@
     embeddingQuant,
     loadBetaChannel,
     loadEmbeddingQuant,
+    loadMinimizeOnCopy,
+    minimizeOnCopy,
     rebuildingIndex,
     setBetaChannel,
     setEmbeddingQuant,
+    setMinimizeOnCopy,
     type EmbeddingQuant,
   } from '$lib/stores/settings';
   import {
@@ -24,6 +27,11 @@
     getSearchStatus,
     type SearchStatus,
   } from '$lib/api/search';
+  import {
+    checkForAppUpdates,
+    formatUpdateStatus,
+    type UpdateCheckOutcome,
+  } from '$lib/api/updates';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
 
   type SectionId = 'general' | 'search' | 'vault' | 'updates';
@@ -49,9 +57,47 @@
   let lastSynced = $state<EmbeddingQuant | null>(null);
   let pendingBeta = $state(false);
   let lastSyncedBeta = $state<boolean | null>(null);
+  let pendingMinimize = $state(false);
+  let lastSyncedMinimize = $state<boolean | null>(null);
   let searchStatus = $state<SearchStatus | null>(null);
   let loadingModel = $state(false);
   let searchStatusError = $state<string | null>(null);
+  let checkingForUpdates = $state(false);
+  let updateStatus = $state<string | null>(null);
+  let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearUpdateStatusTimer() {
+    if (updateStatusTimer !== undefined) {
+      clearTimeout(updateStatusTimer);
+      updateStatusTimer = undefined;
+    }
+  }
+
+  function setUpdateStatus(message: string | null, autoClearMs?: number) {
+    clearUpdateStatusTimer();
+    updateStatus = message;
+    if (message && autoClearMs !== undefined) {
+      updateStatusTimer = setTimeout(() => {
+        updateStatus = null;
+        updateStatusTimer = undefined;
+      }, autoClearMs);
+    }
+  }
+
+  async function runUpdateCheck() {
+    if (checkingForUpdates) return;
+    checkingForUpdates = true;
+    setUpdateStatus('Checking for updates…');
+    try {
+      const outcome: UpdateCheckOutcome = await checkForAppUpdates(true);
+      const formatted = formatUpdateStatus(outcome);
+      if (formatted) {
+        setUpdateStatus(formatted, outcome.kind === 'up_to_date' ? 5_000 : undefined);
+      }
+    } finally {
+      checkingForUpdates = false;
+    }
+  }
 
   $effect(() => {
     const store = $embeddingQuant;
@@ -66,6 +112,14 @@
     if (lastSyncedBeta !== store) {
       pendingBeta = store;
       lastSyncedBeta = store;
+    }
+  });
+
+  $effect(() => {
+    const store = $minimizeOnCopy;
+    if (lastSyncedMinimize !== store) {
+      pendingMinimize = store;
+      lastSyncedMinimize = store;
     }
   });
 
@@ -95,10 +149,15 @@
   onMount(() => {
     void loadEmbeddingQuant().catch(() => undefined);
     void loadBetaChannel().catch(() => undefined);
+    void loadMinimizeOnCopy().catch(() => undefined);
     void getVaultAuthMode()
       .then((mode) => (authMode = mode))
       .catch(() => undefined);
     void refreshSearchStatus();
+  });
+
+  onDestroy(() => {
+    clearUpdateStatusTimer();
   });
 
   $effect(() => {
@@ -160,6 +219,18 @@
       await setBetaChannel(next);
     } catch (e) {
       pendingBeta = prev;
+      errorMessage = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function flipMinimizeOnCopy(next: boolean) {
+    if (next === $minimizeOnCopy) return;
+    errorMessage = null;
+    const prev = $minimizeOnCopy;
+    try {
+      await setMinimizeOnCopy(next);
+    } catch (e) {
+      pendingMinimize = prev;
       errorMessage = e instanceof Error ? e.message : String(e);
     }
   }
@@ -274,6 +345,32 @@
               <span class="theme-label">Light</span>
             </button>
           </div>
+        </section>
+
+        <section class="panel" aria-labelledby="palette-heading">
+          <div class="panel-head">
+            <h3 id="palette-heading">Palette</h3>
+            <p class="help">
+              Behaviour of the global command palette when you click a search
+              result or one of the Recent items.
+            </p>
+          </div>
+          <label class="toggle-row">
+            <span class="toggle-copy">
+              <span class="toggle-label">Automatically minimize after clicking search result</span>
+              <span class="toggle-desc">Hide onQ to the system tray once a prompt is on your clipboard</span>
+            </span>
+            <span class="switch" class:on={pendingMinimize}>
+              <input
+                type="checkbox"
+                bind:checked={pendingMinimize}
+                onchange={(event) => flipMinimizeOnCopy(event.currentTarget.checked)}
+              />
+              <span class="switch-track" aria-hidden="true">
+                <span class="switch-thumb"></span>
+              </span>
+            </span>
+          </label>
         </section>
 
       {:else if active === 'search'}
@@ -478,6 +575,19 @@
               </span>
             </span>
           </label>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="control-btn primary"
+              disabled={checkingForUpdates}
+              onclick={() => void runUpdateCheck()}
+            >
+              {checkingForUpdates ? 'Checking for updates…' : 'Check for Updates'}
+            </button>
+          </div>
+          {#if updateStatus}
+            <p class="hint status" role="status">{updateStatus}</p>
+          {/if}
         </section>
       {/if}
 

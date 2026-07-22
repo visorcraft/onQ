@@ -160,7 +160,7 @@ fn restore_plasma_window() {
     let _ = std::fs::remove_file(path);
 }
 
-fn hide_main_window(window: &tauri::Window) {
+pub(crate) fn hide_main_window(window: &tauri::Window) {
     #[cfg(target_os = "linux")]
     if is_kde_session() {
         let _ = window.minimize();
@@ -294,6 +294,7 @@ pub fn run() {
             commands::set_embedding_quant,
             commands::get_beta_channel,
             commands::set_beta_channel,
+            commands::hide_to_tray,
             commands::record_search,
             commands::record_open,
             commands::install_plugin,

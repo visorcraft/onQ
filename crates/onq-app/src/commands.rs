@@ -3229,6 +3229,17 @@ pub async fn get_beta_channel(state: State<'_, AppState>) -> Result<bool, String
     Ok(value == "true")
 }
 
+/// Hide the main window to the system tray. Called by the frontend after a
+/// successful palette copy when the user has opted into the
+/// "minimize on copy" preference. Routes through the same KDE-aware
+/// `hide_main_window` helper the close-button handler uses so behaviour
+/// stays identical across triggers.
+#[tauri::command]
+pub async fn hide_to_tray(window: tauri::Window) -> Result<(), String> {
+    crate::hide_main_window(&window);
+    Ok(())
+}
+
 /// Clear the in-memory vault if the active policy says to. Wired into the
 /// `setup` hook so an idle vault that survived process start (e.g. user
 /// closed the laptop with the app running) is re-locked immediately on

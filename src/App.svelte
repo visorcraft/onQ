@@ -18,6 +18,7 @@
   } from '$lib/stores/tutorial';
   import { paletteShortcut } from '$lib/shortcut';
   import { globalShortcut } from '$lib/stores/globalShortcut';
+  import { openPalette } from '$lib/stores/palette.svelte';
   import { openLastVault } from '$lib/api/vault';
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
@@ -291,10 +292,15 @@
       onCancel={() => (passwordPath = null)}
     />
   {:else if hasVault}
-    <div class="hero glass spring">
+    <button
+      type="button"
+      class="hero glass spring hero-button"
+      aria-label="Open command palette"
+      onclick={() => openPalette()}
+    >
       <h1>onQ</h1>
       <p>Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</p>
-    </div>
+    </button>
     <Palette />
     {#if editorSession}
       {#key editorSession.id ?? 'draft'}
@@ -337,6 +343,25 @@
     padding: 64px 80px;
     text-align: center;
     color: var(--glass-text);
+  }
+  .hero-button {
+    appearance: none;
+    border: 1px solid var(--glass-border);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      transform var(--motion-duration) var(--motion-spring),
+      box-shadow var(--motion-duration) ease,
+      border-color var(--motion-duration) ease;
+  }
+  .hero-button:hover {
+    transform: translateY(-1px);
+    border-color: var(--glass-border-strong);
+    box-shadow: 0 12px 32px rgba(2, 6, 18, 0.28);
+  }
+  .hero-button:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 4px;
   }
   h1 {
     font-size: 40px;

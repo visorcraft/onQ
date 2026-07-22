@@ -119,6 +119,7 @@ impl Db {
             (col::APP_THEME, Value::Bytes(b"dark".to_vec())),
             (col::APP_BETA, Value::Bool(false)),
             (col::APP_EMBED_QUANT, Value::Bytes(b"binary".to_vec())),
+            (col::APP_MINIMIZE_ON_COPY, Value::Bool(false)),
         ];
         // Preserve the current schema_version, vault_path, recent, tutorial_done,
         // beta, embedding_quant by overwriting the defaults from the existing row.
@@ -130,7 +131,10 @@ impl Db {
         // Now overwrite the targeted cell with a schema-compatible value.
         // Tauri transports settings as strings, but boolean app_state columns
         // must stay booleans in MongrelDB.
-        let target_value = if column_id == col::APP_TUTORIAL_DONE || column_id == col::APP_BETA {
+        let target_value = if column_id == col::APP_TUTORIAL_DONE
+            || column_id == col::APP_BETA
+            || column_id == col::APP_MINIMIZE_ON_COPY
+        {
             match value {
                 "true" => Value::Bool(true),
                 "false" => Value::Bool(false),
@@ -203,6 +207,7 @@ fn setting_column_for_key(key: &str) -> CoreResult<u16> {
         "last_opened_prompt" => Ok(col::APP_LAST_OPENED),
         "embedding_quant" => Ok(col::APP_EMBED_QUANT),
         "beta_channel" => Ok(col::APP_BETA),
+        "minimize_on_copy" => Ok(col::APP_MINIMIZE_ON_COPY),
         other => Err(CoreError::Db(format!("unknown app_setting '{other}'"))),
     }
 }

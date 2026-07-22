@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
-import { getAppSetting } from '$lib/api/settings';
+import { getAppSetting, setAppSetting } from '$lib/api/settings';
 
 /**
  * User opt-in for pre-release auto-updates (M7.2).
@@ -31,6 +31,28 @@ export async function loadBetaChannel(): Promise<void> {
   try {
     const v = await invoke<boolean>('get_beta_channel');
     betaChannel.set(Boolean(v));
+  } catch {
+    // Vault locked or backend unavailable — keep the default.
+  }
+}
+
+/**
+ * User opt-in to hiding the main window to the system tray immediately
+ * after a palette copy (search result or "Recent" row). Persisted to
+ * `app_state.minimize_on_copy` — defaults to `false` so the new vault
+ * experience matches the shipped behaviour.
+ */
+export const minimizeOnCopy = writable<boolean>(false);
+
+export async function setMinimizeOnCopy(enabled: boolean): Promise<void> {
+  await setAppSetting('minimize_on_copy', enabled ? 'true' : 'false');
+  minimizeOnCopy.set(enabled);
+}
+
+export async function loadMinimizeOnCopy(): Promise<void> {
+  try {
+    const v = await getAppSetting('minimize_on_copy');
+    minimizeOnCopy.set(v === 'true');
   } catch {
     // Vault locked or backend unavailable — keep the default.
   }

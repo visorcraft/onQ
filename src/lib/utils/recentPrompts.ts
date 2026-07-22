@@ -2,7 +2,7 @@
 const STORAGE_KEY = 'onq.recent_prompt_ids';
 
 /** How many recent prompts the palette shows. */
-export const RECENT_PROMPTS_CAP = 8;
+export const RECENT_PROMPTS_CAP = 5;
 
 function readIds(): string[] {
   try {

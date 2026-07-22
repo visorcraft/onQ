@@ -4,6 +4,8 @@
   import { results as searchResults, runSearch, runMoreLikeThis } from '$lib/stores/search';
   import { recordOpen } from '$lib/api/recent';
   import { readPrompt } from '$lib/api/prompts';
+  import { hideToTray } from '$lib/api/tray';
+  import { minimizeOnCopy } from '$lib/stores/settings';
   import {
     globalShortcutPressedEvent,
     matchesGlobalShortcut,
@@ -17,8 +19,12 @@
   import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
   import Editor from './Editor.svelte';
+  import {
+    palette as paletteStore,
+    closePalette as storeClosePalette,
+    togglePalette as storeTogglePalette,
+  } from '$lib/stores/palette.svelte';
 
-  let open = $state(false);
   let query = $state('');
   /** Existing prompt id, or `null` for an unsaved draft. */
   let editorId = $state<string | null | undefined>(undefined);
@@ -32,31 +38,43 @@
   let copyingId = $state<string | null>(null);
   /** Bumped when local recent history changes so the list re-derives. */
   let recentEpoch = $state(0);
+  let open = $derived(paletteStore.open);
 
   function clearQuery() {
     query = '';
   }
 
   function closePalette() {
-    open = false;
+    storeClosePalette();
     clearQuery();
     statusMessage = null;
     copyingId = null;
   }
 
-  function openPalette() {
-    open = true;
-    clearQuery();
-    statusMessage = null;
-    recentEpoch += 1;
-    loadPrompts();
-    void tick().then(() => commandInput?.focus());
+  function togglePalette() {
+    storeTogglePalette();
   }
 
-  function togglePalette() {
-    if (open) closePalette();
-    else openPalette();
-  }
+  // Rising-edge of `palette.open` (whether triggered by the keyboard
+  // shortcut, the global OS shortcut, or the home card click) resets
+  // transient state and refocuses the input. Decoupled from the
+  // trigger so external callers don't have to know about the side
+  // effects — `palette.svelte` owns the boolean, Palette owns the
+  // input ref + prompt prefetch.
+  let prevOpen = $state(false);
+  $effect(() => {
+    const isOpen = paletteStore.open;
+    if (isOpen && !prevOpen) {
+      prevOpen = true;
+      clearQuery();
+      statusMessage = null;
+      recentEpoch += 1;
+      loadPrompts();
+      void tick().then(() => commandInput?.focus());
+    } else if (!isOpen && prevOpen) {
+      prevOpen = false;
+    }
+  });
 
   onMount(() => {
     const handler = (e: KeyboardEvent) => {
@@ -125,6 +143,13 @@
       await navigator.clipboard.writeText(p.body ?? '');
       rememberPrompt(id);
       closePalette();
+      // Honour the user's "minimize on copy" preference — fire-and-forget;
+      // the user just clicked a result and the next action they probably
+      // want is to switch back to the source app. The hide call is async
+      // because the palette close transition is still running.
+      if ($minimizeOnCopy) {
+        void hideToTray();
+      }
     } catch (e) {
       statusMessage = e instanceof Error ? e.message : String(e);
     } finally {
@@ -201,7 +226,7 @@
   });
 </script>
 
-{#snippet promptRow(id: string, title: string, locked: boolean)}
+{#snippet promptRow(id: string, title: string, locked: boolean, favorite: boolean)}
   <div class="palette-row">
     <button
       class="palette-item palette-copy"
@@ -211,6 +236,9 @@
       onclick={() => void onCopy(id)}
     >
       <span class="palette-title">
+        {#if favorite}
+          <span class="favorite-star" aria-label="Favorite" title="Favorite">★</span>
+        {/if}
         {title}
         {#if locked}
           <svg class="lock-icon" viewBox="0 0 16 16" width="12" height="12" aria-label="locked">
@@ -301,14 +329,14 @@
         {#if recentPrompts.length > 0}
           <div class="palette-group-heading">Recent</div>
           {#each recentPrompts as p (p.id)}
-            {@render promptRow(p.id, p.title || 'Untitled', p.locked)}
+            {@render promptRow(p.id, p.title || 'Untitled', p.locked, p.favorite)}
           {/each}
         {/if}
         {#if hits.length > 0}
           <!-- e.g. "More like this" results while the query is still empty -->
           <div class="palette-group-heading">Similar</div>
           {#each hits as h (h.id)}
-            {@render promptRow(h.id, h.title || 'Untitled', h.locked)}
+            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
           {/each}
         {/if}
       {:else}
@@ -317,7 +345,7 @@
           <div class="palette-empty">No results.</div>
         {:else}
           {#each hits as h (h.id)}
-            {@render promptRow(h.id, h.title || 'Untitled', h.locked)}
+            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
           {/each}
         {/if}
       {/if}
@@ -425,6 +453,12 @@
   .lock-icon {
     flex-shrink: 0;
     color: var(--glass-text-faint);
+  }
+  .favorite-star {
+    color: var(--glass-gold, #f0c674);
+    font-size: 12px;
+    line-height: 1;
+    flex-shrink: 0;
   }
   .palette-hint {
     flex-shrink: 0;

@@ -9,11 +9,20 @@ import storybook from 'eslint-plugin-storybook';
 export default [
   js.configs.recommended,
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.svelte.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: { sourceType: 'module' },
-      globals: { ...globals.browser },
+      globals: {
+        ...globals.browser,
+        // Svelte 5 runes — used by `.svelte.ts` modules that expose
+        // reactive state to non-component callers.
+        $state: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $props: 'readonly',
+        $bindable: 'readonly',
+      },
     },
     plugins: { '@typescript-eslint': ts },
     rules: { ...ts.configs.recommended.rules },

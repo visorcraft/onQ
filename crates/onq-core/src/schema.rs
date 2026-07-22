@@ -43,7 +43,8 @@ pub mod col {
     pub const APP_THEME: u16 = 6;
     pub const APP_BETA: u16 = 7;
     pub const APP_EMBED_QUANT: u16 = 8; // 'binary' (default, HNSW+rerank) or 'dense' (HNSW direct)
-                                        // folders
+    pub const APP_MINIMIZE_ON_COPY: u16 = 9; // bool: hide main window to tray after copying from palette
+                                             // folders
     pub const FOLDERS_ID: u16 = 0;
     pub const FOLDERS_NAME: u16 = 1;
     pub const FOLDERS_CREATED: u16 = 2;
@@ -396,6 +397,14 @@ pub fn app_state_schema() -> Schema {
                 ty: TypeId::Bytes,
                 flags: ColumnFlags::empty(),
                 default_value: Some(DefaultExpr::Static(Value::Bytes(b"binary".to_vec()))),
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_MINIMIZE_ON_COPY,
+                name: "minimize_on_copy".into(),
+                ty: TypeId::Bool,
+                flags: ColumnFlags::empty(),
+                default_value: Some(DefaultExpr::Static(Value::Bool(false))),
                 embedding_source: None,
             },
         ],
