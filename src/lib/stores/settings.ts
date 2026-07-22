@@ -3,6 +3,21 @@ import { invoke } from '@tauri-apps/api/core';
 import { getAppSetting, setAppSetting } from '$lib/api/settings';
 
 /**
+ * Serialise async writes through a single shared chain so two rapid
+ * clicks on the same toggle can't race the round-trip to the backend.
+ * Each `fn` runs after the previous one resolves (success OR failure);
+ * the returned promise resolves with `fn`'s result. The chain swallows
+ * its own errors so one rejection can't poison subsequent calls.
+ */
+function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const next = pendingSettingsWrite.then(fn, fn);
+  pendingSettingsWrite = next.catch(() => undefined);
+  return next;
+}
+
+let pendingSettingsWrite: Promise<unknown> = Promise.resolve();
+
+/**
  * User opt-in for pre-release auto-updates (M7.2).
  *
  * Persisted to `app_state.beta_channel`. Production updates use the stable
@@ -18,7 +33,7 @@ export const betaChannel = writable<boolean>(false);
  * surface rejections as typed errors which the Settings page rolls back.
  */
 export async function setBetaChannel(enabled: boolean): Promise<void> {
-  await invoke<void>('set_beta_channel', { enabled });
+  await serialize(() => invoke<void>('set_beta_channel', { enabled }));
   betaChannel.set(enabled);
 }
 
@@ -45,7 +60,9 @@ export async function loadBetaChannel(): Promise<void> {
 export const minimizeOnCopy = writable<boolean>(false);
 
 export async function setMinimizeOnCopy(enabled: boolean): Promise<void> {
-  await setAppSetting('minimize_on_copy', enabled ? 'true' : 'false');
+  await serialize(() =>
+    setAppSetting('minimize_on_copy', enabled ? 'true' : 'false'),
+  );
   minimizeOnCopy.set(enabled);
 }
 

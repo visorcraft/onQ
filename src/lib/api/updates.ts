@@ -29,7 +29,12 @@ export async function checkForAppUpdates(manual: boolean): Promise<UpdateCheckOu
     }
     return manual ? { kind: 'up_to_date' } : { kind: 'silent' };
   } catch (error) {
-    return { kind: 'error', message: String(error) };
+    // Auto-check failures stay silent — surfacing them at launch would
+    // alarm users with no updater artefact available (e.g. dev builds).
+    // The Settings button is loud; the home badge is quiet.
+    return manual
+      ? { kind: 'error', message: String(error) }
+      : { kind: 'silent' };
   }
 }
 
