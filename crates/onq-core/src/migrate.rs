@@ -224,7 +224,7 @@ mod tests {
             "false",
             "migrated vault must report minimize_on_copy default",
         );
-        let (version, _) = read_app_state(&got.handle()).unwrap();
+        let (version, _) = read_app_state(got.handle()).unwrap();
         assert_eq!(version, 2, "schema_version must advance to 2");
     }
 
@@ -239,7 +239,6 @@ mod tests {
         Migrator::new(db.handle()).run().unwrap();
         assert_eq!(db.get_app_setting("minimize_on_copy").unwrap(), "false");
     }
-    use super::*;
 
     /// Read `schema_version` and `embedding_quant` from the singleton
     /// `app_state` row. Returns `(version, embedding_quant_bytes)`.

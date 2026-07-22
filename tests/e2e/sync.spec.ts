@@ -5,7 +5,7 @@ test('app loads and opens the command palette', async ({ page }) => {
   await installTauriMock(page, { vaultOpen: true });
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { name: 'onQ' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'onQ' })).toBeVisible();
 
   await openPalette(page);
 

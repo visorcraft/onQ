@@ -53,7 +53,7 @@ test.describe('WCAG 2.1 AA — axe-core', () => {
   test('palette dialog has no critical/serious axe violations', async ({ page }) => {
     await installTauriMock(page, { vaultOpen: true });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'onQ' })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'onQ' })).toBeVisible();
     await openPalette(page);
     const palette = page.getByRole('dialog', { name: 'Command palette' });
     await expect(palette).toBeVisible();

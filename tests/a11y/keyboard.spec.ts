@@ -37,7 +37,7 @@ test('tabbing reveals a visible focus ring', async ({ page }) => {
 test('default Q shortcut opens the command palette from the home page', async ({ page }) => {
   await installTauriMock(page, { vaultOpen: true });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'onQ' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'onQ' })).toBeVisible();
 
   await openPalette(page);
 
