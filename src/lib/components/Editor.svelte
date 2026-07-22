@@ -40,6 +40,8 @@
   // palette reloads and the next `readPrompt` reflects the new state.
   let busy = $state(false);
   let confirmDeleteOpen = $state(false);
+  let copied = $state(false);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(() => {
     // Suppress page/sidebar scrollbars while open. Native OS scrollbars can
@@ -84,6 +86,7 @@
 
     return () => {
       document.documentElement.classList.remove('editor-open');
+      if (copiedTimer !== undefined) clearTimeout(copiedTimer);
     };
   });
 
@@ -186,6 +189,22 @@
   function toggleFavorite() {
     if (locked || busy) return;
     favorite = !favorite;
+  }
+
+  async function copyBody() {
+    if (locked || busy) return;
+    errorMessage = null;
+    try {
+      await navigator.clipboard.writeText(body);
+      copied = true;
+      if (copiedTimer !== undefined) clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => {
+        copied = false;
+        copiedTimer = undefined;
+      }, 1500);
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : String(e);
+    }
   }
 </script>
 
@@ -390,6 +409,15 @@
       {/if}
       <div class="actions-right">
         <button type="button" class="btn ghost" onclick={onClose}>Cancel</button>
+        <button
+          type="button"
+          class="btn ghost"
+          onclick={() => void copyBody()}
+          disabled={locked || busy}
+          aria-label={copied ? 'Copied to clipboard' : 'Copy prompt body to clipboard'}
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
         <button
           type="button"
           class="btn primary"
