@@ -60,3 +60,6 @@ Thumbs.db
 
 *storybook.log
 storybook-static
+
+# Temp image/debug previews (never commit)
+assets/_*
