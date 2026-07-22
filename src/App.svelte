@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { check } from '@tauri-apps/plugin-updater';
+  import { checkForAppUpdates, formatUpdateStatus } from '$lib/api/updates';
   import Palette from '$lib/components/Palette.svelte';
   import Editor from '$lib/components/Editor.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
@@ -57,24 +57,20 @@
     }
   }
 
-  async function checkForUpdates(manual = false) {
+  async function checkForUpdates(manual: boolean) {
     if (checkingForUpdates) return;
     checkingForUpdates = true;
     if (manual) setUpdateStatus('Checking for updates…');
-
     try {
-      const update = await check();
-      if (update) {
-        setUpdateStatus(`onQ ${update.version} is available`);
-        await update.close();
-      } else if (manual) {
-        setUpdateStatus('onQ is up to date', STATUS_CLEAR_MS);
-      } else {
+      const outcome = await checkForAppUpdates(manual);
+      const formatted = formatUpdateStatus(outcome);
+      if (formatted) {
+        setUpdateStatus(
+          formatted,
+          outcome.kind === 'up_to_date' ? STATUS_CLEAR_MS : undefined,
+        );
+      } else if (!manual) {
         setUpdateStatus(null);
-      }
-    } catch (error) {
-      if (manual) {
-        setUpdateStatus(`Unable to check for updates: ${String(error)}`);
       }
     } finally {
       checkingForUpdates = false;
@@ -84,7 +80,7 @@
   onMount(() => {
     // Updater must not wait on vault open / keychain prompts — it has no
     // dependency on vault state and should work from the empty-state screen.
-    void checkForUpdates();
+    void checkForUpdates(false);
 
     void (async () => {
       try {
@@ -295,11 +291,10 @@
     <button
       type="button"
       class="hero glass spring hero-button"
-      aria-label="Open command palette"
       onclick={() => openPalette()}
     >
-      <h1>onQ</h1>
-      <p>Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</p>
+      <span class="hero-title">onQ</span>
+      <span class="hero-sub">Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span>
     </button>
     <Palette />
     {#if editorSession}
@@ -344,6 +339,18 @@
     text-align: center;
     color: var(--glass-text);
   }
+  .hero-title {
+    display: block;
+    font-size: 40px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+  }
+  .hero-sub {
+    display: block;
+    color: var(--glass-text-dim);
+    margin: 0;
+  }
   .hero-button {
     appearance: none;
     border: 1px solid var(--glass-border);
@@ -362,16 +369,6 @@
   .hero-button:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 4px;
-  }
-  h1 {
-    font-size: 40px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    margin: 0 0 12px;
-  }
-  p {
-    color: var(--glass-text-dim);
-    margin: 0;
   }
   kbd {
     font-family: 'JetBrains Mono', monospace;

@@ -251,25 +251,27 @@
   });
 
   // Pagination: page count off the un-paged visible list; the actual slice
-  // clamps to the visible page so callers can mutate `currentPage` freely
-  // without intermediate renders flashing an empty list.
+  // clamps to a derived `safePage` so a shrink (delete, filter) never
+  // flashes an empty page on a stale `currentPage` value before an effect
+  // can snap it back.
   const pageCount = $derived(Math.max(1, Math.ceil(visiblePrompts.length / PAGE_SIZE)));
+  const safePage = $derived(Math.min(currentPage, pageCount));
   const pagedPrompts = $derived(
-    visiblePrompts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    visiblePrompts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
   );
   const pageRangeLabel = $derived.by(() => {
     const total = visiblePrompts.length;
     if (total === 0) return '';
-    const start = (currentPage - 1) * PAGE_SIZE + 1;
-    const end = Math.min(total, currentPage * PAGE_SIZE);
+    const start = (safePage - 1) * PAGE_SIZE + 1;
+    const end = Math.min(total, safePage * PAGE_SIZE);
     return `Showing ${start}–${end} of ${total}`;
   });
 
-  // Snap `currentPage` back into bounds whenever the visible list shrinks
-  // (filter change, selection change, prompt deletion) so the user never
-  // lands on an empty page after deleting the last entry.
+  // Persist the clamp back into `currentPage` so prev/next clicks keep
+  // working from the corrected position. Cheap because `safePage` only
+  // changes when `currentPage` or `pageCount` do.
   $effect(() => {
-    if (currentPage > pageCount) currentPage = pageCount;
+    if (safePage !== currentPage) currentPage = safePage;
   });
 
   // Reset to the first page on every filter-text change. Tracked off a
@@ -994,7 +996,7 @@
       <footer class="list-footer">
         <span class="range-label">{pageRangeLabel}</span>
         <Pager
-          page={currentPage}
+          page={safePage}
           pageCount={pageCount}
           onPage={(next) => (currentPage = next)}
         />

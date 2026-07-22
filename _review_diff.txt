@@ -1,0 +1,1056 @@
+diff --git a/crates/onq-app/src/commands.rs b/crates/onq-app/src/commands.rs
+index 5ae3457..4ff4db7 100644
+--- a/crates/onq-app/src/commands.rs
++++ b/crates/onq-app/src/commands.rs
+@@ -3229,6 +3229,17 @@ pub async fn get_beta_channel(state: State<'_, AppState>) -> Result<bool, String
+     Ok(value == "true")
+ }
+ 
++/// Hide the main window to the system tray. Called by the frontend after a
++/// successful palette copy when the user has opted into the
++/// "minimize on copy" preference. Routes through the same KDE-aware
++/// `hide_main_window` helper the close-button handler uses so behaviour
++/// stays identical across triggers.
++#[tauri::command]
++pub async fn hide_to_tray(window: tauri::Window) -> Result<(), String> {
++    crate::hide_main_window(&window);
++    Ok(())
++}
++
+ /// Clear the in-memory vault if the active policy says to. Wired into the
+ /// `setup` hook so an idle vault that survived process start (e.g. user
+ /// closed the laptop with the app running) is re-locked immediately on
+diff --git a/crates/onq-app/src/lib.rs b/crates/onq-app/src/lib.rs
+index 5598ced..a1d339b 100644
+--- a/crates/onq-app/src/lib.rs
++++ b/crates/onq-app/src/lib.rs
+@@ -160,7 +160,7 @@ fn restore_plasma_window() {
+     let _ = std::fs::remove_file(path);
+ }
+ 
+-fn hide_main_window(window: &tauri::Window) {
++pub(crate) fn hide_main_window(window: &tauri::Window) {
+     #[cfg(target_os = "linux")]
+     if is_kde_session() {
+         let _ = window.minimize();
+@@ -294,6 +294,7 @@ pub fn run() {
+             commands::set_embedding_quant,
+             commands::get_beta_channel,
+             commands::set_beta_channel,
++            commands::hide_to_tray,
+             commands::record_search,
+             commands::record_open,
+             commands::install_plugin,
+diff --git a/crates/onq-core/src/db.rs b/crates/onq-core/src/db.rs
+index 176ff1f..2318519 100644
+--- a/crates/onq-core/src/db.rs
++++ b/crates/onq-core/src/db.rs
+@@ -119,6 +119,7 @@ impl Db {
+             (col::APP_THEME, Value::Bytes(b"dark".to_vec())),
+             (col::APP_BETA, Value::Bool(false)),
+             (col::APP_EMBED_QUANT, Value::Bytes(b"binary".to_vec())),
++            (col::APP_MINIMIZE_ON_COPY, Value::Bool(false)),
+         ];
+         // Preserve the current schema_version, vault_path, recent, tutorial_done,
+         // beta, embedding_quant by overwriting the defaults from the existing row.
+@@ -130,7 +131,10 @@ impl Db {
+         // Now overwrite the targeted cell with a schema-compatible value.
+         // Tauri transports settings as strings, but boolean app_state columns
+         // must stay booleans in MongrelDB.
+-        let target_value = if column_id == col::APP_TUTORIAL_DONE || column_id == col::APP_BETA {
++        let target_value = if column_id == col::APP_TUTORIAL_DONE
++            || column_id == col::APP_BETA
++            || column_id == col::APP_MINIMIZE_ON_COPY
++        {
+             match value {
+                 "true" => Value::Bool(true),
+                 "false" => Value::Bool(false),
+@@ -203,6 +207,7 @@ fn setting_column_for_key(key: &str) -> CoreResult<u16> {
+         "last_opened_prompt" => Ok(col::APP_LAST_OPENED),
+         "embedding_quant" => Ok(col::APP_EMBED_QUANT),
+         "beta_channel" => Ok(col::APP_BETA),
++        "minimize_on_copy" => Ok(col::APP_MINIMIZE_ON_COPY),
+         other => Err(CoreError::Db(format!("unknown app_setting '{other}'"))),
+     }
+ }
+diff --git a/crates/onq-core/src/migrate.rs b/crates/onq-core/src/migrate.rs
+index e17d6d2..d9cb81f 100644
+--- a/crates/onq-core/src/migrate.rs
++++ b/crates/onq-core/src/migrate.rs
+@@ -20,6 +20,7 @@
+ //! New entries must never be reordered or removed — `version` is a durable
+ //! contract with on-disk databases.
+ 
++use mongreldb_core::schema::{ColumnFlags, DefaultExpr, TypeId};
+ use mongreldb_core::{Database, Query, Value};
+ use tracing::info;
+ 
+@@ -37,11 +38,18 @@ pub struct Migration {
+ 
+ /// All known migrations in ascending version order. Version is durable — never
+ /// reorder, never remove, never reuse.
+-const MIGRATIONS: &[Migration] = &[Migration {
+-    version: 1,
+-    name: "0001_initial",
+-    run: migration_0001_initial,
+-}];
++const MIGRATIONS: &[Migration] = &[
++    Migration {
++        version: 1,
++        name: "0001_initial",
++        run: migration_0001_initial,
++    },
++    Migration {
++        version: 2,
++        name: "0002_minimize_on_copy",
++        run: migration_0002_minimize_on_copy,
++    },
++];
+ 
+ /// Migration 0001 — create the six core tables and seed the singleton
+ /// `app_state` row with `schema_version = 1` and `embedding_quant = "binary"`.
+@@ -75,6 +83,32 @@ fn migration_0001_initial(db: &Database) -> CoreResult<()> {
+     Ok(())
+ }
+ 
++/// Migration 0002 — add the `minimize_on_copy` boolean column to the
++/// `app_state` row. Idempotent: mongreldb-core refuses `add_column` when
++/// the column id is already known, so re-running on a fresh DB that has
++/// the column baked into the schema is a no-op (and we'll detect that
++/// via `current_version` returning >= 2 anyway).
++fn migration_0002_minimize_on_copy(db: &Database) -> CoreResult<()> {
++    let already_present = db
++        .query_for_current_principal("app_state", &Query::default(), None)
++        .map_err(|e| CoreError::Db(format!("0002 probe app_state: {e}")))?
++        .first()
++        .map(|row| row.columns.contains_key(&col::APP_MINIMIZE_ON_COPY))
++        .unwrap_or(false);
++    if !already_present {
++        db.add_column_with_id(
++            "app_state",
++            "minimize_on_copy",
++            TypeId::Bool,
++            ColumnFlags::empty(),
++            Some(DefaultExpr::Static(Value::Bool(false))),
++            Some(col::APP_MINIMIZE_ON_COPY),
++        )
++        .map_err(|e| CoreError::Db(format!("0002 add_column minimize_on_copy: {e}")))?;
++    }
++    Ok(())
++}
++
+ /// Owns a `&Database` and applies pending migrations from [`MIGRATIONS`].
+ pub struct Migrator<'a> {
+     db: &'a Database,
+diff --git a/crates/onq-core/src/schema.rs b/crates/onq-core/src/schema.rs
+index ac6cc8a..8d8b250 100644
+--- a/crates/onq-core/src/schema.rs
++++ b/crates/onq-core/src/schema.rs
+@@ -43,7 +43,8 @@ pub mod col {
+     pub const APP_THEME: u16 = 6;
+     pub const APP_BETA: u16 = 7;
+     pub const APP_EMBED_QUANT: u16 = 8; // 'binary' (default, HNSW+rerank) or 'dense' (HNSW direct)
+-                                        // folders
++    pub const APP_MINIMIZE_ON_COPY: u16 = 9; // bool: hide main window to tray after copying from palette
++                                             // folders
+     pub const FOLDERS_ID: u16 = 0;
+     pub const FOLDERS_NAME: u16 = 1;
+     pub const FOLDERS_CREATED: u16 = 2;
+@@ -398,6 +399,14 @@ pub fn app_state_schema() -> Schema {
+                 default_value: Some(DefaultExpr::Static(Value::Bytes(b"binary".to_vec()))),
+                 embedding_source: None,
+             },
++            ColumnDef {
++                id: col::APP_MINIMIZE_ON_COPY,
++                name: "minimize_on_copy".into(),
++                ty: TypeId::Bool,
++                flags: ColumnFlags::empty(),
++                default_value: Some(DefaultExpr::Static(Value::Bool(false))),
++                embedding_source: None,
++            },
+         ],
+         indexes: vec![],
+         colocation: vec![],
+diff --git a/eslint.config.js b/eslint.config.js
+index 7238d60..1cedb30 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -9,11 +9,20 @@ import storybook from 'eslint-plugin-storybook';
+ export default [
+   js.configs.recommended,
+   {
+-    files: ['**/*.ts'],
++    files: ['**/*.ts', '**/*.svelte.ts'],
+     languageOptions: {
+       parser: tsParser,
+       parserOptions: { sourceType: 'module' },
+-      globals: { ...globals.browser },
++      globals: {
++        ...globals.browser,
++        // Svelte 5 runes — used by `.svelte.ts` modules that expose
++        // reactive state to non-component callers.
++        $state: 'readonly',
++        $derived: 'readonly',
++        $effect: 'readonly',
++        $props: 'readonly',
++        $bindable: 'readonly',
++      },
+     },
+     plugins: { '@typescript-eslint': ts },
+     rules: { ...ts.configs.recommended.rules },
+diff --git a/src/App.svelte b/src/App.svelte
+index bec4659..2c397fb 100644
+--- a/src/App.svelte
++++ b/src/App.svelte
+@@ -18,6 +18,7 @@
+   } from '$lib/stores/tutorial';
+   import { paletteShortcut } from '$lib/shortcut';
+   import { globalShortcut } from '$lib/stores/globalShortcut';
++  import { openPalette } from '$lib/stores/palette.svelte';
+   import { openLastVault } from '$lib/api/vault';
+   import { appView, navigate, type AppView } from '$lib/stores/navigation';
+   import { version as appVersion } from '../package.json';
+@@ -291,10 +292,15 @@
+       onCancel={() => (passwordPath = null)}
+     />
+   {:else if hasVault}
+-    <div class="hero glass spring">
++    <button
++      type="button"
++      class="hero glass spring hero-button"
++      aria-label="Open command palette"
++      onclick={() => openPalette()}
++    >
+       <h1>onQ</h1>
+       <p>Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</p>
+-    </div>
++    </button>
+     <Palette />
+     {#if editorSession}
+       {#key editorSession.id ?? 'draft'}
+@@ -338,6 +344,25 @@
+     text-align: center;
+     color: var(--glass-text);
+   }
++  .hero-button {
++    appearance: none;
++    border: 1px solid var(--glass-border);
++    font: inherit;
++    cursor: pointer;
++    transition:
++      transform var(--motion-duration) var(--motion-spring),
++      box-shadow var(--motion-duration) ease,
++      border-color var(--motion-duration) ease;
++  }
++  .hero-button:hover {
++    transform: translateY(-1px);
++    border-color: var(--glass-border-strong);
++    box-shadow: 0 12px 32px rgba(2, 6, 18, 0.28);
++  }
++  .hero-button:focus-visible {
++    outline: 2px solid var(--glass-periwinkle);
++    outline-offset: 4px;
++  }
+   h1 {
+     font-size: 40px;
+     font-weight: 600;
+diff --git a/src/lib/api/tray.ts b/src/lib/api/tray.ts
+new file mode 100644
+index 0000000..d6e2653
+--- /dev/null
++++ b/src/lib/api/tray.ts
+@@ -0,0 +1,15 @@
++import { invoke } from '@tauri-apps/api/core';
++
++/**
++ * Hide the main window to the system tray. Wired to the Rust
++ * `hide_to_tray` command which routes through the same KDE-aware
++ * `hide_main_window` helper the close-button handler uses.
++ *
++ * Fire-and-forget — the promise resolves once the window-hide call
++ * returns. The Rust command never rejects on user-visible failure (it
++ * already swallows `set_skip_taskbar` / `hide` errors), so callers can
++ * `void` it without a try/catch.
++ */
++export function hideToTray(): Promise<void> {
++  return invoke<void>('hide_to_tray');
++}
+\ No newline at end of file
+diff --git a/src/lib/api/updates.ts b/src/lib/api/updates.ts
+new file mode 100644
+index 0000000..48bc897
+--- /dev/null
++++ b/src/lib/api/updates.ts
+@@ -0,0 +1,48 @@
++import { check } from '@tauri-apps/plugin-updater';
++
++/**
++ * Single-source-of-truth for the "Check for updates" action — both the
++ * home page footer button and the Settings → Updates panel call into
++ * here so the status strings, error handling, and the updater endpoint
++ * stay in lock-step.
++ *
++ * `manual` flips the verbosity: silent on app launch (auto-check), loud
++ * on user-triggered checks so the user gets either a confirmation that
++ * they're up to date or a surfaced error.
++ *
++ * Returns the final status string (or `null` for a silent auto-check
++ * with no update available). The caller decides whether to display it.
++ */
++export type UpdateCheckOutcome =
++  | { kind: 'available'; version: string }
++  | { kind: 'up_to_date' }
++  | { kind: 'error'; message: string }
++  | { kind: 'silent' };
++
++export async function checkForAppUpdates(manual: boolean): Promise<UpdateCheckOutcome> {
++  try {
++    const update = await check();
++    if (update) {
++      const version = update.version;
++      await update.close();
++      return { kind: 'available', version };
++    }
++    return manual ? { kind: 'up_to_date' } : { kind: 'silent' };
++  } catch (error) {
++    return { kind: 'error', message: String(error) };
++  }
++}
++
++/** Convenience helper for surfaces that just want a human-readable string. */
++export function formatUpdateStatus(outcome: UpdateCheckOutcome): string | null {
++  switch (outcome.kind) {
++    case 'available':
++      return `onQ ${outcome.version} is available`;
++    case 'up_to_date':
++      return 'onQ is up to date';
++    case 'error':
++      return `Unable to check for updates: ${outcome.message}`;
++    case 'silent':
++      return null;
++  }
++}
+\ No newline at end of file
+diff --git a/src/lib/components/LibraryPage.svelte b/src/lib/components/LibraryPage.svelte
+index 43d5678..dc659e8 100644
+--- a/src/lib/components/LibraryPage.svelte
++++ b/src/lib/components/LibraryPage.svelte
+@@ -28,6 +28,12 @@
+     type ProjectTreeNode,
+   } from '$lib/utils/folderPath';
+   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
++  import Pager from './primitives/Pager.svelte';
++
++  /** Number of prompts shown per Library page. Tuned so a typical vault
++   * (10-200 prompts) fits on a single screen on a 1080p monitor; vaults
++   * above ~100 prompts get a pager without the user having to ask for it. */
++  const PAGE_SIZE = 25;
+ 
+   let {
+     onOpenPrompt,
+@@ -57,6 +63,7 @@
+   let smartFolders = $state<SmartFolder[]>([]);
+   let selection = $state<Selection>({ kind: 'all' });
+   let filterText = $state('');
++  let currentPage = $state(1);
+   let errorMessage = $state<string | null>(null);
+   let busy = $state(false);
+   let expanded = $state<Record<string, boolean>>({});
+@@ -243,6 +250,38 @@
+     return list;
+   });
+ 
++  // Pagination: page count off the un-paged visible list; the actual slice
++  // clamps to the visible page so callers can mutate `currentPage` freely
++  // without intermediate renders flashing an empty list.
++  const pageCount = $derived(Math.max(1, Math.ceil(visiblePrompts.length / PAGE_SIZE)));
++  const pagedPrompts = $derived(
++    visiblePrompts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
++  );
++  const pageRangeLabel = $derived.by(() => {
++    const total = visiblePrompts.length;
++    if (total === 0) return '';
++    const start = (currentPage - 1) * PAGE_SIZE + 1;
++    const end = Math.min(total, currentPage * PAGE_SIZE);
++    return `Showing ${start}–${end} of ${total}`;
++  });
++
++  // Snap `currentPage` back into bounds whenever the visible list shrinks
++  // (filter change, selection change, prompt deletion) so the user never
++  // lands on an empty page after deleting the last entry.
++  $effect(() => {
++    if (currentPage > pageCount) currentPage = pageCount;
++  });
++
++  // Reset to the first page on every filter-text change. Tracked off a
++  // separate `prevFilter` so the effect doesn't fire on first render.
++  let prevFilter = $state('');
++  $effect(() => {
++    if (filterText !== prevFilter) {
++      prevFilter = filterText;
++      currentPage = 1;
++    }
++  });
++
+   const activeSmartDsl = $derived.by(() => {
+     const sel = selection;
+     if (sel.kind !== 'smart') return null;
+@@ -309,6 +348,7 @@
+   async function select(next: Selection) {
+     selection = next;
+     filterText = '';
++    currentPage = 1;
+     smartHits = null;
+     moveMenuId = null;
+     if (next.kind === 'smart') {
+@@ -853,7 +893,7 @@
+       </div>
+ 
+       <ul class="prompt-list">
+-        {#each visiblePrompts as p (p.id)}
++        {#each pagedPrompts as p (p.id)}
+           <li class="prompt-row">
+             <button type="button" class="prompt-main" onclick={() => onOpenPrompt(p.id)}>
+               <div class="prompt-title">
+@@ -950,6 +990,15 @@
+           </li>
+         {/each}
+       </ul>
++
++      <footer class="list-footer">
++        <span class="range-label">{pageRangeLabel}</span>
++        <Pager
++          page={currentPage}
++          pageCount={pageCount}
++          onPage={(next) => (currentPage = next)}
++        />
++      </footer>
+     </section>
+   </div>
+ 
+@@ -1448,9 +1497,24 @@
+     gap: 14px;
+     align-items: center;
+   }
++  .list-footer {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    gap: 12px;
++    margin-top: 14px;
++    padding-top: 12px;
++    border-top: 1px solid var(--glass-border);
++    flex-wrap: wrap;
++  }
++  .range-label {
++    font-size: 12px;
++    color: var(--glass-text-dim);
++    font-variant-numeric: tabular-nums;
++  }
+   .empty-main p {
+     margin: 0;
+-    max-width: 28ch;
++    max-width: 48ch;
+     line-height: 1.5;
+   }
+   .empty-icon {
+diff --git a/src/lib/components/Palette.svelte b/src/lib/components/Palette.svelte
+index 11bfb11..8d1eee5 100644
+--- a/src/lib/components/Palette.svelte
++++ b/src/lib/components/Palette.svelte
+@@ -4,6 +4,8 @@
+   import { results as searchResults, runSearch, runMoreLikeThis } from '$lib/stores/search';
+   import { recordOpen } from '$lib/api/recent';
+   import { readPrompt } from '$lib/api/prompts';
++  import { hideToTray } from '$lib/api/tray';
++  import { minimizeOnCopy } from '$lib/stores/settings';
+   import {
+     globalShortcutPressedEvent,
+     matchesGlobalShortcut,
+@@ -17,8 +19,12 @@
+   import { fly, fade } from 'svelte/transition';
+   import { quintOut } from 'svelte/easing';
+   import Editor from './Editor.svelte';
++  import {
++    palette as paletteStore,
++    closePalette as storeClosePalette,
++    togglePalette as storeTogglePalette,
++  } from '$lib/stores/palette.svelte';
+ 
+-  let open = $state(false);
+   let query = $state('');
+   /** Existing prompt id, or `null` for an unsaved draft. */
+   let editorId = $state<string | null | undefined>(undefined);
+@@ -32,32 +38,44 @@
+   let copyingId = $state<string | null>(null);
+   /** Bumped when local recent history changes so the list re-derives. */
+   let recentEpoch = $state(0);
++  let open = $derived(paletteStore.open);
+ 
+   function clearQuery() {
+     query = '';
+   }
+ 
+   function closePalette() {
+-    open = false;
++    storeClosePalette();
+     clearQuery();
+     statusMessage = null;
+     copyingId = null;
+   }
+ 
+-  function openPalette() {
+-    open = true;
+-    clearQuery();
+-    statusMessage = null;
+-    recentEpoch += 1;
+-    loadPrompts();
+-    void tick().then(() => commandInput?.focus());
+-  }
+-
+   function togglePalette() {
+-    if (open) closePalette();
+-    else openPalette();
++    storeTogglePalette();
+   }
+ 
++  // Rising-edge of `palette.open` (whether triggered by the keyboard
++  // shortcut, the global OS shortcut, or the home card click) resets
++  // transient state and refocuses the input. Decoupled from the
++  // trigger so external callers don't have to know about the side
++  // effects — `palette.svelte` owns the boolean, Palette owns the
++  // input ref + prompt prefetch.
++  let prevOpen = $state(false);
++  $effect(() => {
++    const isOpen = paletteStore.open;
++    if (isOpen && !prevOpen) {
++      prevOpen = true;
++      clearQuery();
++      statusMessage = null;
++      recentEpoch += 1;
++      loadPrompts();
++      void tick().then(() => commandInput?.focus());
++    } else if (!isOpen && prevOpen) {
++      prevOpen = false;
++    }
++  });
++
+   onMount(() => {
+     const handler = (e: KeyboardEvent) => {
+       if (
+@@ -125,6 +143,13 @@
+       await navigator.clipboard.writeText(p.body ?? '');
+       rememberPrompt(id);
+       closePalette();
++      // Honour the user's "minimize on copy" preference — fire-and-forget;
++      // the user just clicked a result and the next action they probably
++      // want is to switch back to the source app. The hide call is async
++      // because the palette close transition is still running.
++      if ($minimizeOnCopy) {
++        void hideToTray();
++      }
+     } catch (e) {
+       statusMessage = e instanceof Error ? e.message : String(e);
+     } finally {
+@@ -201,7 +226,7 @@
+   });
+ </script>
+ 
+-{#snippet promptRow(id: string, title: string, locked: boolean)}
++{#snippet promptRow(id: string, title: string, locked: boolean, favorite: boolean)}
+   <div class="palette-row">
+     <button
+       class="palette-item palette-copy"
+@@ -211,6 +236,9 @@
+       onclick={() => void onCopy(id)}
+     >
+       <span class="palette-title">
++        {#if favorite}
++          <span class="favorite-star" aria-label="Favorite" title="Favorite">★</span>
++        {/if}
+         {title}
+         {#if locked}
+           <svg class="lock-icon" viewBox="0 0 16 16" width="12" height="12" aria-label="locked">
+@@ -301,14 +329,14 @@
+         {#if recentPrompts.length > 0}
+           <div class="palette-group-heading">Recent</div>
+           {#each recentPrompts as p (p.id)}
+-            {@render promptRow(p.id, p.title || 'Untitled', p.locked)}
++            {@render promptRow(p.id, p.title || 'Untitled', p.locked, p.favorite)}
+           {/each}
+         {/if}
+         {#if hits.length > 0}
+           <!-- e.g. "More like this" results while the query is still empty -->
+           <div class="palette-group-heading">Similar</div>
+           {#each hits as h (h.id)}
+-            {@render promptRow(h.id, h.title || 'Untitled', h.locked)}
++            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
+           {/each}
+         {/if}
+       {:else}
+@@ -317,7 +345,7 @@
+           <div class="palette-empty">No results.</div>
+         {:else}
+           {#each hits as h (h.id)}
+-            {@render promptRow(h.id, h.title || 'Untitled', h.locked)}
++            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
+           {/each}
+         {/if}
+       {/if}
+@@ -426,6 +454,12 @@
+     flex-shrink: 0;
+     color: var(--glass-text-faint);
+   }
++  .favorite-star {
++    color: var(--glass-gold, #f0c674);
++    font-size: 12px;
++    line-height: 1;
++    flex-shrink: 0;
++  }
+   .palette-hint {
+     flex-shrink: 0;
+     font-size: 11px;
+diff --git a/src/lib/components/SettingsPage.svelte b/src/lib/components/SettingsPage.svelte
+index 1f70966..e21f673 100644
+--- a/src/lib/components/SettingsPage.svelte
++++ b/src/lib/components/SettingsPage.svelte
+@@ -1,5 +1,5 @@
+ <script lang="ts">
+-  import { onMount } from 'svelte';
++  import { onDestroy, onMount } from 'svelte';
+   import { getVaultAuthMode, retrieveVaultKey } from '$lib/api/vault';
+   import {
+     captureGlobalShortcut,
+@@ -14,9 +14,12 @@
+     embeddingQuant,
+     loadBetaChannel,
+     loadEmbeddingQuant,
++    loadMinimizeOnCopy,
++    minimizeOnCopy,
+     rebuildingIndex,
+     setBetaChannel,
+     setEmbeddingQuant,
++    setMinimizeOnCopy,
+     type EmbeddingQuant,
+   } from '$lib/stores/settings';
+   import {
+@@ -24,6 +27,11 @@
+     getSearchStatus,
+     type SearchStatus,
+   } from '$lib/api/search';
++  import {
++    checkForAppUpdates,
++    formatUpdateStatus,
++    type UpdateCheckOutcome,
++  } from '$lib/api/updates';
+   import { theme, setTheme, type Theme } from '$lib/stores/theme';
+ 
+   type SectionId = 'general' | 'search' | 'vault' | 'updates';
+@@ -49,9 +57,47 @@
+   let lastSynced = $state<EmbeddingQuant | null>(null);
+   let pendingBeta = $state(false);
+   let lastSyncedBeta = $state<boolean | null>(null);
++  let pendingMinimize = $state(false);
++  let lastSyncedMinimize = $state<boolean | null>(null);
+   let searchStatus = $state<SearchStatus | null>(null);
+   let loadingModel = $state(false);
+   let searchStatusError = $state<string | null>(null);
++  let checkingForUpdates = $state(false);
++  let updateStatus = $state<string | null>(null);
++  let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
++
++  function clearUpdateStatusTimer() {
++    if (updateStatusTimer !== undefined) {
++      clearTimeout(updateStatusTimer);
++      updateStatusTimer = undefined;
++    }
++  }
++
++  function setUpdateStatus(message: string | null, autoClearMs?: number) {
++    clearUpdateStatusTimer();
++    updateStatus = message;
++    if (message && autoClearMs !== undefined) {
++      updateStatusTimer = setTimeout(() => {
++        updateStatus = null;
++        updateStatusTimer = undefined;
++      }, autoClearMs);
++    }
++  }
++
++  async function runUpdateCheck() {
++    if (checkingForUpdates) return;
++    checkingForUpdates = true;
++    setUpdateStatus('Checking for updates…');
++    try {
++      const outcome: UpdateCheckOutcome = await checkForAppUpdates(true);
++      const formatted = formatUpdateStatus(outcome);
++      if (formatted) {
++        setUpdateStatus(formatted, outcome.kind === 'up_to_date' ? 5_000 : undefined);
++      }
++    } finally {
++      checkingForUpdates = false;
++    }
++  }
+ 
+   $effect(() => {
+     const store = $embeddingQuant;
+@@ -69,6 +115,14 @@
+     }
+   });
+ 
++  $effect(() => {
++    const store = $minimizeOnCopy;
++    if (lastSyncedMinimize !== store) {
++      pendingMinimize = store;
++      lastSyncedMinimize = store;
++    }
++  });
++
+   async function refreshSearchStatus() {
+     searchStatusError = null;
+     try {
+@@ -95,12 +149,17 @@
+   onMount(() => {
+     void loadEmbeddingQuant().catch(() => undefined);
+     void loadBetaChannel().catch(() => undefined);
++    void loadMinimizeOnCopy().catch(() => undefined);
+     void getVaultAuthMode()
+       .then((mode) => (authMode = mode))
+       .catch(() => undefined);
+     void refreshSearchStatus();
+   });
+ 
++  onDestroy(() => {
++    clearUpdateStatusTimer();
++  });
++
+   $effect(() => {
+     if (active === 'search') {
+       void refreshSearchStatus();
+@@ -164,6 +223,18 @@
+     }
+   }
+ 
++  async function flipMinimizeOnCopy(next: boolean) {
++    if (next === $minimizeOnCopy) return;
++    errorMessage = null;
++    const prev = $minimizeOnCopy;
++    try {
++      await setMinimizeOnCopy(next);
++    } catch (e) {
++      pendingMinimize = prev;
++      errorMessage = e instanceof Error ? e.message : String(e);
++    }
++  }
++
+   async function showEncryptionKey() {
+     if (!recoveryPhrase.trim() || retrievingKey) return;
+     retrievingKey = true;
+@@ -276,6 +347,32 @@
+           </div>
+         </section>
+ 
++        <section class="panel" aria-labelledby="palette-heading">
++          <div class="panel-head">
++            <h3 id="palette-heading">Palette</h3>
++            <p class="help">
++              Behaviour of the global command palette when you click a search
++              result or one of the Recent items.
++            </p>
++          </div>
++          <label class="toggle-row">
++            <span class="toggle-copy">
++              <span class="toggle-label">Automatically minimize after clicking search result</span>
++              <span class="toggle-desc">Hide onQ to the system tray once a prompt is on your clipboard</span>
++            </span>
++            <span class="switch" class:on={pendingMinimize}>
++              <input
++                type="checkbox"
++                bind:checked={pendingMinimize}
++                onchange={(event) => flipMinimizeOnCopy(event.currentTarget.checked)}
++              />
++              <span class="switch-track" aria-hidden="true">
++                <span class="switch-thumb"></span>
++              </span>
++            </span>
++          </label>
++        </section>
++
+       {:else if active === 'search'}
+         <section class="panel" aria-labelledby="search-status-heading">
+           <div class="panel-head">
+@@ -478,6 +575,19 @@
+               </span>
+             </span>
+           </label>
++          <div class="row-actions">
++            <button
++              type="button"
++              class="control-btn primary"
++              disabled={checkingForUpdates}
++              onclick={() => void runUpdateCheck()}
++            >
++              {checkingForUpdates ? 'Checking for updates…' : 'Check for Updates'}
++            </button>
++          </div>
++          {#if updateStatus}
++            <p class="hint status" role="status">{updateStatus}</p>
++          {/if}
+         </section>
+       {/if}
+ 
+diff --git a/src/lib/components/primitives/Pager.svelte b/src/lib/components/primitives/Pager.svelte
+new file mode 100644
+index 0000000..b5f7794
+--- /dev/null
++++ b/src/lib/components/primitives/Pager.svelte
+@@ -0,0 +1,149 @@
++<script lang="ts">
++  /**
++   * Compact pagination control used by every Library list view. Caller owns
++   * the source list and the current page index — the component is stateless
++   * so switching selection / filter resets are trivial at the call site.
++   *
++   * Visual goal: feels native to the onQ glass shell (rounded pill on the
++   * right of the list, glass border, prev/next that hug the indicator).
++   */
++  let {
++    page,
++    pageCount,
++    onPage,
++    ariaLabel = 'Pagination',
++  }: {
++    /** 1-based current page index. */
++    page: number;
++    /** Total page count (>=1). */
++    pageCount: number;
++    // The parameter name is for documentation only — the call site is
++    // `onPage(next)`, never the parameter name. eslint can't see that
++    // through the function-type position, so silence it locally.
++    // eslint-disable-next-line no-unused-vars
++    onPage: (pageIndex: number) => void;
++    ariaLabel?: string;
++  } = $props();
++
++  const canPrev = $derived(page > 1);
++  const canNext = $derived(page < pageCount);
++
++  function goto(next: number) {
++    if (next < 1 || next > pageCount || next === page) return;
++    onPage(next);
++  }
++</script>
++
++{#if pageCount > 1}
++  <nav class="pager" aria-label={ariaLabel}>
++    <button
++      type="button"
++      class="pager-step"
++      aria-label="Previous page"
++      disabled={!canPrev}
++      onclick={() => goto(page - 1)}
++    >
++      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
++        <path
++          d="M10 2.5 4.5 8 10 13.5"
++          fill="none"
++          stroke="currentColor"
++          stroke-width="1.6"
++          stroke-linecap="round"
++          stroke-linejoin="round"
++        />
++      </svg>
++    </button>
++    <span class="pager-indicator" aria-current="page">
++      <span class="pager-current">{page}</span>
++      <span class="pager-divider">/</span>
++      <span class="pager-total">{pageCount}</span>
++    </span>
++    <button
++      type="button"
++      class="pager-step"
++      aria-label="Next page"
++      disabled={!canNext}
++      onclick={() => goto(page + 1)}
++    >
++      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
++        <path
++          d="M6 2.5 11.5 8 6 13.5"
++          fill="none"
++          stroke="currentColor"
++          stroke-width="1.6"
++          stroke-linecap="round"
++          stroke-linejoin="round"
++        />
++      </svg>
++    </button>
++  </nav>
++{/if}
++
++<style>
++  .pager {
++    display: inline-flex;
++    align-items: center;
++    gap: 4px;
++    padding: 4px 6px;
++    border-radius: 999px;
++    border: 1px solid var(--glass-border);
++    background: var(--glass-control-bg);
++    box-shadow: var(--glass-inset-highlight);
++  }
++  .pager-step {
++    appearance: none;
++    border: 0;
++    background: transparent;
++    color: var(--glass-text);
++    width: 28px;
++    height: 28px;
++    border-radius: 999px;
++    cursor: pointer;
++    display: grid;
++    place-items: center;
++    transition:
++      background var(--motion-duration) ease,
++      color var(--motion-duration) ease,
++      transform var(--motion-duration) var(--motion-spring);
++  }
++  .pager-step:hover:not(:disabled) {
++    background: var(--glass-hover-strong);
++  }
++  .pager-step:active:not(:disabled) {
++    transform: scale(0.95);
++  }
++  .pager-step:disabled {
++    color: var(--glass-text-faint);
++    cursor: not-allowed;
++    opacity: 0.55;
++  }
++  .pager-step:focus-visible {
++    outline: 2px solid var(--glass-periwinkle);
++    outline-offset: 2px;
++  }
++  .pager-indicator {
++    display: inline-flex;
++    align-items: baseline;
++    gap: 4px;
++    padding: 0 8px;
++    font-variant-numeric: tabular-nums;
++    color: var(--glass-text);
++    font-size: 13px;
++    font-weight: 600;
++    line-height: 1;
++    min-width: 64px;
++    justify-content: center;
++  }
++  .pager-current {
++    color: var(--glass-text);
++  }
++  .pager-divider {
++    color: var(--glass-text-faint);
++    font-weight: 500;
++  }
++  .pager-total {
++    color: var(--glass-text-dim);
++    font-weight: 500;
++  }
++</style>
+\ No newline at end of file
+diff --git a/src/lib/stores/palette.svelte.ts b/src/lib/stores/palette.svelte.ts
+new file mode 100644
+index 0000000..ae5ce8f
+--- /dev/null
++++ b/src/lib/stores/palette.svelte.ts
+@@ -0,0 +1,38 @@
++// Shared open/close control for the global command palette so non-palette
++// surfaces (home card, app chrome) can open it without coupling to the
++// component instance.
++let _open = $state(false);
++let _suppressNextOpen = 0;
++
++export const palette = {
++  get open() {
++    return _open;
++  },
++};
++
++export function openPalette() {
++  // Coalesce duplicate opens (e.g. shortcut fired while the palette is
++  // already animating in) so the input ref doesn't get re-queried mid-tick.
++  if (_open && _suppressNextOpen > 0) {
++    _suppressNextOpen -= 1;
++    return;
++  }
++  _open = true;
++  if (_suppressNextOpen > 0) _suppressNextOpen -= 1;
++}
++
++export function closePalette() {
++  _open = false;
++  _suppressNextOpen = 0;
++}
++
++export function togglePalette() {
++  if (_open) closePalette();
++  else openPalette();
++}
++
++/** Called by the palette right after it has just opened, to suppress a
++ * duplicate open fired from the same originating event. */
++export function notePaletteOpened() {
++  _suppressNextOpen = 1;
++}
+\ No newline at end of file
+diff --git a/src/lib/stores/settings.ts b/src/lib/stores/settings.ts
+index 3882660..8ec37e8 100644
+--- a/src/lib/stores/settings.ts
++++ b/src/lib/stores/settings.ts
+@@ -1,6 +1,6 @@
+ import { writable } from 'svelte/store';
+ import { invoke } from '@tauri-apps/api/core';
+-import { getAppSetting } from '$lib/api/settings';
++import { getAppSetting, setAppSetting } from '$lib/api/settings';
+ 
+ /**
+  * User opt-in for pre-release auto-updates (M7.2).
+@@ -36,6 +36,28 @@ export async function loadBetaChannel(): Promise<void> {
+   }
+ }
+ 
++/**
++ * User opt-in to hiding the main window to the system tray immediately
++ * after a palette copy (search result or "Recent" row). Persisted to
++ * `app_state.minimize_on_copy` — defaults to `false` so the new vault
++ * experience matches the shipped behaviour.
++ */
++export const minimizeOnCopy = writable<boolean>(false);
++
++export async function setMinimizeOnCopy(enabled: boolean): Promise<void> {
++  await setAppSetting('minimize_on_copy', enabled ? 'true' : 'false');
++  minimizeOnCopy.set(enabled);
++}
++
++export async function loadMinimizeOnCopy(): Promise<void> {
++  try {
++    const v = await getAppSetting('minimize_on_copy');
++    minimizeOnCopy.set(v === 'true');
++  } catch {
++    // Vault locked or backend unavailable — keep the default.
++  }
++}
++
+ /**
+  * User-tunable embedding quantization mode for the `prompts.embedding`
+  * Ann index.
+diff --git a/src/lib/utils/recentPrompts.ts b/src/lib/utils/recentPrompts.ts
+index 6d82187..d3e303a 100644
+--- a/src/lib/utils/recentPrompts.ts
++++ b/src/lib/utils/recentPrompts.ts
+@@ -2,7 +2,7 @@
+ const STORAGE_KEY = 'onq.recent_prompt_ids';
+ 
+ /** How many recent prompts the palette shows. */
+-export const RECENT_PROMPTS_CAP = 8;
++export const RECENT_PROMPTS_CAP = 5;
+ 
+ function readIds(): string[] {
+   try {

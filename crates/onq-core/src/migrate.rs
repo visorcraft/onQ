@@ -84,10 +84,10 @@ fn migration_0001_initial(db: &Database) -> CoreResult<()> {
 }
 
 /// Migration 0002 — add the `minimize_on_copy` boolean column to the
-/// `app_state` row. Idempotent: mongreldb-core refuses `add_column` when
-/// the column id is already known, so re-running on a fresh DB that has
-/// the column baked into the schema is a no-op (and we'll detect that
-/// via `current_version` returning >= 2 anyway).
+/// `app_state` row and bump `schema_version` to 2 so subsequent opens
+/// skip the migration. Idempotent: when the column already exists we
+/// still need to advance the stored version so older v1 vaults report
+/// v2 and don't re-enter the migration on every open.
 fn migration_0002_minimize_on_copy(db: &Database) -> CoreResult<()> {
     let already_present = db
         .query_for_current_principal("app_state", &Query::default(), None)
@@ -106,6 +106,29 @@ fn migration_0002_minimize_on_copy(db: &Database) -> CoreResult<()> {
         )
         .map_err(|e| CoreError::Db(format!("0002 add_column minimize_on_copy: {e}")))?;
     }
+    // Bump schema_version to 2 in the same migration so the next open
+    // sees `current_version() == 2` and skips this step. Preserves every
+    // other cell on the row.
+    let rows = db
+        .query_for_current_principal("app_state", &Query::default(), None)
+        .map_err(|e| CoreError::Db(format!("0002 re-read app_state: {e}")))?;
+    let Some(row) = rows.first() else {
+        return Err(CoreError::Db("app_state row missing after 0002".into()));
+    };
+    let mut cells: Vec<(u16, Value)> = row.columns.iter().map(|(k, v)| (*k, v.clone())).collect();
+    let mut found = false;
+    for (col_id, val) in cells.iter_mut() {
+        if *col_id == col::APP_SCHEMA_VER {
+            *val = Value::Int64(2);
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        cells.push((col::APP_SCHEMA_VER, Value::Int64(2)));
+    }
+    db.transaction_for_current_principal(|tx| tx.put("app_state", cells))
+        .map_err(|e| CoreError::Db(format!("0002 write schema_version: {e}")))?;
     Ok(())
 }
 
@@ -162,7 +185,61 @@ impl<'a> Migrator<'a> {
 mod tests {
     use super::*;
     use crate::db::Db;
+    use mongreldb_core::memtable::Value;
     use tempfile::TempDir;
+
+    #[test]
+    fn migration_0002_adds_minimize_on_copy_default_false() {
+        // Simulate an existing v1 vault (no APP_MINIMIZE_ON_COPY column),
+        // run the migrator, and verify the column exists with the seeded
+        // default of `false` so reads return the same shape as a fresh
+        // vault.
+        let dir = TempDir::new().unwrap();
+        let db = mongreldb_core::Database::create_encrypted(dir.path(), "x")
+            .expect("create encrypted db");
+        schema::create_all_tables(&db).unwrap();
+        db.transaction_for_current_principal(|tx| {
+            tx.put(
+                "app_state",
+                vec![
+                    (col::APP_ID, Value::Int64(1)),
+                    (col::APP_SCHEMA_VER, Value::Int64(1)),
+                    (col::APP_VAULT_PATH, Value::Bytes(Vec::new())),
+                    (col::APP_LAST_OPENED, Value::Bytes(Vec::new())),
+                    (col::APP_RECENT, Value::Json(b"[]".to_vec())),
+                    (col::APP_TUTORIAL_DONE, Value::Bool(false)),
+                    (col::APP_THEME, Value::Bytes(b"dark".to_vec())),
+                    (col::APP_BETA, Value::Bool(false)),
+                    (col::APP_EMBED_QUANT, Value::Bytes(b"binary".to_vec())),
+                ],
+            )
+        })
+        .unwrap();
+
+        Migrator::new(&db).run().unwrap();
+
+        let got = Db::open(dir.path(), "x").unwrap();
+        assert_eq!(
+            got.get_app_setting("minimize_on_copy").unwrap(),
+            "false",
+            "migrated vault must report minimize_on_copy default",
+        );
+        let (version, _) = read_app_state(&got.handle()).unwrap();
+        assert_eq!(version, 2, "schema_version must advance to 2");
+    }
+
+    #[test]
+    fn migration_0002_is_idempotent_on_fresh_db() {
+        // Fresh vaults have the column baked into the schema already; the
+        // migrator's already-present probe must short-circuit so the
+        // catalog isn't asked to add a duplicate column.
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        Migrator::new(db.handle()).run().unwrap();
+        Migrator::new(db.handle()).run().unwrap();
+        assert_eq!(db.get_app_setting("minimize_on_copy").unwrap(), "false");
+    }
+    use super::*;
 
     /// Read `schema_version` and `embedding_quant` from the singleton
     /// `app_state` row. Returns `(version, embedding_quant_bytes)`.
@@ -190,17 +267,18 @@ mod tests {
         let db = Db::open(dir.path(), "test-pass").unwrap();
 
         // After first open + run, schema_version must reflect the latest
-        // migration that actually applied to a fresh DB.
+        // migration that actually applied to a fresh DB (currently v2 —
+        // the bump from 0002_minimize_on_copy).
         let (v1, q1) = read_app_state(db.handle()).unwrap();
-        assert_eq!(v1, 1, "expected schema_version=1 after first run");
+        assert_eq!(v1, 2, "expected schema_version=2 after first run");
         assert_eq!(q1, b"binary", "expected embedding_quant='binary'");
 
         // Second open on the same path runs migrations again — must be a
-        // no-op (still version 1, still 'binary', no error).
+        // no-op (still version 2, still 'binary', no error).
         drop(db);
         let db2 = Db::open(dir.path(), "test-pass").unwrap();
         let (v2, _) = read_app_state(db2.handle()).unwrap();
-        assert_eq!(v2, 1, "second run must not advance schema_version");
+        assert_eq!(v2, 2, "second run must not advance schema_version");
     }
 
     #[test]
@@ -233,7 +311,7 @@ mod tests {
             .expect("create encrypted db");
         Migrator::new(&db).run().unwrap();
         let (v, q) = read_app_state(&db).unwrap();
-        assert_eq!(v, 1);
+        assert_eq!(v, 2);
         assert_eq!(q, b"binary");
     }
 
@@ -266,8 +344,10 @@ mod tests {
         .unwrap();
         Migrator::new(&db).run().unwrap();
         // Pre-existing user data must be preserved across migrator re-run.
+        // The seeded v1 vault advances to v2 after 0002_minimize_on_copy
+        // applies — that bump is the whole point of the migration.
         let (v, q) = read_app_state(&db).unwrap();
-        assert_eq!(v, 1);
+        assert_eq!(v, 2, "v1 vault must be advanced to v2 by 0002");
         assert_eq!(
             q, b"dense",
             "user-tuned embedding_quant must survive migration"
