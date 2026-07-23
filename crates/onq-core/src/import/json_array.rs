@@ -31,8 +31,8 @@ pub fn import_json_array(
 ) -> CoreResult<ImportReport> {
     let mut report = ImportReport::default();
     let raw = std::fs::read_to_string(path)?;
-    let items: Vec<JsonPrompt> = serde_json::from_str(&raw)
-        .map_err(|e| CoreError::Other(format!("json import: {e}")))?;
+    let items: Vec<JsonPrompt> =
+        serde_json::from_str(&raw).map_err(|e| CoreError::Other(format!("json import: {e}")))?;
     for item in items {
         match write_item(vault, item, on_conflict) {
             Ok(true) => report.created += 1,
@@ -46,8 +46,9 @@ pub fn import_json_array(
 fn write_item(vault: &Vault, item: JsonPrompt, on_conflict: OnConflict) -> CoreResult<bool> {
     let now = Utc::now();
     let id = match item.id.as_deref() {
-        Some(s) if !s.is_empty() => PromptId::from_string(s.to_string())
-            .unwrap_or_else(|_| PromptId::new()),
+        Some(s) if !s.is_empty() => {
+            PromptId::from_string(s.to_string()).unwrap_or_else(|_| PromptId::new())
+        }
         _ => PromptId::new(),
     };
     let exists = vault.read(&id).is_ok();

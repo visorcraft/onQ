@@ -243,8 +243,7 @@ mod tests {
         backup::export_vault(src.path(), &archive, None).unwrap();
         let dest = TempDir::new().unwrap();
         import_vault_and_audit(dest.path(), &archive, None, false).unwrap();
-        let events =
-            onq_core::audit::read_recent(&Vault::new(dest.path()).unwrap(), 10).unwrap();
+        let events = onq_core::audit::read_recent(&Vault::new(dest.path()).unwrap(), 10).unwrap();
         assert!(
             events.is_empty(),
             "audit disabled must leave no import_backup: {events:?}"

@@ -21,7 +21,9 @@ struct Conversation {
     title: Option<String>,
     #[serde(default)]
     mapping: Option<serde_json::Value>,
+    /// Present in ChatGPT export JSON; not required for import.
     #[serde(default)]
+    #[allow(dead_code)]
     current_node: Option<String>,
 }
 
@@ -45,8 +47,8 @@ pub fn import_chatgpt_export(
         return Ok(report);
     }
     let raw = std::fs::read_to_string(&json_path)?;
-    let conversations: Vec<Conversation> = serde_json::from_str(&raw)
-        .map_err(|e| CoreError::Other(format!("chatgpt import: {e}")))?;
+    let conversations: Vec<Conversation> =
+        serde_json::from_str(&raw).map_err(|e| CoreError::Other(format!("chatgpt import: {e}")))?;
 
     let mut report = ImportReport::default();
     for conv in conversations {

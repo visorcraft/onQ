@@ -2829,7 +2829,9 @@ fn make_snippet(body: &str, query: &str, max_len: usize) -> String {
     let need = match_len.max(1).min(max_len);
     let pad = max_len.saturating_sub(need) / 2;
     let start = match_at.saturating_sub(pad);
-    let end = (match_at + match_len + pad).min(trimmed.len()).max(start + need.min(trimmed.len() - start));
+    let end = (match_at + match_len + pad)
+        .min(trimmed.len())
+        .max(start + need.min(trimmed.len() - start));
     // Align to char boundaries
     let start = trimmed
         .char_indices()
@@ -2843,7 +2845,7 @@ fn make_snippet(body: &str, query: &str, max_len: usize) -> String {
         .unwrap_or(trimmed.len());
     let mut s = trimmed[start..end].to_string();
     if start > 0 {
-        s.insert_str(0, "…");
+        s.insert(0, '…');
     }
     if end < trimmed.len() {
         s.push('…');
@@ -3083,7 +3085,11 @@ pub fn remove_recent_vault(path: String, app: AppHandle) -> Result<(), String> {
 /// Close the current vault session and remember a different path as last vault.
 /// UI must then unlock the new path (password/keychain).
 #[tauri::command]
-pub fn switch_vault(path: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+pub fn switch_vault(
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let target = PathBuf::from(&path);
     if !target.exists() {
         return Err(format!("vault path does not exist: {path}"));
@@ -3544,9 +3550,8 @@ pub fn register_plugin_command(
 #[tauri::command]
 pub fn run_plugin_command(id: String, state: State<'_, AppState>) -> Result<String, String> {
     // Prefer HostApi-registered path (real handler pointer when present).
-    match crate::plugin_host::run_registered(&id) {
-        Ok(msg) => return Ok(msg),
-        Err(_) => {}
+    if let Ok(msg) = crate::plugin_host::run_registered(&id) {
+        return Ok(msg);
     }
     let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
     let cmd = guard
@@ -3561,10 +3566,7 @@ pub fn run_plugin_command(id: String, state: State<'_, AppState>) -> Result<Stri
 
 #[tauri::command]
 pub fn get_audit_enabled(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
+    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     if let Some(v) = read_audit_enabled_file(&config_dir)? {
         *state.audit_enabled.lock().map_err(|e| e.to_string())? = v;
         return Ok(v);
@@ -3579,10 +3581,7 @@ pub fn set_audit_enabled(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     *state.audit_enabled.lock().map_err(|e| e.to_string())? = enabled;
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
+    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     write_audit_enabled_file(&config_dir, enabled)
 }
 
@@ -4317,8 +4316,7 @@ mod tests {
 
         let sparse_only = query.to_retrievers(&[]);
         let hits =
-            run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary", 30.0, "api")
-                .unwrap();
+            run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary", 30.0, "api").unwrap();
         assert_eq!(
             hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(),
             vec!["lexical"]
@@ -5293,8 +5291,7 @@ mod tests {
         *state.db.lock().unwrap() = Some(Arc::new(Db::open(vault_dir.path(), "p").unwrap()));
         write_auto_lock_policy_file(dir.path(), "idle_timeout:1").unwrap();
         // last_activity far in the past relative to now
-        *state.last_activity.lock().unwrap() =
-            Instant::now() - Duration::from_secs(30);
+        *state.last_activity.lock().unwrap() = Instant::now() - Duration::from_secs(30);
         apply_auto_lock_on_start_with_config(dir.path(), &state);
         assert!(
             state.db.lock().unwrap().is_none(),
@@ -5339,8 +5336,8 @@ mod tests {
             AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
         let last = Instant::now() - Duration::from_secs(5);
         *state.last_activity.lock().unwrap() = last;
-        let path = evaluate_auto_lock_impl(&state, Instant::now())
-            .expect("evaluate_auto_lock_impl");
+        let path =
+            evaluate_auto_lock_impl(&state, Instant::now()).expect("evaluate_auto_lock_impl");
         assert_eq!(
             path.as_deref(),
             Some(dir.path().to_string_lossy().as_ref()),
@@ -5436,7 +5433,10 @@ mod tests {
             "builtin"
         );
         *state.embedder_preference.lock().unwrap() = "plugin.x".into();
-        assert_eq!(state.embedder_preference.lock().unwrap().as_str(), "plugin.x");
+        assert_eq!(
+            state.embedder_preference.lock().unwrap().as_str(),
+            "plugin.x"
+        );
     }
 
     #[test]

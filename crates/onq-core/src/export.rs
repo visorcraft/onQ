@@ -40,8 +40,12 @@ pub fn export_prompts(
                 continue;
             }
         };
-        if !matches_filter(&prompt.fm.tags, prompt.fm.folder.as_deref(), prompt.fm.favorite, filter)
-        {
+        if !matches_filter(
+            &prompt.fm.tags,
+            prompt.fm.folder.as_deref(),
+            prompt.fm.favorite,
+            filter,
+        ) {
             report.skipped += 1;
             continue;
         }
@@ -69,7 +73,10 @@ fn matches_filter(
         }
     }
     if !filter.tags_any.is_empty() {
-        let has = filter.tags_any.iter().any(|t| tags.iter().any(|pt| pt == t));
+        let has = filter
+            .tags_any
+            .iter()
+            .any(|t| tags.iter().any(|pt| pt == t));
         if !has {
             return false;
         }
@@ -78,11 +85,7 @@ fn matches_filter(
 }
 
 /// Export a single prompt id list (used by multi-select UI).
-pub fn export_prompt_ids(
-    vault: &Vault,
-    dest: &Path,
-    ids: &[PromptId],
-) -> CoreResult<ExportReport> {
+pub fn export_prompt_ids(vault: &Vault, dest: &Path, ids: &[PromptId]) -> CoreResult<ExportReport> {
     std::fs::create_dir_all(dest)?;
     let mut report = ExportReport::default();
     for id in ids {

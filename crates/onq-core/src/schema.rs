@@ -49,7 +49,7 @@ pub mod col {
     pub const APP_RECENT_VAULTS: u16 = 12; // json: array of recent vault paths
     pub const APP_LAST_BACKUP_AT: u16 = 13; // bytes: RFC3339 timestamp of last backup export
     pub const APP_BACKUP_REMIND_DAYS: u16 = 14; // bytes: days between backup reminders (0=off)
-                                               // folders
+                                                // folders
     pub const FOLDERS_ID: u16 = 0;
     pub const FOLDERS_NAME: u16 = 1;
     pub const FOLDERS_CREATED: u16 = 2;

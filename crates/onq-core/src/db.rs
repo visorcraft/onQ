@@ -121,7 +121,10 @@ impl Db {
             (col::APP_EMBED_QUANT, Value::Bytes(b"binary".to_vec())),
             (col::APP_MINIMIZE_ON_COPY, Value::Bool(false)),
             (col::APP_SEARCH_RECENCY_DAYS, Value::Bytes(b"30".to_vec())),
-            (col::APP_HISTORY_RETENTION_DAYS, Value::Bytes(b"30".to_vec())),
+            (
+                col::APP_HISTORY_RETENTION_DAYS,
+                Value::Bytes(b"30".to_vec()),
+            ),
             (col::APP_RECENT_VAULTS, Value::Json(b"[]".to_vec())),
             (col::APP_LAST_BACKUP_AT, Value::Bytes(Vec::new())),
             (col::APP_BACKUP_REMIND_DAYS, Value::Bytes(b"7".to_vec())),

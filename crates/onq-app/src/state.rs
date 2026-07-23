@@ -108,9 +108,6 @@ impl AppState {
     }
 
     pub fn is_audit_enabled(&self) -> bool {
-        self.audit_enabled
-            .lock()
-            .map(|g| *g)
-            .unwrap_or(true)
+        self.audit_enabled.lock().map(|g| *g).unwrap_or(true)
     }
 }

@@ -62,7 +62,11 @@ pub fn audit_path(vault: &Vault) -> PathBuf {
 }
 
 /// Pure helper: whether a backup reminder should show.
-pub fn should_remind_backup(last_backup_rfc3339: &str, remind_days: u32, now: chrono::DateTime<Utc>) -> bool {
+pub fn should_remind_backup(
+    last_backup_rfc3339: &str,
+    remind_days: u32,
+    now: chrono::DateTime<Utc>,
+) -> bool {
     if remind_days == 0 {
         return false;
     }

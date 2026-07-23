@@ -1,6 +1,8 @@
 //! Host-side plugin runtime: HostApi callbacks, command registration, init.
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
+#[cfg(test)]
+use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -63,11 +65,7 @@ pub fn register_from_host(cmd: PluginCommand) {
 
 // --- C ABI stubs (safe no-ops except register_command) ---
 
-unsafe extern "C" fn stub_db_query(
-    _sql: *const c_char,
-    _out: *mut c_char,
-    _out_len: usize,
-) -> i32 {
+unsafe extern "C" fn stub_db_query(_sql: *const c_char, _out: *mut c_char, _out_len: usize) -> i32 {
     -1
 }
 unsafe extern "C" fn stub_db_execute(_sql: *const c_char) -> i32 {
@@ -168,12 +166,8 @@ fn make_host_api() -> HostApi {
 /// Load plugin dylib from `dir`, call `onq_plugin_init` with HostApi.
 /// Returns Err if the library cannot load or init fails; Ok(false) if no dylib found.
 pub fn load_and_init_plugin(plugin_id: &str, dir: &Path) -> Result<bool, String> {
-    let lib_path = find_plugin_library(dir).ok_or_else(|| {
-        format!(
-            "no plugin library in {}",
-            dir.display()
-        )
-    });
+    let lib_path =
+        find_plugin_library(dir).ok_or_else(|| format!("no plugin library in {}", dir.display()));
     let lib_path = match lib_path {
         Ok(p) => p,
         Err(_) => return Ok(false),
@@ -187,12 +181,8 @@ pub fn load_and_init_plugin(plugin_id: &str, dir: &Path) -> Result<bool, String>
         let loaded = onq_core::plugin::load(&lib_path).map_err(|e| e.to_string())?;
         // Call onq_plugin_init if present.
         unsafe {
-            let init: Result<
-                libloading::Symbol<
-                    unsafe extern "C" fn(*const HostApi) -> i32,
-                >,
-                _,
-            > = loaded.lib.get(b"onq_plugin_init\0");
+            let init: Result<libloading::Symbol<unsafe extern "C" fn(*const HostApi) -> i32>, _> =
+                loaded.lib.get(b"onq_plugin_init\0");
             if let Ok(init) = init {
                 let api = make_host_api();
                 let code = init(&api as *const HostApi);
@@ -269,7 +259,8 @@ mod tests {
         *CURRENT_PLUGIN_ID.lock().unwrap() = None;
         let cmds = host_registered_commands();
         assert!(
-            cmds.iter().any(|c| c.id == "test.plugin.hello" && c.name == "Hello"),
+            cmds.iter()
+                .any(|c| c.id == "test.plugin.hello" && c.name == "Hello"),
             "registry missing registered command: {cmds:?}"
         );
         clear_host_registrations("test.plugin");

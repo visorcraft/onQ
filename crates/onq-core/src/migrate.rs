@@ -184,12 +184,7 @@ fn migration_0003_search_history_settings(db: &Database) -> CoreResult<()> {
             }
         }
     }
-    add_bytes_column_if_missing(
-        db,
-        "backup_remind_days",
-        col::APP_BACKUP_REMIND_DAYS,
-        b"7",
-    )?;
+    add_bytes_column_if_missing(db, "backup_remind_days", col::APP_BACKUP_REMIND_DAYS, b"7")?;
     bump_schema_version(db, 3)?;
     Ok(())
 }

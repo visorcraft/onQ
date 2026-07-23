@@ -102,14 +102,13 @@ pub fn dsl_to_visual(dsl: &str) -> Option<VisualQuery> {
                 op: "is".into(),
                 value: tok.trim_start_matches("locked:").into(),
             });
-        } else if let Some(rest) = tok.strip_prefix("text:") {
+        } else {
+            let rest = tok.strip_prefix("text:")?;
             predicates.push(VisualPredicate {
                 field: "text".into(),
                 op: "contains".into(),
                 value: unquote(rest),
             });
-        } else {
-            return None;
         }
     }
     Some(VisualQuery { predicates })
