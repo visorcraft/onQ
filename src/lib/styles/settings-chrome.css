@@ -1,0 +1,315 @@
+/* Shared chrome for the Settings surface. Rules are scoped under
+ * `.settings-page` so they reach SettingsPage and its composed section
+ * components (Backups/Plugins/Audit — Svelte scoped styles don't cross
+ * component boundaries) without leaking into Library/Editor, which reuse
+ * some of the same class names with their own local styles. */
+
+/* ---- Panels ---------------------------------------------------------- */
+.settings-page .panel {
+  position: relative;
+  padding: 22px;
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-border);
+  background:
+    linear-gradient(180deg, rgba(160, 190, 255, 0.05), transparent 26%),
+    var(--glass-panel);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow-md), var(--glass-inset-highlight);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition:
+    border-color var(--motion-duration) ease,
+    box-shadow var(--motion-duration) ease;
+}
+/* Cyan hairline across the panel's top edge. */
+.settings-page .panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--glass-accent-2) 45%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.settings-page .panel:hover {
+  border-color: color-mix(in srgb, var(--glass-accent-2) 22%, var(--glass-border));
+}
+.settings-page .panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-page .panel-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+/* Accent tick before every panel heading. */
+.settings-page .panel-head h3::before {
+  content: '';
+  width: 4px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--glass-gradient-accent);
+  box-shadow: 0 0 8px var(--glass-glow-cyan);
+  flex-shrink: 0;
+}
+.settings-page .help {
+  margin: 0;
+  color: var(--glass-text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.settings-page .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--glass-text-dim);
+  line-height: 1.45;
+}
+.settings-page .error {
+  margin: 0;
+  color: var(--glass-danger);
+  font-size: 13px;
+}
+.settings-page .error.banner {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-danger-border);
+  background: var(--glass-danger-bg);
+}
+
+/* ---- Fields ------------------------------------------------------------ */
+.settings-page .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.settings-page .field-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--glass-text-dim);
+}
+.settings-page select,
+.settings-page input[type='number'],
+.settings-page .text-input {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 340px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--glass-input);
+  color: var(--glass-text);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  transition:
+    border-color var(--motion-duration) ease,
+    box-shadow var(--motion-duration) ease;
+}
+.settings-page input[type='number'] {
+  max-width: 140px;
+}
+.settings-page select {
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237ee0d0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+:root.light .settings-page select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%234a5570' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.settings-page select:focus-visible,
+.settings-page input[type='number']:focus-visible,
+.settings-page .text-input:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--glass-accent-2) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-accent-2) 18%, transparent);
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+.settings-page .control-btn {
+  appearance: none;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-control-bg);
+  color: var(--glass-text);
+  border-radius: 12px;
+  padding: 11px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  transition:
+    background var(--motion-duration) ease,
+    border-color var(--motion-duration) ease,
+    box-shadow var(--motion-duration) ease,
+    transform var(--motion-duration) var(--motion-spring);
+}
+.settings-page .control-btn:hover:not(:disabled) {
+  background: var(--glass-hover-strong);
+  border-color: var(--glass-border-strong);
+  transform: translateY(-1px);
+}
+.settings-page .control-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.settings-page .control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.settings-page .control-btn:focus-visible {
+  outline: 2px solid var(--glass-periwinkle);
+  outline-offset: 2px;
+}
+.settings-page .control-btn.primary {
+  border-color: color-mix(in srgb, var(--glass-accent-2) 40%, transparent);
+  background: var(--glass-gradient-accent);
+  color: #f2f7ff;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--glass-accent-2) 22%, transparent);
+}
+.settings-page .control-btn.primary:hover:not(:disabled) {
+  background: var(--glass-gradient-accent);
+  border-color: color-mix(in srgb, var(--glass-accent-2) 60%, transparent);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--glass-accent-2) 38%, transparent);
+}
+.settings-page .control-btn.danger {
+  border-color: color-mix(in srgb, var(--glass-danger) 40%, var(--glass-border));
+  background: color-mix(in srgb, var(--glass-danger) 12%, var(--glass-control-bg));
+}
+.settings-page .control-btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--glass-danger) 22%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--glass-danger) 55%, var(--glass-border));
+}
+.settings-page .control-btn.slim {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.settings-page .row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ---- Toggle rows + switches --------------------------------------------- */
+.settings-page .toggle-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--glass-control-bg);
+  transition: border-color var(--motion-duration) ease;
+}
+.settings-page .toggle-row:hover {
+  border-color: var(--glass-border-strong);
+}
+.settings-page .toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.settings-page .toggle-label {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--glass-text);
+}
+.settings-page .toggle-desc {
+  font-size: 12px;
+  color: var(--glass-text-dim);
+}
+.settings-page .switch {
+  position: relative;
+  flex-shrink: 0;
+}
+.settings-page .switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.settings-page .switch-track {
+  display: block;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--glass-hover-strong);
+  border: 1px solid var(--glass-border-strong);
+  transition:
+    background var(--motion-duration) ease,
+    border-color var(--motion-duration) ease,
+    box-shadow var(--motion-duration) ease;
+  position: relative;
+}
+.settings-page .switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform var(--motion-duration) var(--motion-spring);
+}
+.settings-page .switch.on .switch-track {
+  background: var(--glass-gradient-accent);
+  border-color: transparent;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--glass-accent-2) 45%, transparent);
+}
+.settings-page .switch.on .switch-thumb {
+  transform: translateX(18px);
+}
+.settings-page .switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--glass-periwinkle);
+  outline-offset: 2px;
+}
+
+/* ---- Misc --------------------------------------------------------------- */
+.settings-page .status-pill {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--glass-accent-2) 28%, var(--glass-border));
+  background: color-mix(in srgb, var(--glass-accent-2) 8%, var(--glass-control-bg));
+  font-size: 12px;
+  color: var(--glass-text-dim);
+}
+
+@media (prefers-contrast: more) {
+  .settings-page .panel {
+    background: var(--glass-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .settings-page .panel::before {
+    content: none;
+  }
+}

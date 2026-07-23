@@ -1152,12 +1152,14 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding: 12px;
-    border-radius: 18px;
+    padding: 8px;
+    border-radius: var(--glass-radius-lg);
     border: 1px solid var(--glass-border);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
-      var(--glass-inset);
+      linear-gradient(180deg, rgba(160, 190, 255, 0.05), transparent 30%),
+      var(--glass-panel);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow-md), var(--glass-inset-highlight);
     position: sticky;
     top: 16px;
@@ -1187,15 +1189,17 @@
     justify-content: space-between;
   }
   .nav-item {
+    position: relative;
     appearance: none;
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--glass-text-dim);
     text-align: left;
-    padding: 9px 12px;
-    border-radius: 11px;
+    padding: 10px 12px;
+    border-radius: 12px;
     font: inherit;
     font-size: 13px;
+    font-weight: 650;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
@@ -1205,6 +1209,7 @@
     transition:
       background var(--motion-duration) ease,
       color var(--motion-duration) ease,
+      border-color var(--motion-duration) ease,
       box-shadow var(--motion-duration) ease;
   }
   .nav-item.tree {
@@ -1213,8 +1218,28 @@
   }
   .nav-item.active {
     color: var(--glass-selected-fg);
-    background: var(--glass-selected-bg);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-selected-fg) 22%, transparent);
+    border-color: color-mix(in srgb, var(--glass-accent-2) 28%, transparent);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--glass-accent-2) 14%, transparent),
+      color-mix(in srgb, var(--glass-accent-2) 4%, transparent)
+    );
+    box-shadow: 0 0 18px color-mix(in srgb, var(--glass-accent-2) 12%, transparent);
+  }
+  /* Accent bar along the active item's leading edge (matches Settings nav). */
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--glass-gradient-accent);
+    box-shadow: 0 0 8px var(--glass-glow-cyan);
+  }
+  .nav-item.active .count {
+    color: color-mix(in srgb, var(--glass-selected-fg) 80%, var(--glass-text-faint));
   }
   .nav-item:hover {
     background: var(--glass-hover);

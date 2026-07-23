@@ -45,12 +45,19 @@
     <p class="help">{t('audit.help', undefined, $locale)}</p>
   </div>
   <label class="toggle-row">
-    <span>{t('audit.enable', undefined, $locale)}</span>
-    <input
-      type="checkbox"
-      checked={enabled}
-      onchange={(e) => void toggleEnabled(e.currentTarget.checked)}
-    />
+    <span class="toggle-copy">
+      <span class="toggle-label">{t('audit.enable', undefined, $locale)}</span>
+    </span>
+    <span class="switch" class:on={enabled}>
+      <input
+        type="checkbox"
+        checked={enabled}
+        onchange={(e) => void toggleEnabled(e.currentTarget.checked)}
+      />
+      <span class="switch-track" aria-hidden="true">
+        <span class="switch-thumb"></span>
+      </span>
+    </span>
   </label>
   {#if error}
     <p class="error" role="alert">{error}</p>
@@ -80,62 +87,45 @@
 </section>
 
 <style>
+  /* Panel/button/toggle chrome comes from the shared settings-chrome.css
+   * (scoped under .settings-page); only audit-list styles live here. */
   .audit-list {
     list-style: none;
-    margin: 0.75rem 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 6px;
     max-height: 16rem;
     overflow: auto;
   }
   .audit-list li {
     display: grid;
-    grid-template-columns: 8rem 1fr;
-    gap: 0.2rem 0.75rem;
-    font-size: 0.8rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: 8px;
-    background: color-mix(in oklab, var(--surface, #1a1a22) 90%, transparent);
+    grid-template-columns: 9rem 1fr;
+    gap: 2px 12px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-control-bg);
   }
   .kind {
-    font-weight: 600;
     grid-column: 1;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    color: var(--glass-selected-fg);
   }
   .at {
     grid-column: 2;
-    opacity: 0.75;
+    color: var(--glass-text-dim);
   }
   .detail {
     grid-column: 1 / -1;
-    opacity: 0.85;
+    color: var(--glass-text);
     word-break: break-all;
   }
-  .help {
-    opacity: 0.8;
-    margin: 0.25rem 0 0;
-  }
-  .hint {
-    opacity: 0.7;
-  }
-  .error {
-    color: #f87171;
-  }
-  .row-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
   .mono {
-    font-family: ui-monospace, monospace;
-    font-size: 0.75rem;
-  }
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-top: 0.75rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px;
   }
 </style>

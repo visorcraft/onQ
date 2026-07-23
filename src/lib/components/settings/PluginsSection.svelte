@@ -94,17 +94,17 @@
     <ul class="plugin-list">
       {#each plugins as p (p.id)}
         <li class="plugin-row">
-          <div>
+          <div class="plugin-copy">
             <strong>{p.name}</strong>
             <span class="meta">{p.id} · v{p.version}</span>
           </div>
           <div class="actions">
-            <button type="button" class="control-btn" onclick={() => void toggle(p)}>
+            <button type="button" class="control-btn slim" onclick={() => void toggle(p)}>
               {p.enabled
                 ? t('common.disable', undefined, $locale)
                 : t('common.enable', undefined, $locale)}
             </button>
-            <button type="button" class="control-btn" onclick={() => void remove(p)}
+            <button type="button" class="control-btn slim" onclick={() => void remove(p)}
               >{t('common.uninstall', undefined, $locale)}</button
             >
           </div>
@@ -115,45 +115,45 @@
 </section>
 
 <style>
+  /* Panel/button chrome comes from the shared settings-chrome.css (scoped
+   * under .settings-page); only plugin-list styles live here. */
   .plugin-list {
     list-style: none;
-    margin: 0.75rem 0 0;
+    margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 8px;
   }
   .plugin-row {
     display: flex;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 14px;
     align-items: center;
-    padding: 0.6rem 0.75rem;
-    border-radius: 10px;
-    background: color-mix(in oklab, var(--surface, #1a1a22) 88%, transparent);
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-control-bg);
+    transition: border-color var(--motion-duration) ease;
+  }
+  .plugin-row:hover {
+    border-color: var(--glass-border-strong);
+  }
+  .plugin-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    font-size: 13px;
   }
   .meta {
-    display: block;
-    font-size: 0.8rem;
-    opacity: 0.7;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--glass-text-faint);
   }
   .actions {
     display: flex;
-    gap: 0.4rem;
-  }
-  .help {
-    opacity: 0.8;
-    margin: 0.25rem 0 0;
-  }
-  .hint {
-    opacity: 0.7;
-  }
-  .error {
-    color: #f87171;
-  }
-  .row-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
+    gap: 8px;
+    flex-shrink: 0;
   }
 </style>

@@ -4,41 +4,46 @@
  * paint matches what shipped in M0.2. */
 :root,
 :root.dark {
-  --glass-base: #1a2138;
-  --glass-surface: #2a3454;
-  --glass-elevated: #3a4a6e;
-  --glass-periwinkle: #b8d2ff;
+  --glass-base: #070b16;
+  --glass-surface: #101a2e;
+  --glass-elevated: #182640;
+  --glass-periwinkle: #9fc4ff;
   /* #5b8fff was 3.08:1 on white button labels; #2f6fed clears WCAG AA 4.5:1. */
   --glass-accent: #2f6fed;
+  /* Cyan counterpart of the accent; pair with --glass-accent for gradients. */
+  --glass-accent-2: #22d3ee;
+  /* Primary-action gradient. Both endpoints keep white labels at WCAG AA. */
+  --glass-gradient-accent: linear-gradient(135deg, #2563eb 0%, #0e7490 100%);
+  --glass-glow-cyan: rgba(34, 211, 238, 0.35);
   --glass-gold: #ffd58a;
-  --glass-text: #e0e8ff;
-  --glass-text-dim: #a8b8d8;
-  --glass-text-faint: #7a8aa8;
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --glass-text: #e6eeff;
+  --glass-text-dim: #a3b3d4;
+  --glass-text-faint: #6f82a6;
+  --glass-border: rgba(148, 178, 255, 0.14);
+  --glass-border-strong: rgba(148, 178, 255, 0.22);
   /* Theme-aware panel/chrome surfaces used by Settings, Library, About, etc. */
-  --glass-panel: rgba(16, 22, 34, 0.92);
-  --glass-inset: rgba(12, 16, 26, 0.92);
-  --glass-input: rgba(10, 14, 22, 0.9);
-  --glass-code-bg: #0a0e16;
+  --glass-panel: rgba(13, 20, 38, 0.72);
+  --glass-inset: rgba(9, 14, 28, 0.85);
+  --glass-input: rgba(6, 10, 22, 0.85);
+  --glass-code-bg: #070c18;
   --glass-code-text: #c9d4e4;
-  --glass-table-header: #121a28;
-  --glass-hover: rgba(255, 255, 255, 0.04);
-  --glass-hover-strong: rgba(255, 255, 255, 0.08);
-  --glass-selected-bg: rgba(80, 220, 200, 0.12);
+  --glass-table-header: #0d1526;
+  --glass-hover: rgba(148, 178, 255, 0.06);
+  --glass-hover-strong: rgba(148, 178, 255, 0.1);
+  --glass-selected-bg: rgba(94, 234, 212, 0.1);
   --glass-selected-fg: #7ee0d0;
   --glass-link: #9ecbff;
-  --glass-control-bg: rgba(255, 255, 255, 0.04);
-  --glass-menu: rgba(12, 16, 26, 0.98);
-  --glass-dialog: #0e1420;
+  --glass-control-bg: rgba(148, 178, 255, 0.05);
+  --glass-menu: rgba(10, 15, 30, 0.98);
+  --glass-dialog: #0b1120;
   --glass-danger: #f07178;
   --glass-danger-bg: rgba(240, 113, 120, 0.12);
   --glass-danger-border: rgba(240, 113, 120, 0.38);
   --glass-accent-glow: rgba(47, 111, 237, 0.35);
   --glass-cyan: #5eead4;
-  --glass-shadow-lg: 0 28px 80px rgba(2, 6, 18, 0.55), 0 8px 24px rgba(2, 6, 18, 0.35);
-  --glass-shadow-md: 0 12px 36px rgba(2, 6, 18, 0.32);
-  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-shadow-lg: 0 28px 80px rgba(1, 4, 14, 0.6), 0 8px 24px rgba(1, 4, 14, 0.4);
+  --glass-shadow-md: 0 12px 36px rgba(1, 4, 14, 0.4);
+  --glass-inset-highlight: inset 0 1px 0 rgba(200, 220, 255, 0.07);
   color-scheme: dark;
   /* Page background — required for WCAG AA color contrast on the dark text
    * tokens above. Without this, --glass-text on the default white <body>
@@ -66,10 +71,43 @@
 
 body {
   margin: 0;
+  /* Deep-space backdrop: aurora glows over the base color. Fixed so it
+   * stays put while page content scrolls. */
+  background:
+    radial-gradient(1000px 620px at 8% -12%, rgba(34, 211, 238, 0.09), transparent 62%),
+    radial-gradient(1100px 700px at 108% 6%, rgba(47, 111, 237, 0.12), transparent 60%),
+    radial-gradient(900px 800px at 50% 118%, rgba(109, 80, 230, 0.08), transparent 62%),
+    var(--glass-base);
+  background-attachment: fixed;
+}
+
+/* Faint tech grid over the backdrop, fading out toward the bottom. Sits
+ * under <main> in paint order (earlier sibling, both positioned/auto
+ * z-index) and never intercepts pointer events. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 178, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 178, 255, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 0%, transparent 78%);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --motion-duration: 0ms;
+  }
+}
+
+@media (prefers-contrast: more) {
+  body {
+    background: var(--glass-base);
+  }
+  body::before {
+    content: none;
   }
 }

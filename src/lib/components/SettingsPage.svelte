@@ -65,12 +65,12 @@
 
   const metaKeyLabel = metaModifierLabel();
   const sections = $derived([
-    { id: 'general' as const, label: t('settings.general', undefined, $locale), hint: t('settings.generalHint', undefined, $locale) },
-    { id: 'search' as const, label: t('settings.search', undefined, $locale), hint: t('settings.searchHint', undefined, $locale) },
-    { id: 'vault' as const, label: t('settings.vault', undefined, $locale), hint: t('settings.vaultHint', undefined, $locale) },
-    { id: 'backups' as const, label: t('settings.backups', undefined, $locale), hint: t('settings.backupsHint', undefined, $locale) },
-    { id: 'plugins' as const, label: t('settings.plugins', undefined, $locale), hint: t('settings.pluginsHint', undefined, $locale) },
-    { id: 'updates' as const, label: t('settings.updates', undefined, $locale), hint: t('settings.updatesHint', undefined, $locale) },
+    { id: 'general' as const, label: t('settings.general', undefined, $locale) },
+    { id: 'search' as const, label: t('settings.search', undefined, $locale) },
+    { id: 'vault' as const, label: t('settings.vault', undefined, $locale) },
+    { id: 'backups' as const, label: t('settings.backups', undefined, $locale) },
+    { id: 'plugins' as const, label: t('settings.plugins', undefined, $locale) },
+    { id: 'updates' as const, label: t('settings.updates', undefined, $locale) },
   ]);
   let pendingLocale = $state<Locale>($locale);
 
@@ -393,17 +393,42 @@
     const next: Theme = $theme === 'dark' ? 'light' : 'dark';
     void setTheme(next);
   }
-
-  const activeSection = $derived(sections.find((s) => s.id === active) ?? sections[0]);
 </script>
 
-<div class="settings-page">
-  <div class="page-glow" aria-hidden="true"></div>
+{#snippet navIcon(id: SectionId)}
+  <svg class="nav-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+    {#if id === 'general'}
+      <path d="M3 6h14M3 10h14M3 14h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      <circle cx="13" cy="6" r="1.8" fill="currentColor" />
+      <circle cx="7.5" cy="10" r="1.8" fill="currentColor" />
+      <circle cx="11.5" cy="14" r="1.8" fill="currentColor" />
+    {:else if id === 'search'}
+      <circle cx="9" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="M12.8 12.8 16.5 16.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    {:else if id === 'vault'}
+      <path d="M10 2.8 16 5.3v4.4c0 3.9-2.6 6.3-6 7.5-3.4-1.2-6-3.6-6-7.5V5.3L10 2.8Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+      <circle cx="10" cy="9.2" r="1.4" fill="none" stroke="currentColor" stroke-width="1.3" />
+      <path d="M10 10.6v2.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+    {:else if id === 'backups'}
+      <rect x="3.5" y="4" width="13" height="3.6" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="M5 7.6v7.2a1.2 1.2 0 0 0 1.2 1.2h7.6a1.2 1.2 0 0 0 1.2-1.2V7.6" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="M8.3 10.8h3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    {:else if id === 'plugins'}
+      <rect x="4" y="4" width="5" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <rect x="11" y="4" width="5" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <rect x="4" y="11" width="5" height="5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="M13.5 11.2v4.6M11.2 13.5h4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    {:else}
+      <path d="M16.2 10a6.2 6.2 0 1 1-1.9-4.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M16.4 2.6v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+    {/if}
+  </svg>
+{/snippet}
 
+<div class="settings-page">
   <header class="settings-top">
     <p class="eyebrow">{t('settings.preferences', undefined, $locale)}</p>
     <h1>{t('settings.title', undefined, $locale)}</h1>
-    <p class="sub">{t('settings.subtitle', undefined, $locale)}</p>
   </header>
 
   <div class="settings-layout">
@@ -415,45 +440,30 @@
           class:active={active === s.id}
           onclick={() => (active = s.id)}
         >
+          {@render navIcon(s.id)}
           <span class="nav-label">{s.label}</span>
-          <span class="nav-hint">{s.hint}</span>
         </button>
       {/each}
     </nav>
 
     <div class="settings-main">
-      <div class="section-head">
-        <h2>{activeSection.label}</h2>
-        <p class="section-sub">{activeSection.hint}</p>
-      </div>
-
       {#if active === 'general'}
         <section class="panel" aria-labelledby="language-heading">
           <div class="panel-head">
             <h3 id="language-heading">{t('settings.language', undefined, $locale)}</h3>
             <p class="help">{t('settings.languageHelp', undefined, $locale)}</p>
           </div>
-          <label class="field">
-            <span class="field-label">{t('settings.language', undefined, $locale)}</span>
-            <select bind:value={pendingLocale} aria-label={t('settings.language', undefined, $locale)}>
-              {#each SUPPORTED_LOCALES as loc (loc)}
-                <option value={loc}
-                  >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
-                >
-              {/each}
-            </select>
-          </label>
-          <div class="row-actions">
-            <button
-              type="button"
-              class="control-btn primary"
-              onclick={() => {
-                setLocale(pendingLocale);
-              }}
-            >
-              {t('settings.languageSave', undefined, $locale)}
-            </button>
-          </div>
+          <select
+            bind:value={pendingLocale}
+            aria-label={t('settings.language', undefined, $locale)}
+            onchange={() => setLocale(pendingLocale)}
+          >
+            {#each SUPPORTED_LOCALES as loc (loc)}
+              <option value={loc}
+                >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
+              >
+            {/each}
+          </select>
         </section>
         <section class="panel" aria-labelledby="shortcut-heading">
           <div class="panel-head">
@@ -615,7 +625,7 @@
               disabled={loadingModel}
               onclick={() => void refreshSearchStatus()}
             >
-              {t('settings.refreshStatus', undefined, $locale)}
+              {t('common.refresh', undefined, $locale)}
             </button>
           </div>
           <p class="hint">{t('settings.searchModelHint', undefined, $locale)}</p>
@@ -628,22 +638,16 @@
             >
             <p class="help">{t('settings.embedderHelp', undefined, $locale)}</p>
           </div>
-          <label class="field">
-            <span class="field-label"
-              >{t('settings.activeEmbedder', undefined, $locale)}</span
-            >
-            <select bind:value={embedderPref}>
-              <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
-              {#each embedderPlugins as p (p.id)}
-                <option value={p.id}>{p.name} ({p.id})</option>
-              {/each}
-            </select>
-          </label>
-          <div class="row-actions">
-            <button type="button" class="control-btn primary" onclick={() => void saveEmbedderPref()}>
-              {t('settings.saveEmbedder', undefined, $locale)}
-            </button>
-          </div>
+          <select
+            bind:value={embedderPref}
+            aria-label={t('settings.activeEmbedder', undefined, $locale)}
+            onchange={() => void saveEmbedderPref()}
+          >
+            <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
+            {#each embedderPlugins as p (p.id)}
+              <option value={p.id}>{p.name} ({p.id})</option>
+            {/each}
+          </select>
         </section>
 
         <section class="panel" aria-labelledby="recency-heading">
@@ -651,15 +655,14 @@
             <h3 id="recency-heading">{t('settings.recency', undefined, $locale)}</h3>
             <p class="help">{t('settings.recencyHelp', undefined, $locale)}</p>
           </div>
-          <label class="field">
-            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
-            <input type="number" min="1" max="3650" bind:value={recencyDays} />
-          </label>
-          <div class="row-actions">
-            <button type="button" class="control-btn primary" onclick={() => void saveRecency()}>
-              {t('settings.recencySave', undefined, $locale)}
-            </button>
-          </div>
+          <input
+            type="number"
+            min="1"
+            max="3650"
+            bind:value={recencyDays}
+            aria-label={t('settings.recencyDays', undefined, $locale)}
+            onchange={() => void saveRecency()}
+          />
         </section>
 
         <section class="panel" aria-labelledby="embedding-heading">
@@ -725,44 +728,41 @@
             <h3 id="autolock-heading">{t('settings.autoLock', undefined, $locale)}</h3>
             <p class="help">{t('settings.autoLockHelp', undefined, $locale)}</p>
           </div>
-          <label class="field">
-            <span class="field-label">{t('settings.autoLockPolicy', undefined, $locale)}</span>
-            <select bind:value={autoLockPolicy}>
-              <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
-              <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
-              <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
-            </select>
-          </label>
+          <select
+            bind:value={autoLockPolicy}
+            aria-label={t('settings.autoLockPolicy', undefined, $locale)}
+            onchange={() => void saveAutoLock()}
+          >
+            <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
+            <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
+            <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
+          </select>
           {#if autoLockPolicy === 'idle'}
             <label class="field">
               <span class="field-label">{t('settings.autoLockMinutes', undefined, $locale)}</span>
-              <input type="number" min="1" max="1440" bind:value={autoLockIdleMinutes} />
+              <input
+                type="number"
+                min="1"
+                max="1440"
+                bind:value={autoLockIdleMinutes}
+                onchange={() => void saveAutoLock()}
+              />
             </label>
           {/if}
-          <div class="row-actions">
-            <button type="button" class="control-btn primary" onclick={() => void saveAutoLock()}>
-              {t('settings.autoLockSave', undefined, $locale)}
-            </button>
-          </div>
         </section>
         <section class="panel" aria-labelledby="history-heading">
           <div class="panel-head">
             <h3 id="history-heading">{t('settings.historyRetention', undefined, $locale)}</h3>
             <p class="help">{t('settings.historyHelp', undefined, $locale)}</p>
           </div>
-          <label class="field">
-            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
-            <input type="number" min="0" max="3650" bind:value={historyDays} />
-          </label>
-          <div class="row-actions">
-            <button
-              type="button"
-              class="control-btn primary"
-              onclick={() => void saveHistoryRetention()}
-            >
-              {t('settings.historySave', undefined, $locale)}
-            </button>
-          </div>
+          <input
+            type="number"
+            min="0"
+            max="3650"
+            bind:value={historyDays}
+            aria-label={t('settings.recencyDays', undefined, $locale)}
+            onchange={() => void saveHistoryRetention()}
+          />
         </section>
         <section class="panel">
           <div class="panel-head">
@@ -895,66 +895,41 @@
     margin: 0;
     padding: 28px 28px 72px;
     color: var(--glass-text);
-    overflow: hidden;
-  }
-  .page-glow {
-    position: absolute;
-    top: -140px;
-    left: -60px;
-    width: 380px;
-    height: 300px;
-    border-radius: 50%;
-    background: radial-gradient(circle, color-mix(in srgb, var(--glass-cyan) 22%, transparent), transparent 70%);
-    pointer-events: none;
   }
   .settings-top {
     position: relative;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
   }
   .eyebrow {
     margin: 0 0 6px;
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--glass-cyan);
   }
   h1 {
-    margin: 0 0 6px;
-    font-size: 32px;
+    margin: 0;
+    font-size: 34px;
     font-weight: 700;
     letter-spacing: -0.03em;
     line-height: 1.1;
+    background: linear-gradient(100deg, var(--glass-text) 35%, var(--glass-selected-fg));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
-  h2 {
-    margin: 0 0 2px;
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-  h3 {
-    margin: 0 0 6px;
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .sub,
-  .help,
-  .section-sub {
-    margin: 0;
-    color: var(--glass-text-dim);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .help {
-    font-size: 13px;
-    margin-bottom: 0;
+  :global(:root.light) h1 {
+    background: linear-gradient(100deg, #0a1430 40%, #0e7490);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   .settings-layout {
     position: relative;
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
-    gap: 20px;
+    grid-template-columns: 216px minmax(0, 1fr);
+    gap: 22px;
     align-items: start;
   }
   @media (max-width: 800px) {
@@ -962,121 +937,117 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* ---- Nav rail ---- */
   .settings-nav {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 10px;
-    border-radius: 18px;
+    gap: 2px;
+    padding: 8px;
+    border-radius: var(--glass-radius-lg);
     border: 1px solid var(--glass-border);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
-      var(--glass-inset);
+      linear-gradient(180deg, rgba(160, 190, 255, 0.05), transparent 30%),
+      var(--glass-panel);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
     box-shadow: var(--glass-shadow-md), var(--glass-inset-highlight);
     position: sticky;
     top: 16px;
   }
   .nav-item {
+    position: relative;
     appearance: none;
-    border: 0;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--glass-text-dim);
     text-align: left;
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-radius: 12px;
     font: inherit;
     cursor: pointer;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 10px;
     transition:
       background var(--motion-duration) ease,
       color var(--motion-duration) ease,
+      border-color var(--motion-duration) ease,
       box-shadow var(--motion-duration) ease;
+  }
+  .nav-icon {
+    display: block;
+    flex-shrink: 0;
+    opacity: 0.75;
+    transition: opacity var(--motion-duration) ease;
   }
   .nav-label {
     font-size: 13px;
     font-weight: 650;
   }
-  .nav-hint {
-    font-size: 11px;
-    color: var(--glass-text-faint);
-  }
-  .nav-item.active {
-    color: var(--glass-selected-fg);
-    background: var(--glass-selected-bg);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-selected-fg) 22%, transparent);
-  }
-  .nav-item.active .nav-hint {
-    color: color-mix(in srgb, var(--glass-selected-fg) 75%, var(--glass-text-faint));
-  }
   .nav-item:hover {
     background: var(--glass-hover);
     color: var(--glass-text);
+  }
+  .nav-item:hover .nav-icon {
+    opacity: 1;
+  }
+  .nav-item.active {
+    color: var(--glass-selected-fg);
+    border-color: color-mix(in srgb, var(--glass-accent-2) 28%, transparent);
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--glass-accent-2) 14%, transparent),
+      color-mix(in srgb, var(--glass-accent-2) 4%, transparent)
+    );
+    box-shadow: 0 0 18px color-mix(in srgb, var(--glass-accent-2) 12%, transparent);
+  }
+  .nav-item.active .nav-icon {
+    opacity: 1;
+  }
+  /* Accent bar along the active item's leading edge. */
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--glass-gradient-accent);
+    box-shadow: 0 0 8px var(--glass-glow-cyan);
   }
   .nav-item:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
   }
+  @media (max-width: 800px) {
+    .settings-nav {
+      flex-direction: row;
+      overflow-x: auto;
+      position: static;
+    }
+    .nav-item {
+      flex: 0 0 auto;
+    }
+    .nav-item.active::before {
+      left: 12px;
+      right: 12px;
+      top: auto;
+      bottom: 3px;
+      width: auto;
+      height: 2px;
+    }
+  }
+
   .settings-main {
     display: flex;
     flex-direction: column;
     gap: 14px;
     min-width: 0;
   }
-  .section-head {
-    margin-bottom: 2px;
-  }
-  .panel {
-    position: relative;
-    padding: 20px;
-    border-radius: 16px;
-    border: 1px solid var(--glass-border);
-    background:
-      linear-gradient(165deg, rgba(255, 255, 255, 0.035), transparent 42%),
-      var(--glass-panel);
-    box-shadow: var(--glass-inset-highlight);
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .panel-head {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .control-btn {
-    appearance: none;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-control-bg);
-    color: var(--glass-text);
-    border-radius: 12px;
-    padding: 11px 16px;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    align-self: flex-start;
-    transition:
-      background var(--motion-duration) ease,
-      border-color var(--motion-duration) ease,
-      box-shadow var(--motion-duration) ease,
-      transform var(--motion-duration) var(--motion-spring);
-  }
-  .control-btn.primary {
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 38%, var(--glass-border));
-    background: color-mix(in srgb, var(--glass-accent) 22%, var(--glass-control-bg));
-    color: var(--glass-text);
-    box-shadow: none;
-  }
-  .control-btn.primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--glass-accent) 32%, var(--glass-control-bg));
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, var(--glass-border));
-  }
+
+  /* ---- Shortcut recorder ---- */
   .control-btn.shortcut-btn {
     min-width: 200px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -1084,21 +1055,9 @@
     letter-spacing: 0.02em;
   }
   .control-btn.recording {
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 16%, transparent);
-    color: var(--glass-periwinkle);
-  }
-  .control-btn:hover:not(:disabled) {
-    background: var(--glass-hover-strong);
-  }
-  .control-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .control-btn:focus-visible,
-  .theme-card:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
+    border-color: color-mix(in srgb, var(--glass-accent-2) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-accent-2) 16%, transparent);
+    color: var(--glass-selected-fg);
   }
   .shortcut-btn kbd {
     font: inherit;
@@ -1116,12 +1075,6 @@
       opacity: 0.4;
     }
   }
-  .hint {
-    margin: 0;
-    font-size: 12px;
-    color: var(--glass-text-dim);
-    line-height: 1.45;
-  }
   .hint.status {
     display: inline-flex;
     align-items: center;
@@ -1131,21 +1084,12 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--glass-periwinkle);
-    box-shadow: 0 0 10px var(--glass-periwinkle);
+    background: var(--glass-accent-2);
+    box-shadow: 0 0 10px var(--glass-accent-2);
     animation: pulse 1.2s ease infinite;
   }
-  .error {
-    margin: 0;
-    color: var(--glass-danger);
-    font-size: 13px;
-  }
-  .error.banner {
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--glass-danger-border);
-    background: var(--glass-danger-bg);
-  }
+
+  /* ---- Theme picker ---- */
   .theme-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1170,12 +1114,18 @@
       box-shadow var(--motion-duration) ease;
   }
   .theme-card.selected {
-    border-color: color-mix(in srgb, var(--glass-selected-fg) 45%, transparent);
+    border-color: color-mix(in srgb, var(--glass-accent-2) 45%, transparent);
     background: var(--glass-selected-bg);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-selected-fg) 18%, transparent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--glass-accent-2) 18%, transparent),
+      0 0 18px color-mix(in srgb, var(--glass-accent-2) 14%, transparent);
   }
   .theme-card:hover {
     background: var(--glass-hover-strong);
+  }
+  .theme-card:focus-visible {
+    outline: 2px solid var(--glass-periwinkle);
+    outline-offset: 2px;
   }
   .theme-swatch {
     width: 28px;
@@ -1185,15 +1135,17 @@
     flex-shrink: 0;
   }
   .theme-swatch.dark {
-    background: linear-gradient(135deg, #1a2138, #2a3454);
+    background: linear-gradient(135deg, #101a30, #2c3d63);
   }
   .theme-swatch.light {
-    background: linear-gradient(135deg, #f0f4ff, #ffffff);
+    background: linear-gradient(135deg, #eef3fc, #ffffff);
   }
   .theme-label {
     font-size: 13px;
     font-weight: 650;
   }
+
+  /* ---- Radio cards ---- */
   .radio-group {
     display: flex;
     flex-direction: column;
@@ -1217,16 +1169,18 @@
       box-shadow var(--motion-duration) ease;
   }
   .radio-card.selected {
-    border-color: color-mix(in srgb, var(--glass-selected-fg) 45%, transparent);
+    border-color: color-mix(in srgb, var(--glass-accent-2) 45%, transparent);
     background: var(--glass-selected-bg);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-selected-fg) 18%, transparent);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--glass-accent-2) 18%, transparent),
+      0 0 18px color-mix(in srgb, var(--glass-accent-2) 14%, transparent);
   }
   .radio-card:hover {
     border-color: var(--glass-border-strong);
   }
   .radio-card input {
     margin-top: 3px;
-    accent-color: var(--glass-accent);
+    accent-color: var(--glass-accent-2);
   }
   .radio-copy {
     display: flex;
@@ -1249,86 +1203,16 @@
     padding: 2px 7px;
     border-radius: 999px;
     color: var(--glass-selected-fg);
-    background: color-mix(in srgb, var(--glass-selected-fg) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--glass-selected-fg) 28%, transparent);
+    background: color-mix(in srgb, var(--glass-accent-2) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--glass-accent-2) 28%, transparent);
   }
   .radio-desc {
     font-size: 12px;
     color: var(--glass-text-dim);
     line-height: 1.45;
   }
-  .toggle-row {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    cursor: pointer;
-    background: var(--glass-control-bg);
-  }
-  .toggle-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-  }
-  .toggle-label {
-    font-size: 13px;
-    font-weight: 650;
-    line-height: 1.4;
-    color: var(--glass-text);
-  }
-  .toggle-desc {
-    font-size: 12px;
-    color: var(--glass-text-dim);
-  }
-  .switch {
-    position: relative;
-    flex-shrink: 0;
-  }
-  .switch input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    cursor: pointer;
-  }
-  .switch-track {
-    display: block;
-    width: 44px;
-    height: 26px;
-    border-radius: 999px;
-    background: var(--glass-hover-strong);
-    border: 1px solid var(--glass-border-strong);
-    transition: background var(--motion-duration) ease, border-color var(--motion-duration) ease;
-    position: relative;
-  }
-  .switch-thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-    transition: transform var(--motion-duration) var(--motion-spring);
-  }
-  .switch.on .switch-track {
-    background: var(--glass-accent);
-    border-color: transparent;
-  }
-  .switch.on .switch-thumb {
-    transform: translateX(18px);
-  }
-  .switch input:focus-visible + .switch-track {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
-  }
+
+  /* ---- Secure textarea ---- */
   .secure {
     width: 100%;
     box-sizing: border-box;
@@ -1346,18 +1230,11 @@
   }
   .secure:focus-visible {
     outline: none;
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 16%, transparent);
+    border-color: color-mix(in srgb, var(--glass-accent-2) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-accent-2) 16%, transparent);
   }
-  .status-pill {
-    align-self: flex-start;
-    padding: 8px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-control-bg);
-    font-size: 12px;
-    color: var(--glass-text-dim);
-  }
+
+  /* ---- Search status list ---- */
   .status-list {
     list-style: none;
     margin: 0;
@@ -1388,6 +1265,23 @@
     font-weight: 650;
     color: var(--glass-text);
   }
+  /* Leading status dot, colored by state via currentColor. */
+  .status-v.ok,
+  .status-v.warn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .status-v.ok::before,
+  .status-v.warn::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    flex-shrink: 0;
+  }
   .status-v.ok {
     color: var(--glass-selected-fg);
   }
@@ -1403,11 +1297,7 @@
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 11px;
   }
-  .row-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
+
   .visually-hidden {
     position: absolute;
     width: 1px;

@@ -1,6 +1,7 @@
 import './lib/styles/tokens.css';
 import './lib/styles/tokens.light.css';
 import './lib/styles/glass.css';
+import './lib/styles/settings-chrome.css';
 import './lib/styles/motion.css';
 import { mount } from 'svelte';
 import App from './App.svelte';
