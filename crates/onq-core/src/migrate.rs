@@ -49,6 +49,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "0002_minimize_on_copy",
         run: migration_0002_minimize_on_copy,
     },
+    Migration {
+        version: 3,
+        name: "0003_search_history_settings",
+        run: migration_0003_search_history_settings,
+    },
 ];
 
 /// Migration 0001 — create the six core tables and seed the singleton
@@ -129,6 +134,126 @@ fn migration_0002_minimize_on_copy(db: &Database) -> CoreResult<()> {
     }
     db.transaction_for_current_principal(|tx| tx.put("app_state", cells))
         .map_err(|e| CoreError::Db(format!("0002 write schema_version: {e}")))?;
+    Ok(())
+}
+
+/// Migration 0003 — search recency half-life, history retention, recent vaults,
+/// and backup reminder preferences on `app_state`.
+fn migration_0003_search_history_settings(db: &Database) -> CoreResult<()> {
+    add_bytes_column_if_missing(
+        db,
+        "search_recency_days",
+        col::APP_SEARCH_RECENCY_DAYS,
+        b"30",
+    )?;
+    add_bytes_column_if_missing(
+        db,
+        "history_retention_days",
+        col::APP_HISTORY_RETENTION_DAYS,
+        b"30",
+    )?;
+    if !column_present(db, col::APP_RECENT_VAULTS)? {
+        match db.add_column_with_id(
+            "app_state",
+            "recent_vaults",
+            TypeId::Json,
+            ColumnFlags::empty().with(ColumnFlags::NULLABLE),
+            Some(DefaultExpr::Static(Value::Json(b"[]".to_vec()))),
+            Some(col::APP_RECENT_VAULTS),
+        ) {
+            Ok(_) => {}
+            Err(e) if is_already_exists(&e) => {}
+            Err(e) => {
+                return Err(CoreError::Db(format!("0003 add recent_vaults: {e}")));
+            }
+        }
+    }
+    if !column_present(db, col::APP_LAST_BACKUP_AT)? {
+        match db.add_column_with_id(
+            "app_state",
+            "last_backup_at",
+            TypeId::Bytes,
+            ColumnFlags::empty().with(ColumnFlags::NULLABLE),
+            None,
+            Some(col::APP_LAST_BACKUP_AT),
+        ) {
+            Ok(_) => {}
+            Err(e) if is_already_exists(&e) => {}
+            Err(e) => {
+                return Err(CoreError::Db(format!("0003 add last_backup_at: {e}")));
+            }
+        }
+    }
+    add_bytes_column_if_missing(
+        db,
+        "backup_remind_days",
+        col::APP_BACKUP_REMIND_DAYS,
+        b"7",
+    )?;
+    bump_schema_version(db, 3)?;
+    Ok(())
+}
+
+fn column_present(db: &Database, col_id: u16) -> CoreResult<bool> {
+    Ok(db
+        .query_for_current_principal("app_state", &Query::default(), None)
+        .map_err(|e| CoreError::Db(format!("0003 probe app_state: {e}")))?
+        .first()
+        .map(|row| row.columns.contains_key(&col_id))
+        .unwrap_or(false))
+}
+
+fn is_already_exists(err: &impl std::fmt::Display) -> bool {
+    let s = err.to_string().to_ascii_lowercase();
+    s.contains("already exists") || s.contains("duplicate")
+}
+
+fn add_bytes_column_if_missing(
+    db: &Database,
+    name: &str,
+    col_id: u16,
+    default: &[u8],
+) -> CoreResult<()> {
+    if column_present(db, col_id)? {
+        return Ok(());
+    }
+    // Fresh vaults already have these columns from `app_state_schema()`;
+    // only older on-disk schemas need add_column.
+    match db.add_column_with_id(
+        "app_state",
+        name,
+        TypeId::Bytes,
+        ColumnFlags::empty(),
+        Some(DefaultExpr::Static(Value::Bytes(default.to_vec()))),
+        Some(col_id),
+    ) {
+        Ok(_) => Ok(()),
+        Err(e) if is_already_exists(&e) => Ok(()),
+        Err(e) => Err(CoreError::Db(format!("0003 add_column {name}: {e}"))),
+    }
+}
+
+fn bump_schema_version(db: &Database, version: i64) -> CoreResult<()> {
+    let rows = db
+        .query_for_current_principal("app_state", &Query::default(), None)
+        .map_err(|e| CoreError::Db(format!("0003 re-read app_state: {e}")))?;
+    let Some(row) = rows.first() else {
+        return Err(CoreError::Db("app_state row missing after 0003".into()));
+    };
+    let mut cells: Vec<(u16, Value)> = row.columns.iter().map(|(k, v)| (*k, v.clone())).collect();
+    let mut found = false;
+    for (col_id, val) in cells.iter_mut() {
+        if *col_id == col::APP_SCHEMA_VER {
+            *val = Value::Int64(version);
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        cells.push((col::APP_SCHEMA_VER, Value::Int64(version)));
+    }
+    db.transaction_for_current_principal(|tx| tx.put("app_state", cells))
+        .map_err(|e| CoreError::Db(format!("0003 write schema_version: {e}")))?;
     Ok(())
 }
 
@@ -225,7 +350,7 @@ mod tests {
             "migrated vault must report minimize_on_copy default",
         );
         let (version, _) = read_app_state(got.handle()).unwrap();
-        assert_eq!(version, 2, "schema_version must advance to 2");
+        assert_eq!(version, 3, "schema_version must advance to latest (3)");
     }
 
     #[test]
@@ -266,18 +391,17 @@ mod tests {
         let db = Db::open(dir.path(), "test-pass").unwrap();
 
         // After first open + run, schema_version must reflect the latest
-        // migration that actually applied to a fresh DB (currently v2 —
-        // the bump from 0002_minimize_on_copy).
+        // migration that actually applied to a fresh DB (currently v3).
         let (v1, q1) = read_app_state(db.handle()).unwrap();
-        assert_eq!(v1, 2, "expected schema_version=2 after first run");
+        assert_eq!(v1, 3, "expected schema_version=3 after first run");
         assert_eq!(q1, b"binary", "expected embedding_quant='binary'");
 
         // Second open on the same path runs migrations again — must be a
-        // no-op (still version 2, still 'binary', no error).
+        // no-op (still latest version, still 'binary', no error).
         drop(db);
         let db2 = Db::open(dir.path(), "test-pass").unwrap();
         let (v2, _) = read_app_state(db2.handle()).unwrap();
-        assert_eq!(v2, 2, "second run must not advance schema_version");
+        assert_eq!(v2, 3, "second run must not advance schema_version");
     }
 
     #[test]
@@ -310,7 +434,7 @@ mod tests {
             .expect("create encrypted db");
         Migrator::new(&db).run().unwrap();
         let (v, q) = read_app_state(&db).unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
         assert_eq!(q, b"binary");
     }
 
@@ -346,7 +470,7 @@ mod tests {
         // The seeded v1 vault advances to v2 after 0002_minimize_on_copy
         // applies — that bump is the whole point of the migration.
         let (v, q) = read_app_state(&db).unwrap();
-        assert_eq!(v, 2, "v1 vault must be advanced to v2 by 0002");
+        assert_eq!(v, 3, "v1 vault must be advanced to latest by migrations");
         assert_eq!(
             q, b"dense",
             "user-tuned embedding_quant must survive migration"

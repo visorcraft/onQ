@@ -34,9 +34,19 @@
   } from '$lib/api/updates';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import BackupsSection from '$lib/components/settings/BackupsSection.svelte';
+  import PluginsSection from '$lib/components/settings/PluginsSection.svelte';
   import type { ImportBackupResult } from '$lib/api/backup';
+  import { getAppSetting, setAppSetting } from '$lib/api/settings';
+  import { getAutoLockPolicy, setAutoLockPolicy } from '$lib/api/session';
+  import {
+    exportPrompts,
+    importPrompts,
+    pickExportDir,
+    pickImportPath,
+  } from '$lib/api/importExport';
+  import { backupShouldRemind } from '$lib/api/backupRemind';
 
-  type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'updates';
+  type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'plugins' | 'updates';
 
   const metaKeyLabel = metaModifierLabel();
   const sections: { id: SectionId; label: string; hint: string }[] = [
@@ -44,6 +54,7 @@
     { id: 'search', label: 'Search', hint: 'Model & index' },
     { id: 'vault', label: 'Vault', hint: 'Security keys' },
     { id: 'backups', label: 'Backups', hint: 'Export & restore' },
+    { id: 'plugins', label: 'Plugins', hint: 'Install & manage' },
     { id: 'updates', label: 'Updates', hint: 'Release channel' },
   ];
 
@@ -75,6 +86,12 @@
   let checkingForUpdates = $state(false);
   let updateStatus = $state<string | null>(null);
   let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
+  let recencyDays = $state('30');
+  let historyDays = $state('30');
+  let autoLockPolicy = $state('lock_on_quit');
+  let autoLockIdleMinutes = $state('15');
+  let importStatus = $state<string | null>(null);
+  let backupRemind = $state(false);
 
   function clearUpdateStatusTimer() {
     if (updateStatusTimer !== undefined) {
@@ -164,7 +181,74 @@
       .then((mode) => (authMode = mode))
       .catch(() => undefined);
     void refreshSearchStatus();
+    void getAppSetting('search_recency_days')
+      .then((v) => {
+        if (v) recencyDays = v;
+      })
+      .catch(() => undefined);
+    void getAppSetting('history_retention_days')
+      .then((v) => {
+        if (v) historyDays = v;
+      })
+      .catch(() => undefined);
+    void getAutoLockPolicy()
+      .then((p) => {
+        autoLockPolicy = p.startsWith('idle_timeout:') ? 'idle' : p;
+        if (p.startsWith('idle_timeout:')) {
+          const secs = Number(p.slice('idle_timeout:'.length));
+          if (Number.isFinite(secs) && secs > 0) autoLockIdleMinutes = String(Math.round(secs / 60));
+        }
+      })
+      .catch(() => undefined);
+    void backupShouldRemind()
+      .then((v) => {
+        backupRemind = v;
+      })
+      .catch(() => undefined);
   });
+
+  async function saveRecency() {
+    await setAppSetting('search_recency_days', recencyDays.trim() || '30');
+  }
+
+  async function saveHistoryRetention() {
+    await setAppSetting('history_retention_days', historyDays.trim() || '30');
+  }
+
+  async function saveAutoLock() {
+    if (autoLockPolicy === 'idle') {
+      const mins = Math.max(1, Number(autoLockIdleMinutes) || 15);
+      await setAutoLockPolicy(`idle_timeout:${mins * 60}`);
+    } else {
+      await setAutoLockPolicy(autoLockPolicy);
+    }
+  }
+
+  async function runImport() {
+    importStatus = null;
+    try {
+      const path = await pickImportPath();
+      if (!path) return;
+      const report = await importPrompts(path, 'auto', 'skip');
+      importStatus = `Imported ${report.created}, skipped ${report.skipped}${
+        report.errors.length ? `; ${report.errors.length} errors` : ''
+      }.`;
+    } catch (e) {
+      importStatus = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function runExport() {
+    importStatus = null;
+    try {
+      const dest = await pickExportDir();
+      if (!dest) return;
+      const report = await exportPrompts({ dest });
+      importStatus = `Exported ${report.exported} prompts (${report.skipped} skipped).`;
+    } catch (e) {
+      importStatus = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   onDestroy(() => {
     clearUpdateStatusTimer();
@@ -461,6 +545,24 @@
           </p>
         </section>
 
+        <section class="panel" aria-labelledby="recency-heading">
+          <div class="panel-head">
+            <h3 id="recency-heading">Recency half-life</h3>
+            <p class="help">
+              Days until a prompt’s recency boost falls to ~37%. Default 30.
+            </p>
+          </div>
+          <label class="field">
+            <span class="field-label">Days</span>
+            <input type="number" min="1" max="3650" bind:value={recencyDays} />
+          </label>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveRecency()}>
+              Save recency
+            </button>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="embedding-heading">
           <div class="panel-head">
             <h3 id="embedding-heading">Embedding quantization</h3>
@@ -513,6 +615,67 @@
           {/if}
         </section>
       {:else if active === 'vault'}
+        <section class="panel" aria-labelledby="autolock-heading">
+          <div class="panel-head">
+            <h3 id="autolock-heading">Auto-lock</h3>
+            <p class="help">Clear the vault session after idle time, on quit, or never.</p>
+          </div>
+          <label class="field">
+            <span class="field-label">Policy</span>
+            <select bind:value={autoLockPolicy}>
+              <option value="lock_on_quit">Lock on quit only</option>
+              <option value="idle">Idle timeout</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
+          {#if autoLockPolicy === 'idle'}
+            <label class="field">
+              <span class="field-label">Idle minutes</span>
+              <input type="number" min="1" max="1440" bind:value={autoLockIdleMinutes} />
+            </label>
+          {/if}
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveAutoLock()}>
+              Save auto-lock
+            </button>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="history-heading">
+          <div class="panel-head">
+            <h3 id="history-heading">History retention</h3>
+            <p class="help">Days of per-prompt snapshots kept under <code>.onq/history</code>.</p>
+          </div>
+          <label class="field">
+            <span class="field-label">Days</span>
+            <input type="number" min="0" max="3650" bind:value={historyDays} />
+          </label>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="control-btn primary"
+              onclick={() => void saveHistoryRetention()}
+            >
+              Save retention
+            </button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h3>Import / export prompts</h3>
+            <p class="help">Bulk import Markdown/JSON/ChatGPT export, or export the vault as .md files.</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void runImport()}>
+              Import…
+            </button>
+            <button type="button" class="control-btn" onclick={() => void runExport()}>
+              Export…
+            </button>
+          </div>
+          {#if importStatus}
+            <p class="hint" role="status">{importStatus}</p>
+          {/if}
+        </section>
         {#if authMode === 'keychain'}
           <section class="panel">
             <div class="panel-head">
@@ -560,7 +723,12 @@
           </section>
         {/if}
       {:else if active === 'backups'}
+        {#if backupRemind}
+          <p class="hint" role="status">Vault backup may be overdue — export a fresh .onqbak when you can.</p>
+        {/if}
         <BackupsSection {onVaultClosed} />
+      {:else if active === 'plugins'}
+        <PluginsSection />
       {:else if active === 'updates'}
         <section class="panel">
           <div class="panel-head">

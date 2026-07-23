@@ -31,7 +31,9 @@ tempfile = "3"
 notify = "6"
 # Dense ANN + replace_index (0.61+); swappable ANN backends / PQ (0.63+).
 # Keep aligned with MongrelDB releases on crates.io.
-mongreldb-core = "0.64.3"
+# `encryption` matches sibling apps (mongrel); currently a no-op flag in 0.64.3
+# but documents at-rest encrypted open/create intent for future feature gates.
+mongreldb-core = { version = "0.64.3", features = ["encryption"] }
 onq-core = { path = "crates/onq-core", version = "1.0.1" }
 onq-test-utils = { path = "crates/onq-test-utils", version = "1.0.1" }
 keyring = { version = "3", features = [] }

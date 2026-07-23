@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use onq_core::db::Db;
 use onq_core::embed::Embedder;
@@ -22,6 +23,8 @@ pub struct AppState {
     /// `Disabled` or upgrade to `IdleTimeout(...)` via the
     /// `set_auto_lock_policy` Tauri command.
     pub auto_lock_policy: Mutex<AutoLockPolicy>,
+    /// Last user interaction timestamp for idle auto-lock evaluation.
+    pub last_activity: Mutex<Instant>,
 }
 
 impl Default for AppState {
@@ -32,6 +35,7 @@ impl Default for AppState {
             db: Mutex::new(None),
             embedder: Mutex::new(None),
             auto_lock_policy: Mutex::new(AutoLockPolicy::LockOnQuit),
+            last_activity: Mutex::new(Instant::now()),
         }
     }
 }
@@ -53,12 +57,19 @@ impl AppState {
     /// Returns the path that was open (if any). Embedder is left loaded —
     /// it is process-global model state, not vault-scoped.
     ///
-    /// Used by backup import and (later) explicit lock / switch-vault flows.
+    /// Used by backup import, lock-now, and switch-vault flows.
     pub fn close_vault(&self) -> Result<Option<PathBuf>, String> {
         let path = self.vault_path.lock().map_err(|e| e.to_string())?.take();
         *self.vault.lock().map_err(|e| e.to_string())? = None;
         // Drop Arc<Db> so MongrelDB releases its single-instance lock.
         *self.db.lock().map_err(|e| e.to_string())? = None;
         Ok(path)
+    }
+
+    /// Mark the current instant as the latest user activity (resets idle timer).
+    pub fn touch_activity(&self) {
+        if let Ok(mut guard) = self.last_activity.lock() {
+            *guard = Instant::now();
+        }
     }
 }

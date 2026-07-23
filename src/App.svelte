@@ -20,6 +20,11 @@
   import { globalShortcut } from '$lib/stores/globalShortcut';
   import { openPalette } from '$lib/stores/palette.svelte';
   import { openLastVault } from '$lib/api/vault';
+  import {
+    evaluateAutoLock,
+    lockVaultNow,
+    touchActivity,
+  } from '$lib/api/session';
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
   import onqIcon from '$lib/assets/onq-128.png';
@@ -78,6 +83,25 @@
     }
   }
 
+  function onSessionLocked(path: string | null | undefined) {
+    hasVault = false;
+    editorSession = null;
+    navigate('home');
+    if (path) {
+      passwordPath = path;
+      recoveryPath = null;
+    }
+  }
+
+  async function handleLockVault() {
+    try {
+      const path = await lockVaultNow();
+      onSessionLocked(path || passwordPath);
+    } catch (error) {
+      vaultError = `Could not lock vault: ${String(error)}`;
+    }
+  }
+
   onMount(() => {
     // Updater must not wait on vault open / keychain prompts — it has no
     // dependency on vault state and should work from the empty-state screen.
@@ -98,6 +122,40 @@
         checkingVault = false;
       }
     })();
+
+    const bumpActivity = () => {
+      if (!hasVault) return;
+      void touchActivity().catch(() => undefined);
+    };
+    window.addEventListener('pointerdown', bumpActivity, { passive: true });
+    window.addEventListener('keydown', bumpActivity, { passive: true });
+    window.addEventListener('focus', bumpActivity, { passive: true });
+
+    const idleTimer = window.setInterval(() => {
+      if (!hasVault) return;
+      void evaluateAutoLock()
+        .then((path) => {
+          if (path) onSessionLocked(path);
+        })
+        .catch(() => undefined);
+    }, 15_000);
+
+    const onVaultLockedEvent = (event: Event) => {
+      const path =
+        event instanceof CustomEvent
+          ? (event.detail?.path as string | undefined)
+          : undefined;
+      onSessionLocked(path || null);
+    };
+    window.addEventListener('onq:vault-locked', onVaultLockedEvent);
+
+    return () => {
+      window.removeEventListener('pointerdown', bumpActivity);
+      window.removeEventListener('keydown', bumpActivity);
+      window.removeEventListener('focus', bumpActivity);
+      window.removeEventListener('onq:vault-locked', onVaultLockedEvent);
+      window.clearInterval(idleTimer);
+    };
   });
 
   onDestroy(() => {

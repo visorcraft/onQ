@@ -120,6 +120,11 @@ impl Db {
             (col::APP_BETA, Value::Bool(false)),
             (col::APP_EMBED_QUANT, Value::Bytes(b"binary".to_vec())),
             (col::APP_MINIMIZE_ON_COPY, Value::Bool(false)),
+            (col::APP_SEARCH_RECENCY_DAYS, Value::Bytes(b"30".to_vec())),
+            (col::APP_HISTORY_RETENTION_DAYS, Value::Bytes(b"30".to_vec())),
+            (col::APP_RECENT_VAULTS, Value::Json(b"[]".to_vec())),
+            (col::APP_LAST_BACKUP_AT, Value::Bytes(Vec::new())),
+            (col::APP_BACKUP_REMIND_DAYS, Value::Bytes(b"7".to_vec())),
         ];
         // Preserve the current schema_version, vault_path, recent, tutorial_done,
         // beta, embedding_quant by overwriting the defaults from the existing row.
@@ -144,6 +149,8 @@ impl Db {
                     )))
                 }
             }
+        } else if column_id == col::APP_RECENT || column_id == col::APP_RECENT_VAULTS {
+            Value::Json(value.as_bytes().to_vec())
         } else {
             Value::Bytes(value.as_bytes().to_vec())
         };
@@ -208,6 +215,11 @@ fn setting_column_for_key(key: &str) -> CoreResult<u16> {
         "embedding_quant" => Ok(col::APP_EMBED_QUANT),
         "beta_channel" => Ok(col::APP_BETA),
         "minimize_on_copy" => Ok(col::APP_MINIMIZE_ON_COPY),
+        "search_recency_days" => Ok(col::APP_SEARCH_RECENCY_DAYS),
+        "history_retention_days" => Ok(col::APP_HISTORY_RETENTION_DAYS),
+        "recent_vaults" => Ok(col::APP_RECENT_VAULTS),
+        "last_backup_at" => Ok(col::APP_LAST_BACKUP_AT),
+        "backup_remind_days" => Ok(col::APP_BACKUP_REMIND_DAYS),
         other => Err(CoreError::Db(format!("unknown app_setting '{other}'"))),
     }
 }

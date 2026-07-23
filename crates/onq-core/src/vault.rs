@@ -41,11 +41,22 @@ impl Vault {
     }
 
     pub fn write(&self, prompt: &Prompt) -> CoreResult<()> {
+        self.write_with_history_retention(prompt, 30)
+    }
+
+    /// Write prompt body/frontmatter and snapshot history, pruning snapshots
+    /// older than `history_retention_days` (0 removes all previous snapshots
+    /// after the new write's snapshot is taken).
+    pub fn write_with_history_retention(
+        &self,
+        prompt: &Prompt,
+        history_retention_days: u32,
+    ) -> CoreResult<()> {
         let path = self.prompt_path(&prompt.fm.id);
         let rendered = frontmatter::render(&prompt.fm, &prompt.body);
         history::snapshot(self, &prompt.fm.id, &prompt.body)?;
         atomic_write(&path, rendered.as_bytes())?;
-        history::prune_older_than(self, 30)?;
+        history::prune_older_than(self, history_retention_days)?;
         Ok(())
     }
 

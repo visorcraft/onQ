@@ -108,7 +108,7 @@ MiniLM 384-dimensional local embeddings
 
 ## Status
 
-onQ is pre-alpha. Storage formats and APIs may change before `1.0`.
+onQ is approaching 1.0. Storage formats may still change; backup before upgrading major versions.
 
 ## License
 

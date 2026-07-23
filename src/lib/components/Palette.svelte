@@ -24,6 +24,9 @@
     closePalette as storeClosePalette,
     togglePalette as storeTogglePalette,
   } from '$lib/stores/palette.svelte';
+  import { lockVaultNow } from '$lib/api/session';
+  import { parseTemplateFields, renderTemplateBody } from '$lib/api/template';
+  import { t } from '$lib/i18n/en';
 
   let query = $state('');
   /** Existing prompt id, or `null` for an unsaved draft. */
@@ -140,7 +143,25 @@
         statusMessage = 'Unlock this prompt to copy it.';
         return;
       }
-      await navigator.clipboard.writeText(p.body ?? '');
+      let body = p.body ?? '';
+      const fields = await parseTemplateFields(body);
+      if (fields.length > 0) {
+        const values: Record<string, string> = {};
+        for (const field of fields) {
+          const def = field.default ?? '';
+          const answer =
+            typeof window !== 'undefined'
+              ? window.prompt(`Value for {{${field.name}}}`, def)
+              : def;
+          if (answer === null) {
+            statusMessage = 'Copy cancelled.';
+            return;
+          }
+          values[field.name] = answer;
+        }
+        body = await renderTemplateBody(body, values);
+      }
+      await navigator.clipboard.writeText(body);
       rememberPrompt(id);
       closePalette();
       // Honour the user's "minimize on copy" preference — fire-and-forget;
@@ -154,6 +175,18 @@
       statusMessage = e instanceof Error ? e.message : String(e);
     } finally {
       copyingId = null;
+    }
+  }
+
+  async function onLockVault() {
+    try {
+      const path = await lockVaultNow();
+      closePalette();
+      window.dispatchEvent(
+        new CustomEvent('onq:vault-locked', { detail: { path } }),
+      );
+    } catch (e) {
+      statusMessage = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -311,13 +344,18 @@
       class="palette-input"
       bind:this={commandInput}
       bind:value={query}
-      placeholder="Search prompts, or type to create…"
+      placeholder={t('palette.placeholder')}
     />
     {#if statusMessage}
       <p class="palette-status" role="status">{statusMessage}</p>
     {/if}
     <div class="palette-list" bind:this={commandList}>
       <button class="palette-item" type="button" onclick={onNew}>+ New prompt</button>
+      {#if !hasQuery || query.toLowerCase().includes('lock')}
+        <button class="palette-item" type="button" onclick={() => void onLockVault()}>
+          {t('palette.lockVault')}
+        </button>
+      {/if}
 
       {#if editorId != null && selectedTitle !== null}
         <button class="palette-item" type="button" onclick={() => void onMoreLikeThis()}>

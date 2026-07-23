@@ -178,14 +178,21 @@ pub fn sparse_bytes(text: &str) -> Option<Vec<u8>> {
     })
 }
 
+/// Default half-life (days) for the recency exponential when no user setting is set.
+pub const DEFAULT_RECENCY_HALF_LIFE_DAYS: f64 = 30.0;
+
 /// Reciprocal Rank Fusion across retrievers that actually returned the row,
 /// plus small recency and favorite tie-breakers.
+///
+/// `recency_half_life_days` controls how fast the recency boost decays with age.
+/// Values `<= 0` fall back to [`DEFAULT_RECENCY_HALF_LIFE_DAYS`].
 pub fn rrf_score(
     cosine_rank: Option<usize>,
     sparse_rank: Option<usize>,
     updated_at: i64,
     now: i64,
     favorite: bool,
+    recency_half_life_days: f64,
 ) -> f64 {
     const K: f64 = 60.0;
     let rrf = cosine_rank
@@ -194,7 +201,12 @@ pub fn rrf_score(
         .map(|rank| 1.0 / (K + rank as f64))
         .sum::<f64>();
     let age_days = (now - updated_at) as f64 / 86_400.0;
-    let recency = 0.005 * (-age_days / 30.0).exp();
+    let half_life = if recency_half_life_days > 0.0 {
+        recency_half_life_days
+    } else {
+        DEFAULT_RECENCY_HALF_LIFE_DAYS
+    };
+    let recency = 0.005 * (-age_days / half_life).exp();
     let fav = if favorite { 0.003 } else { 0.0 };
     rrf + recency + fav
 }
@@ -205,46 +217,59 @@ mod tests {
 
     #[test]
     fn rrf_prefers_top_ranks() {
-        let a = rrf_score(Some(1), Some(50), 0, 0, false);
-        let b = rrf_score(Some(50), Some(50), 0, 0, false);
+        let a = rrf_score(Some(1), Some(50), 0, 0, false, 30.0);
+        let b = rrf_score(Some(50), Some(50), 0, 0, false, 30.0);
         assert!(a > b);
     }
 
     #[test]
     fn rrf_uses_only_emitted_retrievers() {
-        let both = rrf_score(Some(10), Some(10), 0, 0, false);
-        let cosine_only = rrf_score(Some(10), None, 0, 0, false);
+        let both = rrf_score(Some(10), Some(10), 0, 0, false, 30.0);
+        let cosine_only = rrf_score(Some(10), None, 0, 0, false, 30.0);
         assert!(both > cosine_only);
     }
 
     #[test]
     fn recency_boost_drops_with_age() {
-        let fresh = rrf_score(Some(50), Some(50), 1_000_000, 1_000_000, false);
+        let fresh = rrf_score(Some(50), Some(50), 1_000_000, 1_000_000, false, 30.0);
         let old = rrf_score(
             Some(50),
             Some(50),
             1_000_000 - 86_400 * 90,
             1_000_000,
             false,
+            30.0,
         );
         assert!(fresh > old);
     }
 
     #[test]
     fn favorite_boost_applies() {
-        let fav = rrf_score(Some(50), Some(50), 0, 0, true);
-        let no = rrf_score(Some(50), Some(50), 0, 0, false);
+        let fav = rrf_score(Some(50), Some(50), 0, 0, true, 30.0);
+        let no = rrf_score(Some(50), Some(50), 0, 0, false, 30.0);
         assert!(fav > no);
     }
 
     #[test]
     fn recency_and_favorite_bonuses_are_smaller_than_before() {
-        let age_zero_fav = rrf_score(Some(50), Some(50), 0, 0, true);
+        let age_zero_fav = rrf_score(Some(50), Some(50), 0, 0, true, 30.0);
         let rrf_only = 1.0 / 61.0 + 1.0 / 110.0;
         assert!(
             (age_zero_fav - rrf_only) < 0.01,
             "fresh+favorite bonus should stay under 0.01: delta = {}",
             age_zero_fav - rrf_only
+        );
+    }
+
+    #[test]
+    fn shorter_recency_half_life_penalizes_age_more() {
+        let now = 1_000_000_i64;
+        let updated = now - 86_400 * 30; // 30 days old
+        let short = rrf_score(Some(50), Some(50), updated, now, false, 1.0);
+        let long = rrf_score(Some(50), Some(50), updated, now, false, 365.0);
+        assert!(
+            long > short,
+            "longer half-life must retain more recency boost: short={short} long={long}"
         );
     }
 

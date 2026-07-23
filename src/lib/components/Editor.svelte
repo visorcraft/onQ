@@ -3,6 +3,8 @@
   import { createPrompt, readPrompt, savePrompt, deletePrompt } from '$lib/api/prompts';
   import { listFolders } from '$lib/api/folders';
   import { lockPrompt, unlockPrompt } from '$lib/api/lock';
+  import { listPromptHistory, restorePromptHistory, type HistoryEntry } from '$lib/api/history';
+  import { suggestTagsForBody } from '$lib/api/tags';
   import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
@@ -42,6 +44,10 @@
   let confirmDeleteOpen = $state(false);
   let copied = $state(false);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  let historyEntries = $state<HistoryEntry[]>([]);
+  let showHistory = $state(false);
+  let tagSuggestions = $state<string[]>([]);
+  let previewMode = $state<'edit' | 'preview'>('edit');
 
   onMount(() => {
     // Suppress page/sidebar scrollbars while open. Native OS scrollbars can
@@ -77,6 +83,16 @@
         if (p.folder && !projectOptions.includes(p.folder)) {
           projectOptions = [...projectOptions, p.folder].sort((a, b) => a.localeCompare(b));
         }
+        void listPromptHistory(id)
+          .then((entries) => {
+            historyEntries = entries;
+          })
+          .catch(() => undefined);
+        void suggestTagsForBody(body)
+          .then((s) => {
+            tagSuggestions = s.filter((t) => !tags.includes(t));
+          })
+          .catch(() => undefined);
       } catch (e) {
         errorMessage = e instanceof Error ? e.message : String(e);
       } finally {
@@ -364,9 +380,66 @@
           placeholder="comma, separated, tags"
           aria-label="Tags"
           disabled={locked}
+          onkeydown={(e) => {
+            if (e.key === 'Tab' && tagSuggestions.length > 0) {
+              e.preventDefault();
+              const next = tagSuggestions[0];
+              const current = parseTags();
+              if (!current.includes(next)) {
+                tagsInput = [...current, next].join(', ');
+              }
+              tagSuggestions = tagSuggestions.slice(1);
+            } else if (e.key === 'Escape') {
+              tagSuggestions = [];
+            }
+          }}
         />
+        {#if tagSuggestions.length > 0}
+          <p class="hint" role="status">
+            Suggested: {tagSuggestions.join(', ')} (Tab accept, Esc dismiss)
+          </p>
+        {/if}
       </label>
     </div>
+
+    {#if !isDraft && historyEntries.length > 0}
+      <div class="history-block">
+        <button type="button" class="control-btn" onclick={() => (showHistory = !showHistory)}>
+          History ({historyEntries.length})
+        </button>
+        {#if showHistory}
+          <ul class="history-list">
+            {#each historyEntries as h (h.path)}
+              <li>
+                <span class="mono">{h.timestamp}</span>
+                <button
+                  type="button"
+                  class="control-btn"
+                  disabled={locked || busy}
+                  onclick={() =>
+                    void (async () => {
+                      if (!id) return;
+                      busy = true;
+                      try {
+                        const p = await restorePromptHistory(id, h.path);
+                        body = p.body ?? '';
+                        charCount = body.length;
+                        historyEntries = await listPromptHistory(id);
+                      } catch (e) {
+                        errorMessage = e instanceof Error ? e.message : String(e);
+                      } finally {
+                        busy = false;
+                      }
+                    })()}
+                >
+                  Restore
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
 
     <div class="body-shell" class:is-locked={locked}>
       {#if locked}
@@ -375,14 +448,47 @@
           Body is encrypted — unlock to edit
         </div>
       {/if}
-      <textarea
-        class="body"
-        bind:value={body}
-        oninput={(e) => (charCount = (e.target as HTMLTextAreaElement).value.length)}
-        placeholder={locked ? '' : 'Write the prompt body…'}
-        aria-label="Prompt body"
-        disabled={locked}
-      ></textarea>
+      <div class="body-toolbar">
+        <button
+          type="button"
+          class="control-btn"
+          class:on={previewMode === 'edit'}
+          onclick={() => (previewMode = 'edit')}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          class="control-btn"
+          class:on={previewMode === 'preview'}
+          onclick={() => (previewMode = 'preview')}
+        >
+          Preview
+        </button>
+      </div>
+      {#if previewMode === 'preview'}
+        <div class="body preview-pane" aria-label="Markdown preview">
+          {#each body.split('\n') as line}
+            <p>{line || '\u00a0'}</p>
+          {/each}
+        </div>
+      {:else}
+        <textarea
+          class="body"
+          bind:value={body}
+          oninput={(e) => {
+            charCount = (e.target as HTMLTextAreaElement).value.length;
+            void suggestTagsForBody((e.target as HTMLTextAreaElement).value)
+              .then((s) => {
+                tagSuggestions = s.filter((t) => !parseTags().includes(t));
+              })
+              .catch(() => undefined);
+          }}
+          placeholder={locked ? '' : 'Write the prompt body…'}
+          aria-label="Prompt body"
+          disabled={locked}
+        ></textarea>
+      {/if}
     </div>
 
     <div class="meta">

@@ -229,6 +229,17 @@ fn build_prompt_cells(
     let sparse = sparse_bytes(&sparse_src)
         .map(Value::Bytes)
         .unwrap_or(Value::Null);
+    // MinHash set: JSON array of character trigrams (same shape mongreldb Kit uses).
+    let minhash_members: Vec<String> = shingle_body(&body_str, 3)
+        .into_iter()
+        .filter_map(|m| match m {
+            SetMember::String(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    let minhash = serde_json::to_vec(&minhash_members)
+        .map(Value::Bytes)
+        .unwrap_or(Value::Null);
     vec![
         (
             col::PROMPTS_ID,
@@ -254,6 +265,7 @@ fn build_prompt_cells(
         ),
         (col::PROMPTS_EMBED, Value::Embedding(embed)),
         (col::PROMPTS_BODY_SPARSE, sparse),
+        (col::PROMPTS_BODY_MINHASH, minhash),
     ]
 }
 
@@ -2136,6 +2148,7 @@ fn more_like_this_blocking(
             // Surface the estimated Jaccard directly — it's the retriever's
             // natural score and lets the frontend display "63% match".
             rrf_score: minhash_jaccard,
+            snippet: String::new(),
         });
     }
     out.truncate(k);
@@ -2189,6 +2202,9 @@ pub struct SearchHit {
     pub char_count: i64,
     pub updated_at: i64,
     pub rrf_score: f64,
+    /// Short body excerpt for result lists (may be empty when locked).
+    #[serde(default)]
+    pub snippet: String,
 }
 
 /// Run a hybrid search against the open vault's encrypted search index.
@@ -2254,10 +2270,27 @@ pub async fn search(
         embedding_quant
     };
 
+    // Recency half-life (days) from app_state; empty/invalid → default 30.
+    let recency_raw = read_app_setting(&db, col::APP_SEARCH_RECENCY_DAYS)?;
+    let recency_half_life_days: f64 = recency_raw
+        .parse()
+        .ok()
+        .filter(|v: &f64| *v > 0.0)
+        .unwrap_or(onq_core::search::DEFAULT_RECENCY_HALF_LIFE_DAYS);
+
     // 5. Filtered retrieval + RRF inside `spawn_blocking` (sync mongreldb).
     let db_for_blocking = db.clone();
+    let snippet_query = query.text.clone();
     let results = tokio::task::spawn_blocking(move || {
-        run_hybrid_search(&db_for_blocking, &q, &retrievers, limit, &embedding_quant)
+        run_hybrid_search(
+            &db_for_blocking,
+            &q,
+            &retrievers,
+            limit,
+            &embedding_quant,
+            recency_half_life_days,
+            &snippet_query,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2323,6 +2356,8 @@ fn run_hybrid_search(
     retrievers: &[Retriever],
     limit: usize,
     embedding_quant: &str,
+    recency_half_life_days: f64,
+    snippet_query: &str,
 ) -> Result<Vec<SearchHit>, String> {
     if limit == 0 {
         return Ok(Vec::new());
@@ -2453,7 +2488,24 @@ fn run_hybrid_search(
                 _ => &0,
             };
 
-            let score = rrf_score(ann_rank, sparse_rank, *updated, now, favorite);
+            let score = rrf_score(
+                ann_rank,
+                sparse_rank,
+                *updated,
+                now,
+                favorite,
+                recency_half_life_days,
+            );
+
+            let body_text = match row.columns.get(&col::PROMPTS_BODY) {
+                Some(Value::Bytes(b)) if !locked => String::from_utf8_lossy(b).into_owned(),
+                _ => String::new(),
+            };
+            let snippet = if locked {
+                String::new()
+            } else {
+                make_snippet(&body_text, snippet_query, 120)
+            };
 
             Some(SearchHit {
                 id: String::from_utf8_lossy(&id_bytes).into_owned(),
@@ -2465,6 +2517,7 @@ fn run_hybrid_search(
                 char_count: *char_count,
                 updated_at: *updated,
                 rrf_score: score,
+                snippet,
             })
         })
         .collect();
@@ -2567,6 +2620,7 @@ fn format_auto_lock_policy(policy: &AutoLockPolicy) -> String {
 pub fn set_auto_lock_policy(policy: String, state: State<'_, AppState>) -> Result<(), String> {
     let parsed = parse_auto_lock_policy(&policy)?;
     *state.auto_lock_policy.lock().map_err(|e| e.to_string())? = parsed;
+    state.touch_activity();
     Ok(())
 }
 
@@ -2575,6 +2629,368 @@ pub fn set_auto_lock_policy(policy: String, state: State<'_, AppState>) -> Resul
 pub fn get_auto_lock_policy(state: State<'_, AppState>) -> Result<String, String> {
     let guard = state.auto_lock_policy.lock().map_err(|e| e.to_string())?;
     Ok(format_auto_lock_policy(&guard))
+}
+
+/// Close the open vault session (clear DB + vault handles) without quitting.
+///
+/// Returns the path that was open so the UI can show unlock. Empty string
+/// when nothing was open.
+#[tauri::command]
+pub fn lock_vault_now(state: State<'_, AppState>) -> Result<String, String> {
+    let path = state.close_vault()?;
+    Ok(path
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default())
+}
+
+/// Record user activity so idle auto-lock timers reset.
+#[tauri::command]
+pub fn touch_activity(state: State<'_, AppState>) -> Result<(), String> {
+    state.touch_activity();
+    Ok(())
+}
+
+/// Evaluate idle auto-lock. Returns `Some(path)` when the vault was locked,
+/// or `None` when the session stays open.
+#[tauri::command]
+pub fn evaluate_auto_lock(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    use crate::auto_lock::should_lock_now;
+    use std::time::Instant;
+
+    let policy = state
+        .auto_lock_policy
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let last = *state.last_activity.lock().map_err(|e| e.to_string())?;
+    if !should_lock_now(&policy, last, Instant::now()) {
+        return Ok(None);
+    }
+    let path = state.close_vault()?;
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// Build a short snippet around the first case-insensitive match of `query`.
+fn make_snippet(body: &str, query: &str, max_len: usize) -> String {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let q = query.trim();
+    let lower_body = trimmed.to_lowercase();
+    let match_at = if q.is_empty() {
+        0
+    } else {
+        lower_body.find(&q.to_lowercase()).unwrap_or(0)
+    };
+    let match_len = if q.is_empty() { 0 } else { q.len() };
+    // Ensure the match itself fits: pad context, then cap to max_len around it.
+    let need = match_len.max(1).min(max_len);
+    let pad = max_len.saturating_sub(need) / 2;
+    let start = match_at.saturating_sub(pad);
+    let end = (match_at + match_len + pad).min(trimmed.len()).max(start + need.min(trimmed.len() - start));
+    // Align to char boundaries
+    let start = trimmed
+        .char_indices()
+        .find(|(i, _)| *i >= start)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let end = trimmed
+        .char_indices()
+        .map(|(i, _)| i)
+        .find(|i| *i >= end)
+        .unwrap_or(trimmed.len());
+    let mut s = trimmed[start..end].to_string();
+    if start > 0 {
+        s.insert_str(0, "…");
+    }
+    if end < trimmed.len() {
+        s.push('…');
+    }
+    s
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    pub path: String,
+    pub timestamp: String,
+    pub bytes: u64,
+}
+
+#[tauri::command]
+pub async fn list_prompt_history(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<HistoryEntry>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let paths = onq_core::history::list_snapshots(v, &pid).map_err(|e| e.to_string())?;
+    let mut out = Vec::with_capacity(paths.len());
+    for path in paths {
+        let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        let timestamp = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        out.push(HistoryEntry {
+            path: path.to_string_lossy().into_owned(),
+            timestamp,
+            bytes: meta.len(),
+        });
+    }
+    out.reverse(); // newest first
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn restore_prompt_history(
+    id: String,
+    snapshot_path: String,
+    state: State<'_, AppState>,
+) -> Result<PromptDetail, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let path = PathBuf::from(&snapshot_path);
+    let history_root = v.root.join(".onq").join("history");
+    if !onq_core::audit::path_under(&history_root, &path) {
+        // path_under needs existing paths; also reject traversal strings
+        let canon_hist = history_root.canonicalize().map_err(|e| e.to_string())?;
+        let canon = path.canonicalize().map_err(|e| e.to_string())?;
+        if !canon.starts_with(&canon_hist) {
+            return Err("snapshot path outside vault history".into());
+        }
+    }
+    onq_core::history::restore_body(v, &pid, &path).map_err(|e| e.to_string())?;
+    let p = v.read(&pid).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+        index_prompt_with_state(&db, &p, &state)?;
+        let _ = onq_core::audit::append(v, "history_restore", Some(pid.as_str()));
+    }
+    Ok(PromptDetail::from(&p))
+}
+
+#[tauri::command]
+pub async fn suggest_tags_for_body(
+    body: String,
+    max_n: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let mut vocab: Vec<String> = Vec::new();
+    for id in v.list().map_err(|e| e.to_string())? {
+        if let Ok(p) = v.read(&id) {
+            for t in p.fm.tags {
+                if !vocab.iter().any(|x| x == &t) {
+                    vocab.push(t);
+                }
+            }
+        }
+    }
+    Ok(onq_core::tag_suggest::suggest_tags(
+        &body,
+        &vocab,
+        max_n.unwrap_or(5),
+    ))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateFieldDto {
+    pub name: String,
+    pub default: Option<String>,
+}
+
+#[tauri::command]
+pub fn parse_template_fields(body: String) -> Result<Vec<TemplateFieldDto>, String> {
+    Ok(onq_core::template::parse_template(&body)
+        .into_iter()
+        .map(|f| TemplateFieldDto {
+            name: f.name,
+            default: f.default,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn render_template_body(
+    body: String,
+    values: std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    Ok(onq_core::template::render_template(&body, &values))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportReportDto {
+    pub created: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn import_prompts(
+    path: String,
+    format: String,
+    on_conflict: String,
+    state: State<'_, AppState>,
+) -> Result<ImportReportDto, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let fmt = match format.as_str() {
+        "markdown" | "markdown_dir" => onq_core::import::ImportFormat::MarkdownDir,
+        "json" | "json_array" => onq_core::import::ImportFormat::JsonArray,
+        "chatgpt" => onq_core::import::ImportFormat::ChatGpt,
+        _ => onq_core::import::ImportFormat::Auto,
+    };
+    let conflict = match on_conflict.as_str() {
+        "replace" => onq_core::import::OnConflict::Replace,
+        _ => onq_core::import::OnConflict::Skip,
+    };
+    let report = onq_core::import::import_prompts(v, Path::new(&path), fmt, conflict)
+        .map_err(|e| e.to_string())?;
+    // Best-effort reindex imported prompts
+    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+        for id in v.list().map_err(|e| e.to_string())? {
+            if let Ok(p) = v.read(&id) {
+                let _ = index_prompt_with_state(&db, &p, &state);
+            }
+        }
+        let _ = onq_core::audit::append(v, "import_prompts", Some(&path));
+    }
+    Ok(ImportReportDto {
+        created: report.created,
+        skipped: report.skipped,
+        errors: report.errors,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReportDto {
+    pub exported: usize,
+    pub skipped: usize,
+}
+
+#[tauri::command]
+pub async fn export_prompts(
+    dest: String,
+    tags_any: Vec<String>,
+    folder: Option<String>,
+    favorites_only: bool,
+    state: State<'_, AppState>,
+) -> Result<ExportReportDto, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let report = onq_core::export::export_prompts(
+        v,
+        Path::new(&dest),
+        &onq_core::export::ExportFilter {
+            tags_any,
+            folder,
+            favorites_only,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    let _ = onq_core::audit::append(v, "export_prompts", Some(&dest));
+    Ok(ExportReportDto {
+        exported: report.exported,
+        skipped: report.skipped,
+    })
+}
+
+#[tauri::command]
+pub async fn list_recent_vaults(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let db = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())?;
+    let raw = tokio::task::spawn_blocking(move || db.get_app_setting("recent_vaults"))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn push_recent_vault(path: String, state: State<'_, AppState>) -> Result<(), String> {
+    let db = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let raw = db.get_app_setting("recent_vaults").unwrap_or_default();
+        let mut list: Vec<String> = if raw.trim().is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_str(&raw).unwrap_or_default()
+        };
+        list.retain(|p| p != &path);
+        list.insert(0, path);
+        list.truncate(10);
+        db.set_app_setting("recent_vaults", &serde_json::to_string(&list).unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn read_audit_log(
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<onq_core::audit::AuditEvent>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    onq_core::audit::read_recent(v, limit.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn backup_should_remind(state: State<'_, AppState>) -> Result<bool, String> {
+    let db = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let last = db.get_app_setting("last_backup_at").unwrap_or_default();
+        let days: u32 = db
+            .get_app_setting("backup_remind_days")
+            .unwrap_or_else(|_| "7".into())
+            .parse()
+            .unwrap_or(7);
+        Ok(onq_core::audit::should_remind_backup(
+            &last,
+            days,
+            chrono::Utc::now(),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn visual_to_dsl(visual: onq_core::smart_folder_visual::VisualQuery) -> Result<String, String> {
+    onq_core::smart_folder_visual::visual_to_dsl(&visual).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dsl_to_visual(
+    dsl: String,
+) -> Result<Option<onq_core::smart_folder_visual::VisualQuery>, String> {
+    Ok(onq_core::smart_folder_visual::dsl_to_visual(&dsl))
 }
 
 // ---------------------------------------------------------------------------
@@ -3449,6 +3865,7 @@ mod tests {
             char_count: 5,
             updated_at: 1_700_000_000,
             rrf_score: 0.5,
+            snippet: "preview".into(),
         };
         let j = serde_json::to_value(&hit).unwrap();
         assert_eq!(j["id"], "01H");
@@ -3509,7 +3926,8 @@ mod tests {
         let hard_filters = query.to_query(&query_vec);
         let retrievers = query.to_retrievers(&query_vec);
         for mode in ["binary", "dense"] {
-            let hits = run_hybrid_search(&db, &hard_filters, &retrievers, 10, mode).unwrap();
+            let hits =
+                run_hybrid_search(&db, &hard_filters, &retrievers, 10, mode, 30.0, "api").unwrap();
             assert_eq!(hits[0].id, "lexical");
             assert!(
                 hits.iter().any(|hit| hit.id == "semantic"),
@@ -3518,7 +3936,9 @@ mod tests {
         }
 
         let sparse_only = query.to_retrievers(&[]);
-        let hits = run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary").unwrap();
+        let hits =
+            run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary", 30.0, "api")
+                .unwrap();
         assert_eq!(
             hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(),
             vec!["lexical"]
@@ -4461,5 +4881,44 @@ mod tests {
         apply_auto_lock_on_start(&state);
         // Vault is still closed (we didn't open one) and untouched.
         assert!(state.vault.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn close_vault_clears_session_handles() {
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let db = Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+        *state.vault.lock().unwrap() = Some(vault);
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(db);
+        let closed = state.close_vault().unwrap();
+        assert_eq!(closed.as_deref(), Some(dir.path()));
+        assert!(state.vault.lock().unwrap().is_none());
+        assert!(state.db.lock().unwrap().is_none());
+        assert!(state.vault_path.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn make_snippet_finds_query_window() {
+        let body = "alpha beta gamma target delta epsilon zeta";
+        let snip = make_snippet(body, "target", 20);
+        assert!(snip.contains("target"), "snippet was {snip}");
+    }
+
+    #[test]
+    fn evaluate_auto_lock_fires_on_idle_timeout() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        *state.vault.lock().unwrap() = Some(vault);
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
+        *state.last_activity.lock().unwrap() = Instant::now() - Duration::from_secs(5);
+        let path = state.close_vault().unwrap();
+        assert!(path.is_some());
     }
 }

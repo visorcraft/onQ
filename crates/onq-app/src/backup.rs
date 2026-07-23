@@ -67,8 +67,13 @@ pub async fn export_vault_backup(
     let vault = state.require_vault_path()?;
     let dest = PathBuf::from(dest_path);
     let pw = password.filter(|s| !s.trim().is_empty());
+    let db = state.db.lock().map_err(|e| e.to_string())?.clone();
     tokio::task::spawn_blocking(move || {
-        backup::export_vault(&vault, &dest, pw.as_deref()).map_err(|e| e.to_string())
+        backup::export_vault(&vault, &dest, pw.as_deref()).map_err(|e| e.to_string())?;
+        if let Some(db) = db {
+            let _ = db.set_app_setting("last_backup_at", &chrono::Utc::now().to_rfc3339());
+        }
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?
