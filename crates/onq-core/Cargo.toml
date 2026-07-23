@@ -44,6 +44,10 @@ name = "db_roundtrip"
 path = "tests/integration/db_roundtrip.rs"
 
 [[test]]
+name = "compat_vault"
+path = "tests/integration/compat_vault.rs"
+
+[[test]]
 name = "embed_real"
 path = "tests/integration/embed_real.rs"
 
