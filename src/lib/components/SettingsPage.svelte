@@ -51,7 +51,7 @@
     onVaultClosed,
   }: {
     /** After destructive import: vault session closed, show unlock. */
-    onVaultClosed?: (result: ImportBackupResult) => void;
+    onVaultClosed?: (importResult: ImportBackupResult) => void; // eslint-disable-line no-unused-vars
   } = $props();
 
   let active = $state<SectionId>('general');

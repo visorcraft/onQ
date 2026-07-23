@@ -19,7 +19,7 @@
     onVaultClosed,
   }: {
     /** Fired after import replaces the vault and closes the session. */
-    onVaultClosed?: (result: ImportBackupResult) => void;
+    onVaultClosed?: (importResult: ImportBackupResult) => void; // eslint-disable-line no-unused-vars
   } = $props();
 
   let paths = $state<BackupPaths | null>(null);
@@ -152,12 +152,14 @@
   {#if loadError}
     <p class="error" role="alert">{loadError}</p>
   {:else if paths}
+    {@const vaultPath = paths.vaultPath}
+    {@const databasePath = paths.databasePath}
     <dl class="path-list">
       <div class="path-row">
         <dt>Vault</dt>
         <dd>
-          <code class="path mono" title={paths.vaultPath}>{paths.vaultPath}</code>
-          <button type="button" class="control-btn slim" onclick={() => void copyText(paths.vaultPath)}>
+          <code class="path mono" title={vaultPath}>{vaultPath}</code>
+          <button type="button" class="control-btn slim" onclick={() => void copyText(vaultPath)}>
             Copy
           </button>
         </dd>
@@ -165,11 +167,11 @@
       <div class="path-row">
         <dt>Database</dt>
         <dd>
-          <code class="path mono" title={paths.databasePath}>{paths.databasePath}</code>
+          <code class="path mono" title={databasePath}>{databasePath}</code>
           <button
             type="button"
             class="control-btn slim"
-            onclick={() => void copyText(paths.databasePath)}
+            onclick={() => void copyText(databasePath)}
           >
             Copy
           </button>
