@@ -28,6 +28,7 @@
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
   import onqIcon from '$lib/assets/onq-128.png';
+  import { t, locale } from '$lib/i18n';
 
   const shortcut = paletteShortcut();
   const STATUS_CLEAR_MS = 5_000;
@@ -236,8 +237,8 @@
     <button
       type="button"
       class="icon-button home-button glass"
-      aria-label="Home"
-      title="Home"
+      aria-label={t('app.home', undefined, $locale)}
+      title={t('app.home', undefined, $locale)}
       aria-current={$appView === 'home' ? 'page' : undefined}
       onclick={() => {
         editorSession = null;
@@ -258,8 +259,8 @@
       <button
         type="button"
         class="icon-button library-button glass"
-        aria-label="Open library"
-        title="Library"
+        aria-label={t('app.library', undefined, $locale)}
+        title={t('app.library', undefined, $locale)}
         aria-current={$appView === 'library' ? 'page' : undefined}
         onclick={() => go('library')}
       >
@@ -299,8 +300,8 @@
     <button
       type="button"
       class="icon-button settings-button glass"
-      aria-label="Open settings"
-      title="Settings"
+      aria-label={t('app.settings', undefined, $locale)}
+      title={t('app.settings', undefined, $locale)}
       aria-current={$appView === 'settings' ? 'page' : undefined}
       onclick={() => go('settings')}
     >
@@ -309,8 +310,8 @@
     <button
       type="button"
       class="icon-button theme-toggle glass"
-      aria-label="Toggle theme"
-      title="Toggle theme"
+      aria-label={t('app.theme', undefined, $locale)}
+      title={t('app.theme', undefined, $locale)}
       onclick={toggleTheme}
     >
       {$theme === 'dark' ? '☀️' : '🌙'}
@@ -318,8 +319,8 @@
     <button
       type="button"
       class="icon-button help-button glass"
-      aria-label="About onQ"
-      title="About onQ"
+      aria-label={t('app.about', undefined, $locale)}
+      title={t('app.about', undefined, $locale)}
       aria-current={$appView === 'about' || $appView === 'licenses' || $appView === 'credits'
         ? 'page'
         : undefined}
@@ -335,8 +336,8 @@
     <button
       type="button"
       class="app-version"
-      aria-label="App version, check for updates"
-      title="Check for updates"
+      aria-label={t('app.versionCheck', undefined, $locale)}
+      title={t('app.checkUpdates', undefined, $locale)}
       onclick={() => void checkForUpdates(true)}
       disabled={checkingForUpdates}
     >
@@ -381,10 +382,12 @@
       type="button"
       class="hero glass spring hero-button"
       onclick={() => openPalette()}
-      aria-label="Open onQ palette"
+      aria-label={t('app.openPalette', undefined, $locale)}
     >
       <img class="hero-logo" src={onqIcon} alt="onQ" width="96" height="96" draggable="false" />
-      <span class="hero-sub">Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span>
+      <span class="hero-sub"
+        >Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span
+      >
     </button>
     <Palette />
     {#if editorSession}

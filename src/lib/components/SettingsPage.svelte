@@ -52,18 +52,27 @@
     setEmbedderPreference,
     type PluginInfo,
   } from '$lib/api/plugins';
+  import {
+    locale,
+    setLocale,
+    t,
+    SUPPORTED_LOCALES,
+    type Locale,
+    type MessageKey,
+  } from '$lib/i18n';
 
   type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'plugins' | 'updates';
 
   const metaKeyLabel = metaModifierLabel();
-  const sections: { id: SectionId; label: string; hint: string }[] = [
-    { id: 'general', label: 'General', hint: 'Shortcut & theme' },
-    { id: 'search', label: 'Search', hint: 'Model & index' },
-    { id: 'vault', label: 'Vault', hint: 'Security keys' },
-    { id: 'backups', label: 'Backups', hint: 'Export & restore' },
-    { id: 'plugins', label: 'Plugins', hint: 'Install & manage' },
-    { id: 'updates', label: 'Updates', hint: 'Release channel' },
-  ];
+  const sections = $derived([
+    { id: 'general' as const, label: t('settings.general', undefined, $locale), hint: t('settings.generalHint', undefined, $locale) },
+    { id: 'search' as const, label: t('settings.search', undefined, $locale), hint: t('settings.searchHint', undefined, $locale) },
+    { id: 'vault' as const, label: t('settings.vault', undefined, $locale), hint: t('settings.vaultHint', undefined, $locale) },
+    { id: 'backups' as const, label: t('settings.backups', undefined, $locale), hint: t('settings.backupsHint', undefined, $locale) },
+    { id: 'plugins' as const, label: t('settings.plugins', undefined, $locale), hint: t('settings.pluginsHint', undefined, $locale) },
+    { id: 'updates' as const, label: t('settings.updates', undefined, $locale), hint: t('settings.updatesHint', undefined, $locale) },
+  ]);
+  let pendingLocale = $state<Locale>($locale);
 
   let {
     onVaultClosed,
@@ -398,7 +407,7 @@
   </header>
 
   <div class="settings-layout">
-    <nav class="settings-nav" aria-label="Settings sections">
+    <nav class="settings-nav" aria-label={t('settings.nav', undefined, $locale)}>
       {#each sections as s (s.id)}
         <button
           type="button"
@@ -419,9 +428,36 @@
       </div>
 
       {#if active === 'general'}
+        <section class="panel" aria-labelledby="language-heading">
+          <div class="panel-head">
+            <h3 id="language-heading">{t('settings.language', undefined, $locale)}</h3>
+            <p class="help">{t('settings.languageHelp', undefined, $locale)}</p>
+          </div>
+          <label class="field">
+            <span class="field-label">{t('settings.language', undefined, $locale)}</span>
+            <select bind:value={pendingLocale} aria-label={t('settings.language', undefined, $locale)}>
+              {#each SUPPORTED_LOCALES as loc (loc)}
+                <option value={loc}
+                  >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
+                >
+              {/each}
+            </select>
+          </label>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="control-btn primary"
+              onclick={() => {
+                setLocale(pendingLocale);
+              }}
+            >
+              {t('settings.languageSave', undefined, $locale)}
+            </button>
+          </div>
+        </section>
         <section class="panel" aria-labelledby="shortcut-heading">
           <div class="panel-head">
-            <h3 id="shortcut-heading">Show onQ</h3>
+            <h3 id="shortcut-heading">{t('settings.shortcut', undefined, $locale)}</h3>
             <p class="help">
               Global shortcut restores onQ from the tray and opens the prompt
               palette. Default: Win+Q / Meta+Q / ⌘+Q.

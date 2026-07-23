@@ -8,6 +8,7 @@
   import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
+  import { t, locale } from '$lib/i18n';
 
   let {
     /** Existing prompt id, or `null` for an unsaved draft (not written until Save). */
@@ -227,7 +228,7 @@
 <button
   type="button"
   class="editor-backdrop"
-  aria-label="Close editor"
+  aria-label={t('editor.closeEditor', undefined, $locale)}
   transition:fade={{ duration: 160 }}
   onclick={onClose}
 ></button>
@@ -236,7 +237,9 @@
   transition:fly={{ y: 16, duration: 260, easing: quintOut }}
   role="dialog"
   aria-modal="true"
-  aria-label={isDraft ? 'New prompt' : 'Edit prompt'}
+  aria-label={isDraft
+    ? t('editor.newPrompt', undefined, $locale)
+    : t('editor.editPrompt', undefined, $locale)}
   tabindex="-1"
   onkeydown={onEditorKeydown}
 >
@@ -256,8 +259,8 @@
           <input
             class="title field-input"
             bind:value={title}
-            placeholder="Untitled prompt"
-            aria-label="Prompt title"
+            placeholder={t('editor.titlePlaceholder', undefined, $locale)}
+            aria-label={t('editor.titleAria', undefined, $locale)}
             disabled={locked}
           />
         </label>
@@ -266,8 +269,12 @@
             type="button"
             class="icon-chip"
             class:on={favorite}
-            title={favorite ? 'Unfavorite' : 'Favorite'}
-            aria-label={favorite ? 'Unfavorite' : 'Favorite'}
+            title={favorite
+              ? t('editor.unfavorite', undefined, $locale)
+              : t('editor.favorite', undefined, $locale)}
+            aria-label={favorite
+              ? t('editor.unfavorite', undefined, $locale)
+              : t('editor.favorite', undefined, $locale)}
             aria-pressed={favorite}
             disabled={locked || busy}
             onclick={toggleFavorite}
@@ -295,7 +302,9 @@
               class="icon-chip"
               class:locked
               title={locked ? 'Unlock' : 'Lock'}
-              aria-label={locked ? 'Unlock prompt' : 'Lock prompt'}
+              aria-label={locked
+                ? t('editor.unlock', undefined, $locale)
+                : t('editor.lock', undefined, $locale)}
               aria-pressed={locked}
               disabled={busy}
               onclick={() => void toggleLock()}
@@ -341,7 +350,12 @@
               </svg>
             </button>
           {/if}
-          <button type="button" class="icon-chip close" aria-label="Close" onclick={onClose}>
+          <button
+            type="button"
+            class="icon-chip close"
+            aria-label={t('common.close', undefined, $locale)}
+            onclick={onClose}
+          >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
               <path
                 d="M3.5 3.5l9 9M12.5 3.5l-9 9"
@@ -396,7 +410,7 @@
         />
         {#if tagSuggestions.length > 0}
           <p class="hint" role="status">
-            Suggested: {tagSuggestions.join(', ')} (Tab accept, Esc dismiss)
+            {t('editor.suggestHint', { tags: tagSuggestions.join(', ') }, $locale)}
           </p>
         {/if}
       </label>
@@ -405,7 +419,7 @@
     {#if !isDraft && historyEntries.length > 0}
       <div class="history-block">
         <button type="button" class="control-btn" onclick={() => (showHistory = !showHistory)}>
-          History ({historyEntries.length})
+          {t('editor.history', undefined, $locale)} ({historyEntries.length})
         </button>
         {#if showHistory}
           <ul class="history-list">
@@ -432,7 +446,7 @@
                       }
                     })()}
                 >
-                  Restore
+                  {t('editor.restore', undefined, $locale)}
                 </button>
               </li>
             {/each}
@@ -445,7 +459,7 @@
       {#if locked}
         <div class="lock-banner" role="status">
           <span class="lock-dot" aria-hidden="true"></span>
-          Body is encrypted — unlock to edit
+          {t('editor.lockedBanner', undefined, $locale)}
         </div>
       {/if}
       <div class="body-toolbar">
@@ -455,7 +469,7 @@
           class:on={previewMode === 'edit'}
           onclick={() => (previewMode = 'edit')}
         >
-          Edit
+          {t('editor.edit', undefined, $locale)}
         </button>
         <button
           type="button"
@@ -463,11 +477,11 @@
           class:on={previewMode === 'preview'}
           onclick={() => (previewMode = 'preview')}
         >
-          Preview
+          {t('editor.preview', undefined, $locale)}
         </button>
       </div>
       {#if previewMode === 'preview'}
-        <div class="body preview-pane" aria-label="Markdown preview">
+        <div class="body preview-pane" aria-label={t('editor.previewAria', undefined, $locale)}>
           {#each body.split('\n') as line}
             <p>{line || '\u00a0'}</p>
           {/each}
@@ -484,8 +498,8 @@
               })
               .catch(() => undefined);
           }}
-          placeholder={locked ? '' : 'Write the prompt body…'}
-          aria-label="Prompt body"
+          placeholder={locked ? '' : t('editor.bodyPlaceholder', undefined, $locale)}
+          aria-label={t('editor.bodyAria', undefined, $locale)}
           disabled={locked}
         ></textarea>
       {/if}
@@ -540,11 +554,11 @@
 {#if !isDraft}
   <ConfirmDialog
     bind:open={confirmDeleteOpen}
-    title="Delete this prompt?"
-    description="It will be permanently removed from your vault."
-    itemLabel={title || 'Untitled'}
+    title={t('editor.deleteTitle', undefined, $locale)}
+    description={t('editor.deleteDesc', undefined, $locale)}
+    itemLabel={title || t('library.untitled', undefined, $locale)}
     itemKind="Prompt"
-    confirmLabel="Delete prompt"
+    confirmLabel={t('editor.deleteConfirm', undefined, $locale)}
     busy={busy && confirmDeleteOpen}
     onConfirm={confirmDelete}
   />

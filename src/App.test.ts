@@ -349,7 +349,7 @@ it('asks for the master password when the remembered vault uses one', async () =
 
   const component = mount(App, { target });
   await vi.waitFor(() => {
-    expect(document.body.textContent).toContain('Enter master password');
+    expect(document.body.textContent).toContain('Unlock vault');
   });
 
   const password = document.querySelector('#vault-credential');

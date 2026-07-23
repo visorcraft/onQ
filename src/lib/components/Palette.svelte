@@ -26,7 +26,7 @@
   } from '$lib/stores/palette.svelte';
   import { lockVaultNow } from '$lib/api/session';
   import { parseTemplateFields, renderTemplateBody } from '$lib/api/template';
-  import { t } from '$lib/i18n/en';
+  import { t, locale } from '$lib/i18n';
   import { highlightSnippet } from '$lib/utils/highlightSnippet';
   import {
     listPluginCommands,
@@ -154,7 +154,7 @@
     try {
       const p = await readPrompt(id);
       if (p.locked) {
-        statusMessage = 'Unlock this prompt to copy it.';
+        statusMessage = t('palette.unlockToCopy');
         return;
       }
       let body = p.body ?? '';
@@ -168,7 +168,7 @@
               ? window.prompt(`Value for {{${field.name}}}`, def)
               : def;
           if (answer === null) {
-            statusMessage = 'Copy cancelled.';
+            statusMessage = t('palette.copyCancelled');
             return;
           }
           values[field.name] = answer;
@@ -284,18 +284,28 @@
     <button
       class="palette-item palette-copy"
       type="button"
-      title="Copy prompt to clipboard"
+      title={t('palette.copyTitle', undefined, $locale)}
       disabled={copyingId === id}
       onclick={() => void onCopy(id)}
     >
       <span class="palette-main">
         <span class="palette-title">
           {#if favorite}
-            <span class="favorite-star" aria-label="Favorite" title="Favorite">★</span>
+            <span
+              class="favorite-star"
+              aria-label={t('editor.favorite', undefined, $locale)}
+              title={t('editor.favorite', undefined, $locale)}>★</span
+            >
           {/if}
           {title}
           {#if locked}
-            <svg class="lock-icon" viewBox="0 0 16 16" width="12" height="12" aria-label="locked">
+            <svg
+              class="lock-icon"
+              viewBox="0 0 16 16"
+              width="12"
+              height="12"
+              aria-label={t('common.locked', undefined, $locale)}
+            >
               <path
                 d="M5 7V5.2a3 3 0 0 1 6 0V7"
                 fill="none"
@@ -320,13 +330,13 @@
           <span class="palette-snippet">{@html highlightSnippet(snippet, query)}</span>
         {/if}
       </span>
-      <span class="palette-hint">Copy</span>
+      <span class="palette-hint">{t('palette.copy', undefined, $locale)}</span>
     </button>
     <button
       class="palette-edit"
       type="button"
-      title="Edit prompt"
-      aria-label="Edit {title}"
+      title={t('palette.edit', undefined, $locale)}
+      aria-label="{t('palette.edit', undefined, $locale)} {title}"
       onclick={() => onEdit(id, title)}
     >
       <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -355,13 +365,13 @@
     class="backdrop"
     onclick={closePalette}
     transition:fade={{ duration: 160 }}
-    aria-label="Close palette"
+    aria-label={t('palette.close', undefined, $locale)}
   ></button>
   <div
     class="palette glass-elevated spring"
     transition:fly={{ y: -20, duration: 240, easing: quintOut }}
     role="dialog"
-    aria-label="Command palette"
+    aria-label={t('app.openPalette', undefined, $locale)}
     tabindex="-1"
     onkeydown={moveSelection}
   >
@@ -369,21 +379,25 @@
       class="palette-input"
       bind:this={commandInput}
       bind:value={query}
-      placeholder={t('palette.placeholder')}
+      placeholder={t('palette.placeholder', undefined, $locale)}
     />
     {#if statusMessage}
       <p class="palette-status" role="status">{statusMessage}</p>
     {/if}
     <div class="palette-list" bind:this={commandList}>
-      <button class="palette-item" type="button" onclick={onNew}>+ New prompt</button>
+      <button class="palette-item" type="button" onclick={onNew}
+        >{t('palette.newPrompt', undefined, $locale)}</button
+      >
       {#if !hasQuery || query.toLowerCase().includes('lock')}
         <button class="palette-item" type="button" onclick={() => void onLockVault()}>
-          {t('palette.lockVault')}
+          {t('palette.lockVault', undefined, $locale)}
         </button>
       {/if}
 
       {#if pluginCommands.length > 0 && (!hasQuery || query.toLowerCase().includes('plugin') || pluginCommands.some((c) => c.name.toLowerCase().includes(query.toLowerCase())))}
-        <div class="palette-group-heading">Plugin commands</div>
+        <div class="palette-group-heading">
+          {t('palette.pluginCommands', undefined, $locale)}
+        </div>
         {#each pluginCommands as cmd (cmd.id)}
           {#if !hasQuery || cmd.name.toLowerCase().includes(query.toLowerCase()) || query.toLowerCase().includes('plugin')}
             <button
@@ -413,18 +427,27 @@
 
       {#if !hasQuery}
         {#if recentPrompts.length > 0}
-          <div class="palette-group-heading">Recent</div>
+          <div class="palette-group-heading">
+            {t('palette.recent', undefined, $locale)}
+          </div>
           {#each recentPrompts as p (p.id)}
-            {@render promptRow(p.id, p.title || 'Untitled', p.locked, p.favorite, '')}
+            {@render promptRow(
+              p.id,
+              p.title || t('library.untitled', undefined, $locale),
+              p.locked,
+              p.favorite,
+              '',
+            )}
           {/each}
         {/if}
         {#if hits.length > 0}
-          <!-- e.g. "More like this" results while the query is still empty -->
-          <div class="palette-group-heading">Similar</div>
+          <div class="palette-group-heading">
+            {t('palette.similar', undefined, $locale)}
+          </div>
           {#each hits as h (h.id)}
             {@render promptRow(
               h.id,
-              h.title || 'Untitled',
+              h.title || t('library.untitled', undefined, $locale),
               h.locked,
               h.favorite,
               h.snippet ?? '',
@@ -432,14 +455,16 @@
           {/each}
         {/if}
       {:else}
-        <div class="palette-group-heading">Prompts</div>
+        <div class="palette-group-heading">
+          {t('palette.prompts', undefined, $locale)}
+        </div>
         {#if hits.length === 0}
-          <div class="palette-empty">No results.</div>
+          <div class="palette-empty">{t('palette.noResults', undefined, $locale)}</div>
         {:else}
           {#each hits as h (h.id)}
             {@render promptRow(
               h.id,
-              h.title || 'Untitled',
+              h.title || t('library.untitled', undefined, $locale),
               h.locked,
               h.favorite,
               h.snippet ?? '',

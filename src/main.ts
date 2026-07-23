@@ -6,6 +6,10 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { loadGlobalShortcut } from './lib/stores/globalShortcut';
 import { loadTheme } from './lib/stores/theme';
+import { loadLocale } from './lib/i18n';
+
+// Hydrate UI language before first paint of chrome that uses `t()`.
+loadLocale();
 
 const app = mount(App, { target: document.getElementById('app')! });
 

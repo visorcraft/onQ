@@ -8,6 +8,7 @@
   } from '$lib/api/vaults';
   import RecoveryPhrase from './RecoveryPhrase.svelte';
   import VaultUnlock from './VaultUnlock.svelte';
+  import { t, locale } from '$lib/i18n';
 
   let {
     onVaultReady,
@@ -143,19 +144,16 @@
 {#if !unlockPath}
 <div class="hero glass-elevated spring" role="dialog" aria-labelledby="welcome">
   {#if createPath}
-    <h1 id="welcome">Protect your vault</h1>
-    <p>
-      Set a master password, or let onQ create and store an encryption
-      key in your system keychain.
-    </p>
-    <label for="master-password">Master password</label>
+    <h1 id="welcome">{t('empty.protect', undefined, $locale)}</h1>
+    <p>{t('empty.protectHelp', undefined, $locale)}</p>
+    <label for="master-password">{t('empty.masterPassword', undefined, $locale)}</label>
     <input
       id="master-password"
       type="password"
       bind:value={masterPassword}
       autocomplete="new-password"
     />
-    <label for="confirm-password">Confirm master password</label>
+    <label for="confirm-password">{t('empty.confirmPassword', undefined, $locale)}</label>
     <input
       id="confirm-password"
       type="password"
@@ -163,14 +161,14 @@
       autocomplete="new-password"
     />
     {#if masterPassword && masterPassword !== confirmPassword}
-      <p class="err" role="alert">Passwords do not match.</p>
+      <p class="err" role="alert">{t('empty.passwordMismatch', undefined, $locale)}</p>
     {/if}
   {:else}
-    <h1 id="welcome">Welcome to onQ</h1>
-    <p>Search-oriented encrypted prompt vault.</p>
+    <h1 id="welcome">{t('empty.welcome', undefined, $locale)}</h1>
+    <p>{t('empty.tagline', undefined, $locale)}</p>
     {#if (recentVaults ?? []).length > 0}
-      <div class="recent-vaults" aria-label="Recent vaults">
-        <h2 class="recent-heading">Recent vaults</h2>
+      <div class="recent-vaults" aria-label={t('empty.recentVaults', undefined, $locale)}>
+        <h2 class="recent-heading">{t('empty.recentVaults', undefined, $locale)}</h2>
         <ul class="recent-list">
           {#each recentVaults ?? [] as path (path)}
             <li class="recent-row">
@@ -208,17 +206,21 @@
         disabled={busy || !masterPassword || masterPassword !== confirmPassword}
         onclick={() => void create(masterPassword)}
       >
-        Create with password
+        {t('empty.createWithPassword', undefined, $locale)}
       </button>
       <div class="secondary-actions">
         <button disabled={busy} onclick={() => (createPath = null)}>Back</button>
         <button disabled={busy} onclick={() => void create(null)}>
-          Create without password
+          {t('empty.createKeychain', undefined, $locale)}
         </button>
       </div>
     {:else}
-      <button class="primary" disabled={busy} onclick={start}>Create new vault</button>
-      <button disabled={busy} onclick={openExisting}>Open existing</button>
+      <button class="primary" disabled={busy} onclick={start}
+        >{t('empty.createVault', undefined, $locale)}</button
+      >
+      <button disabled={busy} onclick={openExisting}
+        >{t('empty.openExisting', undefined, $locale)}</button
+      >
       {#if recoverablePath}
         <button disabled={busy} onclick={recover}>Recover with recovery phrase</button>
       {/if}
