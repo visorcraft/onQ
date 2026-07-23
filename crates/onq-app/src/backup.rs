@@ -65,18 +65,33 @@ pub async fn export_vault_backup(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let vault = state.require_vault_path()?;
+    let dest_for_audit = dest_path.clone();
     let dest = PathBuf::from(dest_path);
     let pw = password.filter(|s| !s.trim().is_empty());
+    let db = state.db.lock().map_err(|e| e.to_string())?.clone();
     tokio::task::spawn_blocking(move || {
-        backup::export_vault(&vault, &dest, pw.as_deref()).map_err(|e| e.to_string())
+        backup::export_vault(&vault, &dest, pw.as_deref()).map_err(|e| e.to_string())?;
+        if let Some(db) = db {
+            let _ = db.set_app_setting("last_backup_at", &chrono::Utc::now().to_rfc3339());
+        }
+        Ok::<(), String>(())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if state.is_audit_enabled() {
+        if let Ok(v) = onq_core::vault::Vault::new(&state.require_vault_path()?) {
+            let _ = onq_core::audit::append(&v, "export_backup", Some(&dest_for_audit));
+        }
+    }
+    Ok(())
 }
 
 /// Import a `.onqbak` over the **currently open** vault path, then close the session.
 ///
 /// Destructive: replaces vault contents in place. Caller must confirm in UI.
+///
+/// Audit event `import_backup` is written **after** a successful replace so it
+/// lands on the restored tree (pre-import audit would be wiped with `.onq/`).
 #[tauri::command]
 pub async fn import_vault_backup(
     archive_path: String,
@@ -84,15 +99,22 @@ pub async fn import_vault_backup(
     state: State<'_, AppState>,
 ) -> Result<ImportBackupResult, String> {
     let vault = state.require_vault_path()?;
+    let audit_enabled = state.is_audit_enabled();
     // Release MongrelDB file locks before rewriting the search-index tree.
     let closed = state.close_vault()?;
     let path = closed.unwrap_or(vault);
     let archive = PathBuf::from(archive_path);
     let pw = password.filter(|s| !s.trim().is_empty());
     let path_for_task = path.clone();
+    let archive_for_task = archive.clone();
 
     tokio::task::spawn_blocking(move || {
-        backup::import_vault(&archive, &path_for_task, pw.as_deref()).map_err(|e| e.to_string())
+        import_vault_and_audit(
+            &path_for_task,
+            &archive_for_task,
+            pw.as_deref(),
+            audit_enabled,
+        )
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -104,6 +126,29 @@ pub async fn import_vault_backup(
     })
 }
 
+/// Core import path used by the Tauri command and unit tests.
+///
+/// 1. `backup::import_vault` replaces the vault tree (wipes prior audit log).
+/// 2. If `audit_enabled`, append `import_backup` on the **restored** vault.
+fn import_vault_and_audit(
+    vault_path: &std::path::Path,
+    archive: &std::path::Path,
+    password: Option<&str>,
+    audit_enabled: bool,
+) -> Result<(), String> {
+    backup::import_vault(archive, vault_path, password).map_err(|e| e.to_string())?;
+    if audit_enabled {
+        let v = onq_core::vault::Vault::new(vault_path).map_err(|e| e.to_string())?;
+        onq_core::audit::append(
+            &v,
+            "import_backup",
+            Some(archive.to_string_lossy().as_ref()),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn read_needs_password(vault_path: &std::path::Path) -> bool {
     let auth = vault_path.join(onq_core::backup::AUTH_MODE_REL);
     matches!(std::fs::read_to_string(auth), Ok(mode) if mode.trim() == "password")
@@ -113,6 +158,7 @@ fn read_needs_password(vault_path: &std::path::Path) -> bool {
 mod tests {
     use super::*;
     use onq_core::backup::{self, layout};
+    use onq_core::vault::Vault;
     use std::fs;
     use tempfile::TempDir;
 
@@ -121,6 +167,8 @@ mod tests {
         fs::write(layout::salt_path(root), [3u8; 32]).unwrap();
         fs::write(root.join(layout::AUTH_MODE_REL), b"password").unwrap();
         fs::write(root.join("p.md"), b"x").unwrap();
+        fs::create_dir_all(root.join(".onq/history")).unwrap();
+        fs::write(root.join(".onq/history/note.txt"), b"snap").unwrap();
     }
 
     #[test]
@@ -138,5 +186,68 @@ mod tests {
         assert!(read_needs_password(dir.path()));
         fs::write(dir.path().join(layout::AUTH_MODE_REL), b"keychain").unwrap();
         assert!(!read_needs_password(dir.path()));
+    }
+
+    /// Skeptic regression: audit must be written *after* replace so
+    /// `import_backup` survives on the restored vault tree.
+    #[test]
+    fn import_vault_and_audit_records_import_backup_after_replace() {
+        let src = TempDir::new().unwrap();
+        seed(src.path());
+        // Pre-existing audit on source is irrelevant; we export then import elsewhere.
+        let vault = Vault::new(src.path()).unwrap();
+        onq_core::audit::append(&vault, "vault_unlock", Some("pre")).unwrap();
+
+        let archive_dir = TempDir::new().unwrap();
+        let archive = archive_dir.path().join("v.onqbak");
+        backup::export_vault(src.path(), &archive, None).unwrap();
+
+        let dest = TempDir::new().unwrap();
+        // Stale audit that would be wiped by replace.
+        fs::create_dir_all(dest.path().join(".onq")).unwrap();
+        fs::write(
+            dest.path().join(".onq/audit.log"),
+            b"{\"at\":\"x\",\"kind\":\"stale\"}\n",
+        )
+        .unwrap();
+
+        import_vault_and_audit(dest.path(), &archive, None, true).unwrap();
+
+        let restored = Vault::new(dest.path()).unwrap();
+        let events = onq_core::audit::read_recent(&restored, 20).unwrap();
+        assert!(
+            events.iter().any(|e| e.kind == "import_backup"),
+            "expected import_backup on restored vault after successful import; got {events:?}"
+        );
+        assert!(
+            !events.iter().any(|e| e.kind == "stale"),
+            "stale pre-import audit must not survive replace; got {events:?}"
+        );
+        // Detail should reference archive path.
+        let imp = events.iter().find(|e| e.kind == "import_backup").unwrap();
+        assert!(
+            imp.detail
+                .as_deref()
+                .is_some_and(|d| d.contains("v.onqbak")),
+            "detail should name archive, got {:?}",
+            imp.detail
+        );
+    }
+
+    #[test]
+    fn import_vault_and_audit_skips_when_disabled() {
+        let src = TempDir::new().unwrap();
+        seed(src.path());
+        let archive_dir = TempDir::new().unwrap();
+        let archive = archive_dir.path().join("v.onqbak");
+        backup::export_vault(src.path(), &archive, None).unwrap();
+        let dest = TempDir::new().unwrap();
+        import_vault_and_audit(dest.path(), &archive, None, false).unwrap();
+        let events =
+            onq_core::audit::read_recent(&Vault::new(dest.path()).unwrap(), 10).unwrap();
+        assert!(
+            events.is_empty(),
+            "audit disabled must leave no import_backup: {events:?}"
+        );
     }
 }

@@ -3,6 +3,7 @@ mod backup;
 mod commands;
 mod global_shortcut;
 mod legal;
+mod plugin_host;
 mod state;
 
 use commands::apply_auto_lock_on_start;
@@ -208,11 +209,9 @@ pub fn run() {
             if let Some(watcher) = PlasmaTrayWatcher::install() {
                 app.manage(watcher);
             }
-            // M5.5: evaluate the active auto-lock policy at launch. Activity
-            // tracking is not yet wired, so this is a no-op today except for
-            // serving as the entry point the future input tracker hooks into.
+            // Load persisted auto-lock policy from app config and evaluate.
             let state = app.state::<AppState>();
-            apply_auto_lock_on_start(&state);
+            apply_auto_lock_on_start(app.handle(), &state);
             let shortcut_state = app.state::<GlobalShortcutState>();
             global_shortcut::start_input_listener(app.handle(), &shortcut_state);
 
@@ -290,6 +289,24 @@ pub fn run() {
             commands::delete_folder,
             commands::set_auto_lock_policy,
             commands::get_auto_lock_policy,
+            commands::lock_vault_now,
+            commands::touch_activity,
+            commands::evaluate_auto_lock,
+            commands::list_prompt_history,
+            commands::restore_prompt_history,
+            commands::suggest_tags_for_body,
+            commands::parse_template_fields,
+            commands::render_template_body,
+            commands::import_prompts,
+            commands::export_prompts,
+            commands::list_recent_vaults,
+            commands::push_recent_vault,
+            commands::remove_recent_vault,
+            commands::switch_vault,
+            commands::read_audit_log,
+            commands::backup_should_remind,
+            commands::visual_to_dsl,
+            commands::dsl_to_visual,
             commands::get_app_setting,
             commands::set_app_setting,
             commands::set_embedding_quant,
@@ -302,6 +319,13 @@ pub fn run() {
             commands::list_plugins,
             commands::set_plugin_enabled,
             commands::uninstall_plugin,
+            commands::list_plugin_commands,
+            commands::register_plugin_command,
+            commands::run_plugin_command,
+            commands::get_embedder_preference,
+            commands::set_embedder_preference,
+            commands::get_audit_enabled,
+            commands::set_audit_enabled,
             backup::get_backup_paths,
             backup::backup_is_sealed,
             backup::export_vault_backup,

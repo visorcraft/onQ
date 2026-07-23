@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::error::CoreResult;
+use crate::error::{CoreError, CoreResult};
 use crate::ulid::PromptId;
 use crate::vault::Vault;
 
@@ -37,6 +37,23 @@ pub fn list_snapshots(vault: &Vault, id: &PromptId) -> CoreResult<Vec<PathBuf>> 
     }
     paths.sort();
     Ok(paths)
+}
+
+/// Read snapshot body text from an absolute path under the vault history tree.
+pub fn read_snapshot(path: &Path) -> CoreResult<String> {
+    std::fs::read_to_string(path).map_err(CoreError::from)
+}
+
+/// Restore a prompt's body from a history snapshot, writing a new current file.
+/// Does not re-snapshot the pre-restore body (caller may write via Vault first).
+pub fn restore_body(vault: &Vault, id: &PromptId, snapshot_path: &Path) -> CoreResult<String> {
+    let body = read_snapshot(snapshot_path)?;
+    let mut prompt = vault.read(id)?;
+    prompt.body = body.clone();
+    // Skip history prune churn: write without new snapshot of restored content
+    // by using vault write which does snapshot the restored body (desired).
+    vault.write(&prompt)?;
+    Ok(body)
 }
 
 /// Delete every snapshot in every prompt's history folder whose filename

@@ -1,7 +1,14 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { pickVaultDir, setupNewVault, unlockVault } from '$lib/api/vault';
+  import {
+    listRecentVaults,
+    removeRecentVault,
+    switchVault,
+  } from '$lib/api/vaults';
   import RecoveryPhrase from './RecoveryPhrase.svelte';
   import VaultUnlock from './VaultUnlock.svelte';
+  import { t, locale } from '$lib/i18n';
 
   let {
     onVaultReady,
@@ -22,11 +29,50 @@
   let recoverablePath = $state<string | null>(null);
   let unlockPath = $state<string | null>(null);
   let unlockMode = $state<'password' | 'recovery'>('password');
+  let recentVaults = $state<string[]>([]);
 
   $effect(() => {
     error = initialError;
     recoverablePath = initialRecoveryPath;
   });
+
+  onMount(() => {
+    void listRecentVaults()
+      .then((paths) => {
+        recentVaults = paths;
+      })
+      .catch(() => undefined);
+  });
+
+  async function openRecent(path: string) {
+    busy = true;
+    error = null;
+    try {
+      await switchVault(path);
+      const status = await unlockVault(path);
+      if (status.opened) onVaultReady(path);
+      else if (status.needsPassword) {
+        unlockPath = path;
+        unlockMode = 'password';
+      } else if (status.needsRecovery) {
+        recoverablePath = path;
+        error = t('unlock.keyMissing');
+      }
+    } catch (e) {
+      error = String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function forgetRecent(path: string) {
+    try {
+      await removeRecentVault(path);
+      recentVaults = recentVaults.filter((p) => p !== path);
+    } catch (e) {
+      error = String(e);
+    }
+  }
 
   async function start() {
     busy = true;
@@ -70,7 +116,7 @@
         unlockMode = 'password';
       } else if (status.needsRecovery) {
         recoverablePath = path;
-        error = 'Encryption key missing from system keychain.';
+        error = t('unlock.keyMissing');
       }
     } catch (e) {
       error = String(e);
@@ -98,19 +144,16 @@
 {#if !unlockPath}
 <div class="hero glass-elevated spring" role="dialog" aria-labelledby="welcome">
   {#if createPath}
-    <h1 id="welcome">Protect your vault</h1>
-    <p>
-      Set a master password, or let onQ create and store an encryption
-      key in your system keychain.
-    </p>
-    <label for="master-password">Master password</label>
+    <h1 id="welcome">{t('empty.protect', undefined, $locale)}</h1>
+    <p>{t('empty.protectHelp', undefined, $locale)}</p>
+    <label for="master-password">{t('empty.masterPassword', undefined, $locale)}</label>
     <input
       id="master-password"
       type="password"
       bind:value={masterPassword}
       autocomplete="new-password"
     />
-    <label for="confirm-password">Confirm master password</label>
+    <label for="confirm-password">{t('empty.confirmPassword', undefined, $locale)}</label>
     <input
       id="confirm-password"
       type="password"
@@ -118,11 +161,40 @@
       autocomplete="new-password"
     />
     {#if masterPassword && masterPassword !== confirmPassword}
-      <p class="err" role="alert">Passwords do not match.</p>
+      <p class="err" role="alert">{t('empty.passwordMismatch', undefined, $locale)}</p>
     {/if}
   {:else}
-    <h1 id="welcome">Welcome to onQ</h1>
-    <p>Search-oriented encrypted prompt vault.</p>
+    <h1 id="welcome">{t('empty.welcome', undefined, $locale)}</h1>
+    <p>{t('empty.tagline', undefined, $locale)}</p>
+    {#if (recentVaults ?? []).length > 0}
+      <div class="recent-vaults" aria-label={t('empty.recentVaults', undefined, $locale)}>
+        <h2 class="recent-heading">{t('empty.recentVaults', undefined, $locale)}</h2>
+        <ul class="recent-list">
+          {#each recentVaults ?? [] as path (path)}
+            <li class="recent-row">
+              <button
+                type="button"
+                class="recent-open"
+                disabled={busy}
+                title={path}
+                onclick={() => void openRecent(path)}
+              >
+                {path}
+              </button>
+              <button
+                type="button"
+                class="recent-forget"
+                disabled={busy}
+                aria-label={t('empty.removeRecent', { path }, $locale)}
+                onclick={() => void forgetRecent(path)}
+              >
+                ×
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
   {/if}
   {#if error}
     <p class="err" role="alert">{error}</p>
@@ -134,19 +206,25 @@
         disabled={busy || !masterPassword || masterPassword !== confirmPassword}
         onclick={() => void create(masterPassword)}
       >
-        Create with password
+        {t('empty.createWithPassword', undefined, $locale)}
       </button>
       <div class="secondary-actions">
         <button disabled={busy} onclick={() => (createPath = null)}>Back</button>
         <button disabled={busy} onclick={() => void create(null)}>
-          Create without password
+          {t('empty.createKeychain', undefined, $locale)}
         </button>
       </div>
     {:else}
-      <button class="primary" disabled={busy} onclick={start}>Create new vault</button>
-      <button disabled={busy} onclick={openExisting}>Open existing</button>
+      <button class="primary" disabled={busy} onclick={start}
+        >{t('empty.createVault', undefined, $locale)}</button
+      >
+      <button disabled={busy} onclick={openExisting}
+        >{t('empty.openExisting', undefined, $locale)}</button
+      >
       {#if recoverablePath}
-        <button disabled={busy} onclick={recover}>Recover with recovery phrase</button>
+        <button disabled={busy} onclick={recover}
+          >{t('unlock.recovery', undefined, $locale)}</button
+        >
       {/if}
     {/if}
   </div>
@@ -249,5 +327,42 @@
   .err {
     color: #ff7a7a;
     margin-top: 12px;
+  }
+  .recent-vaults {
+    width: min(480px, 100%);
+    margin: 1rem auto 0;
+    text-align: left;
+  }
+  .recent-heading {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+    margin: 0 0 0.4rem;
+  }
+  .recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .recent-row {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .recent-open {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .recent-forget {
+    padding: 6px 10px;
+    flex-shrink: 0;
   }
 </style>

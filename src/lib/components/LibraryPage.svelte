@@ -29,6 +29,9 @@
   } from '$lib/utils/folderPath';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
   import Pager from './primitives/Pager.svelte';
+  import SmartFolderVisualBuilder from './SmartFolderVisualBuilder.svelte';
+  import type { VisualPredicate } from '$lib/api/smartFolderVisual';
+  import { t, locale } from '$lib/i18n';
 
   /** Number of prompts shown per Library page. Tuned so a typical vault
    * (10-200 prompts) fits on a single screen on a 1080p monitor; vaults
@@ -75,9 +78,11 @@
   let showNewSmart = $state(false);
   let newSmartName = $state('');
   let newSmartDsl = $state('favorite:true');
+  let newSmartPredicates = $state<VisualPredicate[]>([]);
   let editingSmartId = $state<string | null>(null);
   let editSmartName = $state('');
   let editSmartDsl = $state('');
+  let editSmartPredicates = $state<VisualPredicate[]>([]);
   let renamingPath = $state<string | null>(null);
   let renameValue = $state('');
   let smartHits = $state<PromptSummary[] | null>(null);
@@ -180,21 +185,22 @@
   );
 
   const selectionTitle = $derived.by(() => {
+    void $locale; // re-derive when language changes
     const sel = selection;
     switch (sel.kind) {
       case 'all':
-        return 'All prompts';
+        return t('library.all');
       case 'favorites':
-        return 'Favorites';
+        return t('library.favorites');
       case 'recent':
-        return 'Recent';
+        return t('library.recent');
       case 'unfiled':
-        return 'Unfiled';
+        return t('library.unfiled');
       case 'project':
         return sel.path;
       case 'smart': {
         const sf = smartFolders.find((s) => s.id === sel.id);
-        return sf?.name ?? 'Smart folder';
+        return sf?.name ?? t('library.smartFolders');
       }
       case 'tag':
         return `#${sel.tag}`;
@@ -448,6 +454,7 @@
       const sf = await createSmartFolder(newSmartName.trim(), newSmartDsl.trim());
       newSmartName = '';
       newSmartDsl = 'favorite:true';
+      newSmartPredicates = [];
       showNewSmart = false;
       await refresh();
       await select({ kind: 'smart', id: sf.id });
@@ -589,6 +596,12 @@
     editingSmartId = sf.id;
     editSmartName = sf.name;
     editSmartDsl = sf.query_dsl;
+    editSmartPredicates = [];
+    void import('$lib/api/smartFolderVisual').then(({ dslToVisual }) =>
+      dslToVisual(sf.query_dsl).then((v) => {
+        if (v?.predicates) editSmartPredicates = v.predicates;
+      }),
+    );
   }
 
   function openNewChild(parent: string | null) {
@@ -617,16 +630,16 @@
   {/if}
 
   <div class="lib-layout">
-    <aside class="sidebar" aria-label="Library navigation">
+    <aside class="sidebar" aria-label={t('library.nav', undefined, $locale)}>
       <div class="nav-group">
-        <div class="nav-label">Library</div>
+        <div class="nav-label">{t('library.promptList', undefined, $locale)}</div>
         <button
           type="button"
           class="nav-item"
           class:active={selection.kind === 'all'}
           onclick={() => void select({ kind: 'all' })}
         >
-          <span>All prompts</span>
+          <span>{t('library.all', undefined, $locale)}</span>
           <span class="count">{prompts.length}</span>
         </button>
         <button
@@ -635,7 +648,7 @@
           class:active={selection.kind === 'favorites'}
           onclick={() => void select({ kind: 'favorites' })}
         >
-          <span>Favorites</span>
+          <span>{t('library.favorites', undefined, $locale)}</span>
           <span class="count">{prompts.filter((p) => p.favorite).length}</span>
         </button>
         <button
@@ -644,7 +657,7 @@
           class:active={selection.kind === 'recent'}
           onclick={() => void select({ kind: 'recent' })}
         >
-          <span>Recent</span>
+          <span>{t('library.recent', undefined, $locale)}</span>
         </button>
         <button
           type="button"
@@ -652,19 +665,19 @@
           class:active={selection.kind === 'unfiled'}
           onclick={() => void select({ kind: 'unfiled' })}
         >
-          <span>Unfiled</span>
+          <span>{t('library.unfiled', undefined, $locale)}</span>
           <span class="count">{unfiledCount}</span>
         </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-label-row">
-          <div class="nav-label">Projects</div>
+          <div class="nav-label">{t('library.projects', undefined, $locale)}</div>
           <button
             type="button"
             class="icon-sm"
-            title="New project"
-            aria-label="New project"
+            title={t('library.newProject', undefined, $locale)}
+            aria-label={t('library.newProject', undefined, $locale)}
             onclick={() => openNewChild(null)}>+</button
           >
         </div>
@@ -676,13 +689,15 @@
             {/if}
             <input
               type="text"
-              placeholder={newProjectParent ? 'Sub-project name' : 'Project name'}
+              placeholder={newProjectParent
+                ? t('library.subProjectName', undefined, $locale)
+                : t('library.projectName', undefined, $locale)}
               bind:value={newProjectName}
               onkeydown={(e) => e.key === 'Enter' && void addProject()}
             />
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy || !newProjectName.trim()} onclick={() => void addProject()}
-                >Create</button
+                >{t('library.create', undefined, $locale)}</button
               >
               <button
                 type="button"
@@ -690,7 +705,7 @@
                 onclick={() => {
                   showNewProject = false;
                   newProjectParent = null;
-                }}>Cancel</button
+                }}>{t('library.cancel', undefined, $locale)}</button
               >
             </div>
           </div>
@@ -765,7 +780,7 @@
         {/snippet}
 
         {#if projectTree.length === 0}
-          <p class="empty-side">No projects yet. Create one to organize prompts.</p>
+          <p class="empty-side">{t('library.noProjects', undefined, $locale)}</p>
         {:else}
           {#each projectTree as node (node.path)}
             {@render projectNode(node, 0)}
@@ -775,18 +790,26 @@
 
       <div class="nav-group">
         <div class="nav-label-row">
-          <div class="nav-label">Smart folders</div>
+          <div class="nav-label">{t('library.smartFolders', undefined, $locale)}</div>
           <button
             type="button"
             class="icon-sm"
-            title="New smart folder"
-            aria-label="New smart folder"
+            title={t('library.newSmart', undefined, $locale)}
+            aria-label={t('library.newSmart', undefined, $locale)}
             onclick={() => (showNewSmart = true)}>+</button
           >
         </div>
         {#if showNewSmart}
           <div class="inline-create">
-            <input type="text" placeholder="Name" bind:value={newSmartName} />
+            <input
+              type="text"
+              placeholder={t('library.name', undefined, $locale)}
+              bind:value={newSmartName}
+            />
+            <SmartFolderVisualBuilder
+              bind:predicates={newSmartPredicates}
+              onDslChange={(dsl) => (newSmartDsl = dsl)}
+            />
             <input
               type="text"
               class="mono"
@@ -794,15 +817,15 @@
               bind:value={newSmartDsl}
             />
             <p class="hint">
-              Tokens: <code>folder:</code> <code>tag:</code> <code>favorite:true</code>
-              <code>text:"…"</code>
+              Build with chips or edit DSL: <code>folder:</code> <code>tag:</code>
+              <code>favorite:true</code> <code>text:"…"</code>
             </p>
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy} onclick={() => void addSmart()}
-                >Create</button
+                >{t('library.create', undefined, $locale)}</button
               >
               <button type="button" class="btn-ghost sm" onclick={() => (showNewSmart = false)}
-                >Cancel</button
+                >{t('library.cancel', undefined, $locale)}</button
               >
             </div>
           </div>
@@ -811,13 +834,17 @@
           {#if editingSmartId === sf.id}
             <div class="inline-create">
               <input type="text" bind:value={editSmartName} />
+              <SmartFolderVisualBuilder
+                bind:predicates={editSmartPredicates}
+                onDslChange={(dsl) => (editSmartDsl = dsl)}
+              />
               <input type="text" class="mono" bind:value={editSmartDsl} />
               <div class="row-actions">
                 <button type="button" class="control-btn sm" onclick={() => void saveSmartEdit()}
-                  >Save</button
+                  >{t('library.save', undefined, $locale)}</button
                 >
                 <button type="button" class="btn-ghost sm" onclick={() => (editingSmartId = null)}
-                  >Cancel</button
+                  >{t('library.cancel', undefined, $locale)}</button
                 >
               </div>
             </div>
@@ -858,17 +885,17 @@
 
       {#if allTags.length > 0}
         <div class="nav-group">
-          <div class="nav-label">Tags</div>
+          <div class="nav-label">{t('library.tags', undefined, $locale)}</div>
           <div class="tag-cloud">
-            {#each allTags as t (t.tag)}
+            {#each allTags as tagEntry (tagEntry.tag)}
               <button
                 type="button"
                 class="tag-chip"
-                class:active={selection.kind === 'tag' && selection.tag === t.tag}
-                onclick={() => void select({ kind: 'tag', tag: t.tag })}
+                class:active={selection.kind === 'tag' && selection.tag === tagEntry.tag}
+                onclick={() => void select({ kind: 'tag', tag: tagEntry.tag })}
               >
-                #{t.tag}
-                <span class="count">{t.count}</span>
+                #{tagEntry.tag}
+                <span class="count">{tagEntry.count}</span>
               </button>
             {/each}
           </div>
@@ -876,7 +903,7 @@
       {/if}
     </aside>
 
-    <section class="main" aria-label="Prompt list">
+    <section class="main" aria-label={t('library.promptList', undefined, $locale)}>
       <div class="main-head">
         <div>
           <h2>{selectionTitle}</h2>
@@ -888,9 +915,9 @@
         <input
           class="filter"
           type="search"
-          placeholder="Filter this list…"
+          placeholder={t('library.filter', undefined, $locale)}
           bind:value={filterText}
-          aria-label="Filter prompts"
+          aria-label={t('library.filterAria', undefined, $locale)}
         />
       </div>
 
@@ -899,8 +926,8 @@
           <li class="prompt-row">
             <button type="button" class="prompt-main" onclick={() => onOpenPrompt(p.id)}>
               <div class="prompt-title">
-                {p.title || 'Untitled'}
-                {#if p.locked}<span class="lock" aria-label="locked">🔒</span>{/if}
+                {p.title || t('library.untitled', undefined, $locale)}
+                {#if p.locked}<span class="lock" aria-label={t('common.locked', undefined, $locale)}>🔒</span>{/if}
               </div>
               {#if p.preview}
                 <div class="prompt-preview">{p.preview}</div>

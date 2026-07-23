@@ -44,7 +44,12 @@ pub mod col {
     pub const APP_BETA: u16 = 7;
     pub const APP_EMBED_QUANT: u16 = 8; // 'binary' (default, HNSW+rerank) or 'dense' (HNSW direct)
     pub const APP_MINIMIZE_ON_COPY: u16 = 9; // bool: hide main window to tray after copying from palette
-                                             // folders
+    pub const APP_SEARCH_RECENCY_DAYS: u16 = 10; // bytes: decimal days for search recency half-life
+    pub const APP_HISTORY_RETENTION_DAYS: u16 = 11; // bytes: decimal days for prompt history prune
+    pub const APP_RECENT_VAULTS: u16 = 12; // json: array of recent vault paths
+    pub const APP_LAST_BACKUP_AT: u16 = 13; // bytes: RFC3339 timestamp of last backup export
+    pub const APP_BACKUP_REMIND_DAYS: u16 = 14; // bytes: days between backup reminders (0=off)
+                                               // folders
     pub const FOLDERS_ID: u16 = 0;
     pub const FOLDERS_NAME: u16 = 1;
     pub const FOLDERS_CREATED: u16 = 2;
@@ -405,6 +410,46 @@ pub fn app_state_schema() -> Schema {
                 ty: TypeId::Bool,
                 flags: ColumnFlags::empty(),
                 default_value: Some(DefaultExpr::Static(Value::Bool(false))),
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_SEARCH_RECENCY_DAYS,
+                name: "search_recency_days".into(),
+                ty: TypeId::Bytes,
+                flags: ColumnFlags::empty(),
+                default_value: Some(DefaultExpr::Static(Value::Bytes(b"30".to_vec()))),
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_HISTORY_RETENTION_DAYS,
+                name: "history_retention_days".into(),
+                ty: TypeId::Bytes,
+                flags: ColumnFlags::empty(),
+                default_value: Some(DefaultExpr::Static(Value::Bytes(b"30".to_vec()))),
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_RECENT_VAULTS,
+                name: "recent_vaults".into(),
+                ty: TypeId::Json,
+                flags: nullable(),
+                default_value: Some(DefaultExpr::Static(Value::Json(b"[]".to_vec()))),
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_LAST_BACKUP_AT,
+                name: "last_backup_at".into(),
+                ty: TypeId::Bytes,
+                flags: nullable(),
+                default_value: None,
+                embedding_source: None,
+            },
+            ColumnDef {
+                id: col::APP_BACKUP_REMIND_DAYS,
+                name: "backup_remind_days".into(),
+                ty: TypeId::Bytes,
+                flags: ColumnFlags::empty(),
+                default_value: Some(DefaultExpr::Static(Value::Bytes(b"7".to_vec()))),
                 embedding_source: None,
             },
         ],

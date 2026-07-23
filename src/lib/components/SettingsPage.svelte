@@ -34,18 +34,45 @@
   } from '$lib/api/updates';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import BackupsSection from '$lib/components/settings/BackupsSection.svelte';
+  import PluginsSection from '$lib/components/settings/PluginsSection.svelte';
+  import AuditSection from '$lib/components/settings/AuditSection.svelte';
   import type { ImportBackupResult } from '$lib/api/backup';
+  import { getAppSetting, setAppSetting } from '$lib/api/settings';
+  import { getAutoLockPolicy, setAutoLockPolicy } from '$lib/api/session';
+  import {
+    exportPrompts,
+    importPrompts,
+    pickExportDir,
+    pickImportPath,
+  } from '$lib/api/importExport';
+  import { backupShouldRemind } from '$lib/api/backupRemind';
+  import {
+    getEmbedderPreference,
+    listPlugins,
+    setEmbedderPreference,
+    type PluginInfo,
+  } from '$lib/api/plugins';
+  import {
+    locale,
+    setLocale,
+    t,
+    SUPPORTED_LOCALES,
+    type Locale,
+    type MessageKey,
+  } from '$lib/i18n';
 
-  type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'updates';
+  type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'plugins' | 'updates';
 
   const metaKeyLabel = metaModifierLabel();
-  const sections: { id: SectionId; label: string; hint: string }[] = [
-    { id: 'general', label: 'General', hint: 'Shortcut & theme' },
-    { id: 'search', label: 'Search', hint: 'Model & index' },
-    { id: 'vault', label: 'Vault', hint: 'Security keys' },
-    { id: 'backups', label: 'Backups', hint: 'Export & restore' },
-    { id: 'updates', label: 'Updates', hint: 'Release channel' },
-  ];
+  const sections = $derived([
+    { id: 'general' as const, label: t('settings.general', undefined, $locale), hint: t('settings.generalHint', undefined, $locale) },
+    { id: 'search' as const, label: t('settings.search', undefined, $locale), hint: t('settings.searchHint', undefined, $locale) },
+    { id: 'vault' as const, label: t('settings.vault', undefined, $locale), hint: t('settings.vaultHint', undefined, $locale) },
+    { id: 'backups' as const, label: t('settings.backups', undefined, $locale), hint: t('settings.backupsHint', undefined, $locale) },
+    { id: 'plugins' as const, label: t('settings.plugins', undefined, $locale), hint: t('settings.pluginsHint', undefined, $locale) },
+    { id: 'updates' as const, label: t('settings.updates', undefined, $locale), hint: t('settings.updatesHint', undefined, $locale) },
+  ]);
+  let pendingLocale = $state<Locale>($locale);
 
   let {
     onVaultClosed,
@@ -75,6 +102,14 @@
   let checkingForUpdates = $state(false);
   let updateStatus = $state<string | null>(null);
   let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
+  let recencyDays = $state('30');
+  let historyDays = $state('30');
+  let autoLockPolicy = $state('lock_on_quit');
+  let autoLockIdleMinutes = $state('15');
+  let importStatus = $state<string | null>(null);
+  let backupRemind = $state(false);
+  let embedderPref = $state('builtin');
+  let embedderPlugins = $state<PluginInfo[]>([]);
 
   function clearUpdateStatusTimer() {
     if (updateStatusTimer !== undefined) {
@@ -164,7 +199,102 @@
       .then((mode) => (authMode = mode))
       .catch(() => undefined);
     void refreshSearchStatus();
+    void getAppSetting('search_recency_days')
+      .then((v) => {
+        if (v) recencyDays = v;
+      })
+      .catch(() => undefined);
+    void getAppSetting('history_retention_days')
+      .then((v) => {
+        if (v) historyDays = v;
+      })
+      .catch(() => undefined);
+    void getAutoLockPolicy()
+      .then((p) => {
+        autoLockPolicy = p.startsWith('idle_timeout:') ? 'idle' : p;
+        if (p.startsWith('idle_timeout:')) {
+          const secs = Number(p.slice('idle_timeout:'.length));
+          if (Number.isFinite(secs) && secs > 0) autoLockIdleMinutes = String(Math.round(secs / 60));
+        }
+      })
+      .catch(() => undefined);
+    void backupShouldRemind()
+      .then((v) => {
+        backupRemind = v;
+      })
+      .catch(() => undefined);
+    void getEmbedderPreference()
+      .then((v) => {
+        if (v) embedderPref = v;
+      })
+      .catch(() => undefined);
+    void listPlugins()
+      .then((ps) => {
+        embedderPlugins = ps.filter((p) => {
+          const caps = Array.isArray(p.capabilities)
+            ? p.capabilities
+            : typeof p.capabilities === 'string'
+              ? [p.capabilities]
+              : [];
+          return (
+            p.enabled &&
+            caps.some(
+              (c) =>
+                typeof c === 'string' &&
+                (c === 'embedding' || c === 'embedder' || c.startsWith('embedding')),
+            )
+          );
+        });
+      })
+      .catch(() => undefined);
   });
+
+  async function saveEmbedderPref() {
+    await setEmbedderPreference(embedderPref);
+  }
+
+  async function saveRecency() {
+    await setAppSetting('search_recency_days', recencyDays.trim() || '30');
+  }
+
+  async function saveHistoryRetention() {
+    await setAppSetting('history_retention_days', historyDays.trim() || '30');
+  }
+
+  async function saveAutoLock() {
+    if (autoLockPolicy === 'idle') {
+      const mins = Math.max(1, Number(autoLockIdleMinutes) || 15);
+      await setAutoLockPolicy(`idle_timeout:${mins * 60}`);
+    } else {
+      await setAutoLockPolicy(autoLockPolicy);
+    }
+  }
+
+  async function runImport() {
+    importStatus = null;
+    try {
+      const path = await pickImportPath();
+      if (!path) return;
+      const report = await importPrompts(path, 'auto', 'skip');
+      importStatus = `Imported ${report.created}, skipped ${report.skipped}${
+        report.errors.length ? `; ${report.errors.length} errors` : ''
+      }.`;
+    } catch (e) {
+      importStatus = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function runExport() {
+    importStatus = null;
+    try {
+      const dest = await pickExportDir();
+      if (!dest) return;
+      const report = await exportPrompts({ dest });
+      importStatus = `Exported ${report.exported} prompts (${report.skipped} skipped).`;
+    } catch (e) {
+      importStatus = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   onDestroy(() => {
     clearUpdateStatusTimer();
@@ -277,7 +407,7 @@
   </header>
 
   <div class="settings-layout">
-    <nav class="settings-nav" aria-label="Settings sections">
+    <nav class="settings-nav" aria-label={t('settings.nav', undefined, $locale)}>
       {#each sections as s (s.id)}
         <button
           type="button"
@@ -298,9 +428,36 @@
       </div>
 
       {#if active === 'general'}
+        <section class="panel" aria-labelledby="language-heading">
+          <div class="panel-head">
+            <h3 id="language-heading">{t('settings.language', undefined, $locale)}</h3>
+            <p class="help">{t('settings.languageHelp', undefined, $locale)}</p>
+          </div>
+          <label class="field">
+            <span class="field-label">{t('settings.language', undefined, $locale)}</span>
+            <select bind:value={pendingLocale} aria-label={t('settings.language', undefined, $locale)}>
+              {#each SUPPORTED_LOCALES as loc (loc)}
+                <option value={loc}
+                  >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
+                >
+              {/each}
+            </select>
+          </label>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="control-btn primary"
+              onclick={() => {
+                setLocale(pendingLocale);
+              }}
+            >
+              {t('settings.languageSave', undefined, $locale)}
+            </button>
+          </div>
+        </section>
         <section class="panel" aria-labelledby="shortcut-heading">
           <div class="panel-head">
-            <h3 id="shortcut-heading">Show onQ</h3>
+            <h3 id="shortcut-heading">{t('settings.shortcut', undefined, $locale)}</h3>
             <p class="help">
               Global shortcut restores onQ from the tray and opens the prompt
               palette. Default: Win+Q / Meta+Q / ⌘+Q.
@@ -332,7 +489,7 @@
 
         <section class="panel">
           <div class="panel-head">
-            <h3>Appearance</h3>
+            <h3>{t('settings.theme', undefined, $locale)}</h3>
             <p class="help">Theme applies immediately across the shell.</p>
           </div>
           <div class="theme-row">
@@ -343,7 +500,7 @@
               onclick={() => $theme !== 'dark' && toggleTheme()}
             >
               <span class="theme-swatch dark" aria-hidden="true"></span>
-              <span class="theme-label">Dark</span>
+              <span class="theme-label">{t('settings.themeDark', undefined, $locale)}</span>
             </button>
             <button
               type="button"
@@ -352,7 +509,7 @@
               onclick={() => $theme !== 'light' && toggleTheme()}
             >
               <span class="theme-swatch light" aria-hidden="true"></span>
-              <span class="theme-label">Light</span>
+              <span class="theme-label">{t('settings.themeLight', undefined, $locale)}</span>
             </button>
           </div>
         </section>
@@ -461,6 +618,48 @@
           </p>
         </section>
 
+        <section class="panel" aria-labelledby="embedder-heading">
+          <div class="panel-head">
+            <h3 id="embedder-heading">Embedding model</h3>
+            <p class="help">
+              Built-in MiniLM is the default. Plugins that advertise an
+              <code>embedding</code> capability can be selected as the preferred
+              embedder id (runtime swap loads when the plugin host wires the
+              session; preference is stored now).
+            </p>
+          </div>
+          <label class="field">
+            <span class="field-label">Active embedder</span>
+            <select bind:value={embedderPref}>
+              <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
+              {#each embedderPlugins as p (p.id)}
+                <option value={p.id}>{p.name} ({p.id})</option>
+              {/each}
+            </select>
+          </label>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveEmbedderPref()}>
+              Save embedder preference
+            </button>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="recency-heading">
+          <div class="panel-head">
+            <h3 id="recency-heading">{t('settings.recency', undefined, $locale)}</h3>
+            <p class="help">{t('settings.recencyHelp', undefined, $locale)}</p>
+          </div>
+          <label class="field">
+            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
+            <input type="number" min="1" max="3650" bind:value={recencyDays} />
+          </label>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveRecency()}>
+              {t('settings.recencySave', undefined, $locale)}
+            </button>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="embedding-heading">
           <div class="panel-head">
             <h3 id="embedding-heading">Embedding quantization</h3>
@@ -513,6 +712,68 @@
           {/if}
         </section>
       {:else if active === 'vault'}
+        <section class="panel" aria-labelledby="autolock-heading">
+          <div class="panel-head">
+            <h3 id="autolock-heading">{t('settings.autoLock', undefined, $locale)}</h3>
+            <p class="help">{t('settings.autoLockHelp', undefined, $locale)}</p>
+          </div>
+          <label class="field">
+            <span class="field-label">{t('settings.autoLockPolicy', undefined, $locale)}</span>
+            <select bind:value={autoLockPolicy}>
+              <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
+              <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
+              <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
+            </select>
+          </label>
+          {#if autoLockPolicy === 'idle'}
+            <label class="field">
+              <span class="field-label">{t('settings.autoLockMinutes', undefined, $locale)}</span>
+              <input type="number" min="1" max="1440" bind:value={autoLockIdleMinutes} />
+            </label>
+          {/if}
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveAutoLock()}>
+              {t('settings.autoLockSave', undefined, $locale)}
+            </button>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="history-heading">
+          <div class="panel-head">
+            <h3 id="history-heading">{t('settings.historyRetention', undefined, $locale)}</h3>
+            <p class="help">{t('settings.historyHelp', undefined, $locale)}</p>
+          </div>
+          <label class="field">
+            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
+            <input type="number" min="0" max="3650" bind:value={historyDays} />
+          </label>
+          <div class="row-actions">
+            <button
+              type="button"
+              class="control-btn primary"
+              onclick={() => void saveHistoryRetention()}
+            >
+              {t('settings.historySave', undefined, $locale)}
+            </button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h3>{t('settings.importExport', undefined, $locale)}</h3>
+            <p class="help">{t('settings.importExportHelp', undefined, $locale)}</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void runImport()}>
+              {t('settings.import', undefined, $locale)}
+            </button>
+            <button type="button" class="control-btn" onclick={() => void runExport()}>
+              {t('settings.export', undefined, $locale)}
+            </button>
+          </div>
+          {#if importStatus}
+            <p class="hint" role="status">{importStatus}</p>
+          {/if}
+        </section>
+        <AuditSection />
         {#if authMode === 'keychain'}
           <section class="panel">
             <div class="panel-head">
@@ -560,7 +821,12 @@
           </section>
         {/if}
       {:else if active === 'backups'}
+        {#if backupRemind}
+          <p class="hint" role="status">Vault backup may be overdue — export a fresh .onqbak when you can.</p>
+        {/if}
         <BackupsSection {onVaultClosed} />
+      {:else if active === 'plugins'}
+        <PluginsSection />
       {:else if active === 'updates'}
         <section class="panel">
           <div class="panel-head">

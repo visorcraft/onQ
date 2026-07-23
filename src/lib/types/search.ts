@@ -32,4 +32,6 @@ export interface SearchHit {
   updated_at: number;
   /** Reciprocal Rank Fusion score (higher = more relevant). */
   rrf_score: number;
+  /** Short body excerpt for result lists. */
+  snippet?: string;
 }

@@ -34,6 +34,9 @@ const SEARCH_INDEX_DIR: &str = "search-index";
 /// Last successfully opened vault, stored outside the encrypted vault so it
 /// can be found before unlock.
 const LAST_VAULT_FILE: &str = "last-vault";
+const AUTO_LOCK_POLICY_FILE: &str = "auto-lock-policy";
+const RECENT_VAULTS_FILE: &str = "recent-vaults.json";
+const AUDIT_ENABLED_FILE: &str = "audit-enabled";
 /// Whether this vault uses a user password or an app-generated key.
 const AUTH_MODE_FILE: &str = "auth-mode";
 /// Keychain entry used by vaults created before per-vault keys.
@@ -108,13 +111,129 @@ fn remember_vault(app: &AppHandle, vault_path: &Path) -> Result<(), String> {
         .path()
         .app_config_dir()
         .map_err(|error| error.to_string())?;
-    write_last_vault(&config_dir, vault_path)
+    write_last_vault(&config_dir, vault_path)?;
+    push_recent_vault_path(&config_dir, vault_path)?;
+    Ok(())
+}
+
+fn auto_lock_policy_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(AUTO_LOCK_POLICY_FILE)
+}
+
+fn write_auto_lock_policy_file(config_dir: &Path, policy: &str) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    std::fs::write(auto_lock_policy_path(config_dir), policy.as_bytes()).map_err(|e| e.to_string())
+}
+
+fn read_auto_lock_policy_file(config_dir: &Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(auto_lock_policy_path(config_dir)) {
+        Ok(s) if s.trim().is_empty() => Ok(None),
+        Ok(s) => Ok(Some(s.trim().to_string())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn recent_vaults_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(RECENT_VAULTS_FILE)
+}
+
+fn read_recent_vault_paths(config_dir: &Path) -> Result<Vec<String>, String> {
+    match std::fs::read_to_string(recent_vaults_path(config_dir)) {
+        Ok(raw) if raw.trim().is_empty() => Ok(Vec::new()),
+        Ok(raw) => serde_json::from_str(&raw).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn write_recent_vault_paths(config_dir: &Path, paths: &[String]) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    let raw = serde_json::to_string(paths).map_err(|e| e.to_string())?;
+    std::fs::write(recent_vaults_path(config_dir), raw).map_err(|e| e.to_string())
+}
+
+fn push_recent_vault_path(config_dir: &Path, vault_path: &Path) -> Result<(), String> {
+    let path = vault_path.to_string_lossy().into_owned();
+    let mut list = read_recent_vault_paths(config_dir)?;
+    list.retain(|p| p != &path);
+    list.insert(0, path);
+    list.truncate(10);
+    write_recent_vault_paths(config_dir, &list)
+}
+
+/// Append an audit event when auditing is enabled and a vault path is known.
+fn try_audit(state: &AppState, kind: &str, detail: Option<&str>) {
+    if !state.is_audit_enabled() {
+        return;
+    }
+    let path = match state.open_vault_path() {
+        Ok(Some(p)) => p,
+        _ => return,
+    };
+    if let Ok(v) = Vault::new(&path) {
+        let _ = onq_core::audit::append(&v, kind, detail);
+    }
+}
+
+/// Close vault after writing `vault_lock` (when audit enabled).
+fn close_vault_audited(state: &AppState, reason: &str) -> Result<Option<PathBuf>, String> {
+    try_audit(state, "vault_lock", Some(reason));
+    state.close_vault()
+}
+
+/// Pure evaluation used by the Tauri command and unit tests.
+fn evaluate_auto_lock_impl(
+    state: &AppState,
+    now: std::time::Instant,
+) -> Result<Option<String>, String> {
+    use crate::auto_lock::should_lock_now;
+
+    let policy = state
+        .auto_lock_policy
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let last = *state.last_activity.lock().map_err(|e| e.to_string())?;
+    if !should_lock_now(&policy, last, now) {
+        return Ok(None);
+    }
+    let path = close_vault_audited(state, "idle_auto_lock")?;
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+fn write_audit_enabled_file(config_dir: &Path, enabled: bool) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    std::fs::write(
+        config_dir.join(AUDIT_ENABLED_FILE),
+        if enabled { b"1" as &[u8] } else { b"0" },
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn read_audit_enabled_file(config_dir: &Path) -> Result<Option<bool>, String> {
+    match std::fs::read_to_string(config_dir.join(AUDIT_ENABLED_FILE)) {
+        Ok(s) => {
+            let t = s.trim();
+            Ok(Some(t == "1" || t.eq_ignore_ascii_case("true")))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 fn set_open_vault(vault_path: PathBuf, db: Db, state: &State<'_, AppState>) -> Result<(), String> {
     let vault = Vault::new(vault_path.clone()).map_err(|error| error.to_string())?;
     let db = Arc::new(db);
     backfill_sparse_vectors(&vault, &db)?;
+    // Audit after vault is constructible; respect enable flag.
+    if state.is_audit_enabled() {
+        let _ = onq_core::audit::append(
+            &vault,
+            "vault_unlock",
+            Some(vault_path.to_string_lossy().as_ref()),
+        );
+    }
     *state.vault.lock().map_err(|error| error.to_string())? = Some(vault);
     *state.vault_path.lock().map_err(|error| error.to_string())? = Some(vault_path);
     *state.db.lock().map_err(|error| error.to_string())? = Some(db);
@@ -229,6 +348,17 @@ fn build_prompt_cells(
     let sparse = sparse_bytes(&sparse_src)
         .map(Value::Bytes)
         .unwrap_or(Value::Null);
+    // MinHash set: JSON array of character trigrams (same shape mongreldb Kit uses).
+    let minhash_members: Vec<String> = shingle_body(&body_str, 3)
+        .into_iter()
+        .filter_map(|m| match m {
+            SetMember::String(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    let minhash = serde_json::to_vec(&minhash_members)
+        .map(Value::Bytes)
+        .unwrap_or(Value::Null);
     vec![
         (
             col::PROMPTS_ID,
@@ -254,6 +384,7 @@ fn build_prompt_cells(
         ),
         (col::PROMPTS_EMBED, Value::Embedding(embed)),
         (col::PROMPTS_BODY_SPARSE, sparse),
+        (col::PROMPTS_BODY_MINHASH, minhash),
     ]
 }
 
@@ -592,13 +723,15 @@ pub async fn unlock_prompt(
     let db = state.db.lock().map_err(|e| e.to_string())?.clone();
     let vault_root = vault_path;
     let pid_for_blocking = pid;
-    tokio::task::spawn_blocking(move || {
+    let summary = tokio::task::spawn_blocking(move || {
         let vault = Vault { root: vault_root };
         let db_ref = db.as_ref();
         unlock_prompt_blocking(&vault, &pid_for_blocking, db_ref, &OsKeychain)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    try_audit(&state, "prompt_unlock", Some(&summary.id));
+    Ok(summary)
 }
 
 /// First-line / short body excerpt for library list rows. Empty when locked
@@ -2136,6 +2269,7 @@ fn more_like_this_blocking(
             // Surface the estimated Jaccard directly — it's the retriever's
             // natural score and lets the frontend display "63% match".
             rrf_score: minhash_jaccard,
+            snippet: String::new(),
         });
     }
     out.truncate(k);
@@ -2189,6 +2323,9 @@ pub struct SearchHit {
     pub char_count: i64,
     pub updated_at: i64,
     pub rrf_score: f64,
+    /// Short body excerpt for result lists (may be empty when locked).
+    #[serde(default)]
+    pub snippet: String,
 }
 
 /// Run a hybrid search against the open vault's encrypted search index.
@@ -2254,10 +2391,27 @@ pub async fn search(
         embedding_quant
     };
 
+    // Recency half-life (days) from app_state; empty/invalid → default 30.
+    let recency_raw = read_app_setting(&db, col::APP_SEARCH_RECENCY_DAYS)?;
+    let recency_half_life_days: f64 = recency_raw
+        .parse()
+        .ok()
+        .filter(|v: &f64| *v > 0.0)
+        .unwrap_or(onq_core::search::DEFAULT_RECENCY_HALF_LIFE_DAYS);
+
     // 5. Filtered retrieval + RRF inside `spawn_blocking` (sync mongreldb).
     let db_for_blocking = db.clone();
+    let snippet_query = query.text.clone();
     let results = tokio::task::spawn_blocking(move || {
-        run_hybrid_search(&db_for_blocking, &q, &retrievers, limit, &embedding_quant)
+        run_hybrid_search(
+            &db_for_blocking,
+            &q,
+            &retrievers,
+            limit,
+            &embedding_quant,
+            recency_half_life_days,
+            &snippet_query,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2323,6 +2477,8 @@ fn run_hybrid_search(
     retrievers: &[Retriever],
     limit: usize,
     embedding_quant: &str,
+    recency_half_life_days: f64,
+    snippet_query: &str,
 ) -> Result<Vec<SearchHit>, String> {
     if limit == 0 {
         return Ok(Vec::new());
@@ -2453,7 +2609,24 @@ fn run_hybrid_search(
                 _ => &0,
             };
 
-            let score = rrf_score(ann_rank, sparse_rank, *updated, now, favorite);
+            let score = rrf_score(
+                ann_rank,
+                sparse_rank,
+                *updated,
+                now,
+                favorite,
+                recency_half_life_days,
+            );
+
+            let body_text = match row.columns.get(&col::PROMPTS_BODY) {
+                Some(Value::Bytes(b)) if !locked => String::from_utf8_lossy(b).into_owned(),
+                _ => String::new(),
+            };
+            let snippet = if locked {
+                String::new()
+            } else {
+                make_snippet(&body_text, snippet_query, 120)
+            };
 
             Some(SearchHit {
                 id: String::from_utf8_lossy(&id_bytes).into_owned(),
@@ -2465,6 +2638,7 @@ fn run_hybrid_search(
                 char_count: *char_count,
                 updated_at: *updated,
                 rrf_score: score,
+                snippet,
             })
         })
         .collect();
@@ -2563,18 +2737,407 @@ fn format_auto_lock_policy(policy: &AutoLockPolicy) -> String {
 }
 
 /// Store the user's auto-lock preference. Wire format: see module docs.
+///
+/// Persists to the app config dir so the choice survives restart (must work
+/// before a vault is unlocked — not only in encrypted app_state).
 #[tauri::command]
-pub fn set_auto_lock_policy(policy: String, state: State<'_, AppState>) -> Result<(), String> {
+pub fn set_auto_lock_policy(
+    policy: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let parsed = parse_auto_lock_policy(&policy)?;
+    let wire = format_auto_lock_policy(&parsed);
     *state.auto_lock_policy.lock().map_err(|e| e.to_string())? = parsed;
+    state.touch_activity();
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    write_auto_lock_policy_file(&config_dir, &wire)?;
     Ok(())
 }
 
 /// Read the currently active auto-lock preference as the wire-format string.
+/// Loads from disk on first call if the in-memory value is still the default
+/// and a saved policy file exists.
 #[tauri::command]
-pub fn get_auto_lock_policy(state: State<'_, AppState>) -> Result<String, String> {
+pub fn get_auto_lock_policy(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    // Prefer in-memory (may already be set this session).
+    {
+        let guard = state.auto_lock_policy.lock().map_err(|e| e.to_string())?;
+        let current = format_auto_lock_policy(&guard);
+        // If non-default, trust memory.
+        if current != "lock_on_quit" {
+            return Ok(current);
+        }
+    }
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    if let Some(saved) = read_auto_lock_policy_file(&config_dir)? {
+        let parsed = parse_auto_lock_policy(&saved)?;
+        *state.auto_lock_policy.lock().map_err(|e| e.to_string())? = parsed.clone();
+        return Ok(format_auto_lock_policy(&parsed));
+    }
     let guard = state.auto_lock_policy.lock().map_err(|e| e.to_string())?;
     Ok(format_auto_lock_policy(&guard))
+}
+
+/// Close the open vault session (clear DB + vault handles) without quitting.
+///
+/// Returns the path that was open so the UI can show unlock. Empty string
+/// when nothing was open.
+#[tauri::command]
+pub fn lock_vault_now(state: State<'_, AppState>) -> Result<String, String> {
+    let path = close_vault_audited(&state, "lock_vault_now")?;
+    Ok(path
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default())
+}
+
+/// Record user activity so idle auto-lock timers reset.
+#[tauri::command]
+pub fn touch_activity(state: State<'_, AppState>) -> Result<(), String> {
+    state.touch_activity();
+    Ok(())
+}
+
+/// Evaluate idle auto-lock. Returns `Some(path)` when the vault was locked,
+/// or `None` when the session stays open.
+#[tauri::command]
+pub fn evaluate_auto_lock(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    evaluate_auto_lock_impl(&state, std::time::Instant::now())
+}
+
+/// Build a short snippet around the first case-insensitive match of `query`.
+fn make_snippet(body: &str, query: &str, max_len: usize) -> String {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let q = query.trim();
+    let lower_body = trimmed.to_lowercase();
+    let match_at = if q.is_empty() {
+        0
+    } else {
+        lower_body.find(&q.to_lowercase()).unwrap_or(0)
+    };
+    let match_len = if q.is_empty() { 0 } else { q.len() };
+    // Ensure the match itself fits: pad context, then cap to max_len around it.
+    let need = match_len.max(1).min(max_len);
+    let pad = max_len.saturating_sub(need) / 2;
+    let start = match_at.saturating_sub(pad);
+    let end = (match_at + match_len + pad).min(trimmed.len()).max(start + need.min(trimmed.len() - start));
+    // Align to char boundaries
+    let start = trimmed
+        .char_indices()
+        .find(|(i, _)| *i >= start)
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let end = trimmed
+        .char_indices()
+        .map(|(i, _)| i)
+        .find(|i| *i >= end)
+        .unwrap_or(trimmed.len());
+    let mut s = trimmed[start..end].to_string();
+    if start > 0 {
+        s.insert_str(0, "…");
+    }
+    if end < trimmed.len() {
+        s.push('…');
+    }
+    s
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    pub path: String,
+    pub timestamp: String,
+    pub bytes: u64,
+}
+
+#[tauri::command]
+pub async fn list_prompt_history(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<HistoryEntry>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let paths = onq_core::history::list_snapshots(v, &pid).map_err(|e| e.to_string())?;
+    let mut out = Vec::with_capacity(paths.len());
+    for path in paths {
+        let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        let timestamp = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        out.push(HistoryEntry {
+            path: path.to_string_lossy().into_owned(),
+            timestamp,
+            bytes: meta.len(),
+        });
+    }
+    out.reverse(); // newest first
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn restore_prompt_history(
+    id: String,
+    snapshot_path: String,
+    state: State<'_, AppState>,
+) -> Result<PromptDetail, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let pid = PromptId::from_string(id).map_err(|e| e.to_string())?;
+    let path = PathBuf::from(&snapshot_path);
+    let history_root = v.root.join(".onq").join("history");
+    if !onq_core::audit::path_under(&history_root, &path) {
+        // path_under needs existing paths; also reject traversal strings
+        let canon_hist = history_root.canonicalize().map_err(|e| e.to_string())?;
+        let canon = path.canonicalize().map_err(|e| e.to_string())?;
+        if !canon.starts_with(&canon_hist) {
+            return Err("snapshot path outside vault history".into());
+        }
+    }
+    onq_core::history::restore_body(v, &pid, &path).map_err(|e| e.to_string())?;
+    let p = v.read(&pid).map_err(|e| e.to_string())?;
+    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+        index_prompt_with_state(&db, &p, &state)?;
+        if state.is_audit_enabled() {
+            let _ = onq_core::audit::append(v, "history_restore", Some(pid.as_str()));
+        }
+    }
+    Ok(PromptDetail::from(&p))
+}
+
+#[tauri::command]
+pub async fn suggest_tags_for_body(
+    body: String,
+    max_n: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let mut vocab: Vec<String> = Vec::new();
+    for id in v.list().map_err(|e| e.to_string())? {
+        if let Ok(p) = v.read(&id) {
+            for t in p.fm.tags {
+                if !vocab.iter().any(|x| x == &t) {
+                    vocab.push(t);
+                }
+            }
+        }
+    }
+    Ok(onq_core::tag_suggest::suggest_tags(
+        &body,
+        &vocab,
+        max_n.unwrap_or(5),
+    ))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateFieldDto {
+    pub name: String,
+    pub default: Option<String>,
+}
+
+#[tauri::command]
+pub fn parse_template_fields(body: String) -> Result<Vec<TemplateFieldDto>, String> {
+    Ok(onq_core::template::parse_template(&body)
+        .into_iter()
+        .map(|f| TemplateFieldDto {
+            name: f.name,
+            default: f.default,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn render_template_body(
+    body: String,
+    values: std::collections::HashMap<String, String>,
+) -> Result<String, String> {
+    Ok(onq_core::template::render_template(&body, &values))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportReportDto {
+    pub created: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn import_prompts(
+    path: String,
+    format: String,
+    on_conflict: String,
+    state: State<'_, AppState>,
+) -> Result<ImportReportDto, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let fmt = match format.as_str() {
+        "markdown" | "markdown_dir" => onq_core::import::ImportFormat::MarkdownDir,
+        "json" | "json_array" => onq_core::import::ImportFormat::JsonArray,
+        "chatgpt" => onq_core::import::ImportFormat::ChatGpt,
+        _ => onq_core::import::ImportFormat::Auto,
+    };
+    let conflict = match on_conflict.as_str() {
+        "replace" => onq_core::import::OnConflict::Replace,
+        _ => onq_core::import::OnConflict::Skip,
+    };
+    let report = onq_core::import::import_prompts(v, Path::new(&path), fmt, conflict)
+        .map_err(|e| e.to_string())?;
+    // Best-effort reindex imported prompts
+    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+        for id in v.list().map_err(|e| e.to_string())? {
+            if let Ok(p) = v.read(&id) {
+                let _ = index_prompt_with_state(&db, &p, &state);
+            }
+        }
+        if state.is_audit_enabled() {
+            let _ = onq_core::audit::append(v, "import_prompts", Some(&path));
+        }
+    }
+    Ok(ImportReportDto {
+        created: report.created,
+        skipped: report.skipped,
+        errors: report.errors,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReportDto {
+    pub exported: usize,
+    pub skipped: usize,
+}
+
+#[tauri::command]
+pub async fn export_prompts(
+    dest: String,
+    tags_any: Vec<String>,
+    folder: Option<String>,
+    favorites_only: bool,
+    state: State<'_, AppState>,
+) -> Result<ExportReportDto, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    let report = onq_core::export::export_prompts(
+        v,
+        Path::new(&dest),
+        &onq_core::export::ExportFilter {
+            tags_any,
+            folder,
+            favorites_only,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    if state.is_audit_enabled() {
+        let _ = onq_core::audit::append(v, "export_prompts", Some(&dest));
+    }
+    Ok(ExportReportDto {
+        exported: report.exported,
+        skipped: report.skipped,
+    })
+}
+
+/// Recent vault paths from app config (works before unlock).
+#[tauri::command]
+pub fn list_recent_vaults(app: AppHandle) -> Result<Vec<String>, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    read_recent_vault_paths(&config_dir)
+}
+
+#[tauri::command]
+pub fn push_recent_vault(path: String, app: AppHandle) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    push_recent_vault_path(&config_dir, Path::new(&path))
+}
+
+#[tauri::command]
+pub fn remove_recent_vault(path: String, app: AppHandle) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    let mut list = read_recent_vault_paths(&config_dir)?;
+    list.retain(|p| p != &path);
+    write_recent_vault_paths(&config_dir, &list)
+}
+
+/// Close the current vault session and remember a different path as last vault.
+/// UI must then unlock the new path (password/keychain).
+#[tauri::command]
+pub fn switch_vault(path: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let target = PathBuf::from(&path);
+    if !target.exists() {
+        return Err(format!("vault path does not exist: {path}"));
+    }
+    let _ = state.close_vault()?;
+    remember_vault(&app, &target)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn read_audit_log(
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<onq_core::audit::AuditEvent>, String> {
+    let g = vault(&state)?;
+    let v = g.as_ref().unwrap();
+    onq_core::audit::read_recent(v, limit.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn backup_should_remind(state: State<'_, AppState>) -> Result<bool, String> {
+    let db = state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let last = db.get_app_setting("last_backup_at").unwrap_or_default();
+        let days: u32 = db
+            .get_app_setting("backup_remind_days")
+            .unwrap_or_else(|_| "7".into())
+            .parse()
+            .unwrap_or(7);
+        Ok(onq_core::audit::should_remind_backup(
+            &last,
+            days,
+            chrono::Utc::now(),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn visual_to_dsl(visual: onq_core::smart_folder_visual::VisualQuery) -> Result<String, String> {
+    onq_core::smart_folder_visual::visual_to_dsl(&visual).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dsl_to_visual(
+    dsl: String,
+) -> Result<Option<onq_core::smart_folder_visual::VisualQuery>, String> {
+    Ok(onq_core::smart_folder_visual::dsl_to_visual(&dsl))
 }
 
 // ---------------------------------------------------------------------------
@@ -2731,9 +3294,9 @@ pub async fn install_plugin(
         .clone()
         .ok_or_else(|| "vault not open".to_string())?;
     let db = require_db(&state)?;
-    let archive = PathBuf::from(archive_path);
+    let archive = PathBuf::from(archive_path.clone());
     let plugins_dir = plugins_root(&vault_path);
-    tokio::task::spawn_blocking(move || -> Result<String, String> {
+    let dest = tokio::task::spawn_blocking(move || -> Result<String, String> {
         // 1. Verify + extract on disk via the core pipeline.
         let dest =
             onq_core::plugin_install::install(&archive, &plugins_dir).map_err(|e| e.to_string())?;
@@ -2790,7 +3353,11 @@ pub async fn install_plugin(
         Ok(dest.to_string_lossy().into_owned())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    try_audit(&state, "plugin_install", Some(&archive_path));
+    // Init plugin dylib + register commands immediately.
+    let _ = list_plugins(state).await;
+    Ok(dest)
 }
 
 /// Convert a `toml::Value` to `serde_json::Value`. Falls back to `Null`
@@ -2826,6 +3393,9 @@ fn toml_to_json(v: toml::Value) -> Result<serde_json::Value, toml::Value> {
 /// vector when no plugins are installed (fresh vault). Order follows the
 /// underlying table — the frontend sorts by `installed_at` if it needs
 /// recency ordering.
+///
+/// Also refreshes the in-memory plugin command registry from enabled plugins
+/// that advertise a `command:<id>:<name>` capability entry.
 #[tauri::command]
 pub async fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginInfo>, String> {
     let db = require_db(&state)?;
@@ -2836,7 +3406,206 @@ pub async fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginInfo>,
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
-    Ok(rows.iter().map(PluginInfo::from_row).collect())
+    let plugins: Vec<PluginInfo> = rows.iter().map(PluginInfo::from_row).collect();
+    // Best-effort: load dylibs and call onq_plugin_init for enabled plugins.
+    if let Ok(Some(vp)) = state.open_vault_path() {
+        for p in plugins.iter().filter(|p| p.enabled) {
+            let dir = PathBuf::from(&p.path);
+            let dir = if dir.is_absolute() {
+                dir
+            } else {
+                vp.join(&p.path)
+            };
+            let _ = crate::plugin_host::load_and_init_plugin(&p.id, &dir);
+        }
+    }
+    sync_plugin_commands_from_list(&state, &plugins)?;
+    Ok(plugins)
+}
+
+fn sync_plugin_commands_from_list(
+    state: &State<'_, AppState>,
+    plugins: &[PluginInfo],
+) -> Result<(), String> {
+    let mut cmds = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    // Drop commands for plugins that are missing or disabled; keep host-registered ones.
+    let enabled_ids: std::collections::HashSet<&str> = plugins
+        .iter()
+        .filter(|p| p.enabled)
+        .map(|p| p.id.as_str())
+        .collect();
+    cmds.retain(|c| enabled_ids.contains(c.plugin_id.as_str()) || c.plugin_id == "host");
+    for p in plugins.iter().filter(|p| p.enabled) {
+        let caps = capabilities_as_strings(&p.capabilities);
+        for cap in caps {
+            // Format: "command:<id>:<display name>" or just "command" → use plugin name
+            if let Some(rest) = cap.strip_prefix("command:") {
+                let (cid, name) = match rest.split_once(':') {
+                    Some((a, b)) => (a.to_string(), b.to_string()),
+                    None => (format!("{}.run", p.id), rest.to_string()),
+                };
+                let id = if cid.contains('.') {
+                    cid
+                } else {
+                    format!("{}.{}", p.id, cid)
+                };
+                cmds.retain(|c| c.id != id);
+                cmds.push(crate::state::PluginCommand {
+                    id,
+                    name: if name.is_empty() {
+                        p.name.clone()
+                    } else {
+                        name
+                    },
+                    plugin_id: p.id.clone(),
+                });
+            } else if cap == "command" || cap == "commands" {
+                let id = format!("{}.run", p.id);
+                cmds.retain(|c| c.id != id);
+                cmds.push(crate::state::PluginCommand {
+                    id,
+                    name: p.name.clone(),
+                    plugin_id: p.id.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn capabilities_as_strings(caps: &serde_json::Value) -> Vec<String> {
+    match caps {
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
+        serde_json::Value::String(s) => vec![s.clone()],
+        _ => Vec::new(),
+    }
+}
+
+/// Palette-visible commands registered by plugins / host.
+///
+/// When a vault is open, re-syncs capability-declared commands and merges
+/// HostApi registrations so the palette does not depend on Settings first.
+#[tauri::command]
+pub async fn list_plugin_commands(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::state::PluginCommand>, String> {
+    // Refresh from plugins table when vault is unlocked (same path Settings uses).
+    if let Ok(db) = require_db(&state) {
+        let rows = tokio::task::spawn_blocking(move || {
+            db.handle()
+                .query_for_current_principal("plugins", &Query::default(), None)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+        let plugins: Vec<PluginInfo> = rows.iter().map(PluginInfo::from_row).collect();
+        if let Ok(Some(vp)) = state.open_vault_path() {
+            for p in plugins.iter().filter(|p| p.enabled) {
+                let dir = PathBuf::from(&p.path);
+                let dir = if dir.is_absolute() {
+                    dir
+                } else {
+                    vp.join(&p.path)
+                };
+                let _ = crate::plugin_host::load_and_init_plugin(&p.id, &dir);
+            }
+        }
+        sync_plugin_commands_from_list(&state, &plugins)?;
+    }
+    // Merge HostApi registry into AppState.
+    for cmd in crate::plugin_host::host_registered_commands() {
+        let _ = state.register_plugin_command(cmd);
+    }
+    let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    Ok(guard.clone())
+}
+
+/// Host-side registration (tests / HostApi bridge).
+#[tauri::command]
+pub fn register_plugin_command(
+    id: String,
+    name: String,
+    plugin_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let cmd = crate::state::PluginCommand {
+        id: id.clone(),
+        name: name.clone(),
+        plugin_id: plugin_id.clone(),
+    };
+    crate::plugin_host::register_from_host(cmd.clone());
+    state.register_plugin_command(cmd)
+}
+
+/// Run a registered plugin command by id.
+#[tauri::command]
+pub fn run_plugin_command(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    // Prefer HostApi-registered path (real handler pointer when present).
+    match crate::plugin_host::run_registered(&id) {
+        Ok(msg) => return Ok(msg),
+        Err(_) => {}
+    }
+    let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    let cmd = guard
+        .iter()
+        .find(|c| c.id == id)
+        .ok_or_else(|| format!("unknown plugin command: {id}"))?;
+    Ok(format!(
+        "executed {} (capability command, plugin {})",
+        cmd.name, cmd.plugin_id
+    ))
+}
+
+#[tauri::command]
+pub fn get_audit_enabled(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?;
+    if let Some(v) = read_audit_enabled_file(&config_dir)? {
+        *state.audit_enabled.lock().map_err(|e| e.to_string())? = v;
+        return Ok(v);
+    }
+    Ok(state.is_audit_enabled())
+}
+
+#[tauri::command]
+pub fn set_audit_enabled(
+    enabled: bool,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    *state.audit_enabled.lock().map_err(|e| e.to_string())? = enabled;
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?;
+    write_audit_enabled_file(&config_dir, enabled)
+}
+
+#[tauri::command]
+pub fn get_embedder_preference(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state
+        .embedder_preference
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone())
+}
+
+#[tauri::command]
+pub fn set_embedder_preference(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let trimmed = id.trim();
+    if trimmed.is_empty() {
+        return Err("embedder preference must be non-empty".into());
+    }
+    *state
+        .embedder_preference
+        .lock()
+        .map_err(|e| e.to_string())? = trimmed.to_string();
+    Ok(())
 }
 
 /// Toggle the `enabled` flag for a single plugin. Refuses silently when
@@ -2849,6 +3618,9 @@ pub async fn set_plugin_enabled(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let db = require_db(&state)?;
+    if !enabled {
+        let _ = state.clear_plugin_commands(&id);
+    }
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         // Read existing row so we preserve name/version/path/etc.
         let existing = db
@@ -2948,6 +3720,7 @@ pub async fn uninstall_plugin(id: String, state: State<'_, AppState>) -> Result<
         .clone()
         .ok_or_else(|| "vault not open".to_string())?;
     let db = require_db(&state)?;
+    let _ = state.clear_plugin_commands(&id);
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         // 1. Look up the row so we know its row_id for the delete.
         let row = db
@@ -3240,16 +4013,42 @@ pub async fn hide_to_tray(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Clear the in-memory vault if the active policy says to. Wired into the
-/// `setup` hook so an idle vault that survived process start (e.g. user
-/// closed the laptop with the app running) is re-locked immediately on
-/// the next launch.
+/// Load persisted auto-lock policy into `AppState` and evaluate whether to
+/// clear a vault session on process start.
 ///
-/// Activity tracking is intentionally out of scope for M5.5: `last_activity`
-/// here is the process start time, so `IdleTimeout(d)` only fires when the
-/// vault has been idle for the full duration. Once an input tracker lands
-/// it will update `last_activity` from the real event stream.
-pub fn apply_auto_lock_on_start(state: &AppState) {
+/// Called from Tauri `setup` so a user-chosen `idle_timeout:…` survives
+/// restart without waiting for Settings to mount. Policy is read from the
+/// app config dir file written by `set_auto_lock_policy`.
+pub fn apply_auto_lock_on_start(app: &AppHandle, state: &AppState) {
+    let config_dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("auto_lock: app_config_dir unavailable: {e}");
+            return;
+        }
+    };
+    apply_auto_lock_on_start_with_config(&config_dir, state);
+}
+
+/// Testable core of [`apply_auto_lock_on_start`]: load disk policy into
+/// memory, then evaluate `should_lock_now` against process-start activity.
+pub fn apply_auto_lock_on_start_with_config(config_dir: &Path, state: &AppState) {
+    if let Ok(Some(enabled)) = read_audit_enabled_file(config_dir) {
+        if let Ok(mut g) = state.audit_enabled.lock() {
+            *g = enabled;
+        }
+    }
+    if let Ok(Some(saved)) = read_auto_lock_policy_file(config_dir) {
+        match parse_auto_lock_policy(&saved) {
+            Ok(parsed) => {
+                if let Ok(mut guard) = state.auto_lock_policy.lock() {
+                    *guard = parsed;
+                }
+            }
+            Err(e) => tracing::warn!("auto_lock: invalid saved policy '{saved}': {e}"),
+        }
+    }
+
     let policy = match state.auto_lock_policy.lock() {
         Ok(g) => g.clone(),
         Err(e) => {
@@ -3257,16 +4056,13 @@ pub fn apply_auto_lock_on_start(state: &AppState) {
             return;
         }
     };
-    if should_lock_now(
-        &policy,
-        std::time::Instant::now(),
-        std::time::Instant::now(),
-    ) {
-        return;
+    let last = match state.last_activity.lock() {
+        Ok(g) => *g,
+        Err(_) => std::time::Instant::now(),
+    };
+    if should_lock_now(&policy, last, std::time::Instant::now()) {
+        let _ = close_vault_audited(state, "startup_idle_auto_lock");
     }
-    // LockOnQuit / Disabled / not-yet-idle: leave the vault alone. Future
-    // tasks will add the quit hook + the input activity tracker.
-    let _ = policy;
 }
 
 #[cfg(test)]
@@ -3449,6 +4245,7 @@ mod tests {
             char_count: 5,
             updated_at: 1_700_000_000,
             rrf_score: 0.5,
+            snippet: "preview".into(),
         };
         let j = serde_json::to_value(&hit).unwrap();
         assert_eq!(j["id"], "01H");
@@ -3509,7 +4306,8 @@ mod tests {
         let hard_filters = query.to_query(&query_vec);
         let retrievers = query.to_retrievers(&query_vec);
         for mode in ["binary", "dense"] {
-            let hits = run_hybrid_search(&db, &hard_filters, &retrievers, 10, mode).unwrap();
+            let hits =
+                run_hybrid_search(&db, &hard_filters, &retrievers, 10, mode, 30.0, "api").unwrap();
             assert_eq!(hits[0].id, "lexical");
             assert!(
                 hits.iter().any(|hit| hit.id == "semantic"),
@@ -3518,7 +4316,9 @@ mod tests {
         }
 
         let sparse_only = query.to_retrievers(&[]);
-        let hits = run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary").unwrap();
+        let hits =
+            run_hybrid_search(&db, &hard_filters, &sparse_only, 10, "binary", 30.0, "api")
+                .unwrap();
         assert_eq!(
             hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(),
             vec!["lexical"]
@@ -4454,12 +5254,196 @@ mod tests {
 
     #[test]
     fn apply_auto_lock_on_start_is_a_noop_for_default_policy() {
-        // Default policy is LockOnQuit, which the check function never
-        // fires; the call must therefore be a safe no-op that doesn't
-        // touch the vault.
+        // Default policy is LockOnQuit with no saved file: no-op.
         let state = AppState::default();
-        apply_auto_lock_on_start(&state);
-        // Vault is still closed (we didn't open one) and untouched.
+        let dir = TempDir::new().unwrap();
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
         assert!(state.vault.lock().unwrap().is_none());
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "lock_on_quit"
+        );
+    }
+
+    #[test]
+    fn apply_auto_lock_on_start_loads_persisted_idle_policy() {
+        let state = AppState::default();
+        let dir = TempDir::new().unwrap();
+        // Default in-memory is LockOnQuit until disk is loaded.
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "lock_on_quit"
+        );
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:900").unwrap();
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "idle_timeout:900",
+            "startup must load auto-lock-policy file into AppState so idle lock works without Settings"
+        );
+    }
+
+    #[test]
+    fn apply_auto_lock_on_start_closes_vault_when_already_idle() {
+        let state = AppState::default();
+        let dir = TempDir::new().unwrap();
+        let vault_dir = TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(vault_dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(vault_dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(vault_dir.path(), "p").unwrap()));
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:1").unwrap();
+        // last_activity far in the past relative to now
+        *state.last_activity.lock().unwrap() =
+            Instant::now() - Duration::from_secs(30);
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
+        assert!(
+            state.db.lock().unwrap().is_none(),
+            "idle timeout at startup must close an already-open vault"
+        );
+        assert!(state.vault.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn close_vault_clears_session_handles() {
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let db = Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+        *state.vault.lock().unwrap() = Some(vault);
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(db);
+        let closed = state.close_vault().unwrap();
+        assert_eq!(closed.as_deref(), Some(dir.path()));
+        assert!(state.vault.lock().unwrap().is_none());
+        assert!(state.db.lock().unwrap().is_none());
+        assert!(state.vault_path.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn make_snippet_finds_query_window() {
+        let body = "alpha beta gamma target delta epsilon zeta";
+        let snip = make_snippet(body, "target", 20);
+        assert!(snip.contains("target"), "snippet was {snip}");
+    }
+
+    #[test]
+    fn evaluate_auto_lock_fires_on_idle_timeout() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        *state.vault.lock().unwrap() = Some(vault);
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
+        let last = Instant::now() - Duration::from_secs(5);
+        *state.last_activity.lock().unwrap() = last;
+        let path = evaluate_auto_lock_impl(&state, Instant::now())
+            .expect("evaluate_auto_lock_impl");
+        assert_eq!(
+            path.as_deref(),
+            Some(dir.path().to_string_lossy().as_ref()),
+            "idle timeout must close the vault via evaluate_auto_lock_impl"
+        );
+        assert!(state.db.lock().unwrap().is_none());
+        assert!(state.vault.lock().unwrap().is_none());
+        // Idle lock must write vault_lock audit (enabled by default).
+        let vault = Vault::new(dir.path()).unwrap();
+        let events = onq_core::audit::read_recent(&vault, 10).unwrap();
+        assert!(
+            events.iter().any(|e| e.kind == "vault_lock"),
+            "expected vault_lock audit event, got {events:?}"
+        );
+    }
+
+    #[test]
+    fn evaluate_auto_lock_skips_audit_when_disabled() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        *state.audit_enabled.lock().unwrap() = false;
+        let dir = tempfile::TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
+        *state.last_activity.lock().unwrap() = Instant::now() - Duration::from_secs(5);
+        let _ = evaluate_auto_lock_impl(&state, Instant::now()).unwrap();
+        let events = onq_core::audit::read_recent(&Vault::new(dir.path()).unwrap(), 10).unwrap();
+        assert!(
+            events.is_empty(),
+            "disabled audit must not write vault_lock: {events:?}"
+        );
+    }
+
+    #[test]
+    fn evaluate_auto_lock_skips_when_recent_activity() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(600));
+        *state.last_activity.lock().unwrap() = Instant::now();
+        let path = evaluate_auto_lock_impl(&state, Instant::now()).unwrap();
+        assert!(path.is_none());
+        assert!(state.db.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn auto_lock_policy_file_roundtrip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:900").unwrap();
+        let got = read_auto_lock_policy_file(dir.path()).unwrap();
+        assert_eq!(got.as_deref(), Some("idle_timeout:900"));
+    }
+
+    #[test]
+    fn recent_vault_paths_ring_buffer() {
+        let dir = tempfile::TempDir::new().unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/a")).unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/b")).unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/a")).unwrap();
+        let list = read_recent_vault_paths(dir.path()).unwrap();
+        assert_eq!(list, vec!["/a".to_string(), "/b".to_string()]);
+    }
+
+    #[test]
+    fn register_and_list_plugin_commands() {
+        let state = AppState::default();
+        state
+            .register_plugin_command(crate::state::PluginCommand {
+                id: "demo.hello".into(),
+                name: "Hello".into(),
+                plugin_id: "demo".into(),
+            })
+            .unwrap();
+        let cmds = state.plugin_commands.lock().unwrap().clone();
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].name, "Hello");
+        state.clear_plugin_commands("demo").unwrap();
+        assert!(state.plugin_commands.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn embedder_preference_roundtrip() {
+        let state = AppState::default();
+        assert_eq!(
+            state.embedder_preference.lock().unwrap().as_str(),
+            "builtin"
+        );
+        *state.embedder_preference.lock().unwrap() = "plugin.x".into();
+        assert_eq!(state.embedder_preference.lock().unwrap().as_str(), "plugin.x");
+    }
+
+    #[test]
+    fn capabilities_as_strings_parses_array() {
+        let caps = serde_json::json!(["read", "command:run:Do Thing", "embedding"]);
+        let s = capabilities_as_strings(&caps);
+        assert!(s.contains(&"embedding".to_string()));
+        assert!(s.iter().any(|c| c.starts_with("command:")));
     }
 }

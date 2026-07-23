@@ -39,6 +39,12 @@ it('opens the tutorial after vault creation and opens About from help', async ()
   });
   openMock.mockResolvedValue('/tmp/tutorial-test-vault');
   invokeMock.mockImplementation((command: string, args?: { key?: string }) => {
+    if (command === 'list_recent_vaults') {
+      return Promise.resolve([]);
+    }
+    if (command === 'get_auto_lock_policy') {
+      return Promise.resolve('lock_on_quit');
+    }
     if (command === 'open_last_vault') {
       return Promise.resolve({
         path: null,
@@ -165,6 +171,7 @@ it('opens the remembered vault on launch', async () => {
   globalShortcut.set('Meta+Space');
   invokeMock.mockReset();
   invokeMock.mockImplementation((command: string) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
     if (command === 'open_last_vault') {
       return Promise.resolve({
         path: '/tmp/remembered-vault',
@@ -197,6 +204,7 @@ it('creates a master-password vault without a recovery phrase', async () => {
   openMock.mockReset();
   openMock.mockResolvedValue('/tmp/password-vault');
   invokeMock.mockImplementation((command: string) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
     if (command === 'open_last_vault') {
       return Promise.resolve({
         path: null,
@@ -258,6 +266,7 @@ it('offers manual recovery when the remembered vault key is missing', async () =
   tutorialVisible.set(false);
   invokeMock.mockReset();
   invokeMock.mockImplementation((command: string) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
     if (command === 'open_last_vault') {
       return Promise.resolve({
         path: '/tmp/recovery-vault',
@@ -317,6 +326,7 @@ it('asks for the master password when the remembered vault uses one', async () =
   tutorialVisible.set(false);
   invokeMock.mockReset();
   invokeMock.mockImplementation((command: string) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
     if (command === 'open_last_vault') {
       return Promise.resolve({
         path: '/tmp/password-vault',
@@ -339,7 +349,7 @@ it('asks for the master password when the remembered vault uses one', async () =
 
   const component = mount(App, { target });
   await vi.waitFor(() => {
-    expect(document.body.textContent).toContain('Enter master password');
+    expect(document.body.textContent).toContain('Unlock vault');
   });
 
   const password = document.querySelector('#vault-credential');

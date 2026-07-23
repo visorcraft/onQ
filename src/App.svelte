@@ -20,9 +20,15 @@
   import { globalShortcut } from '$lib/stores/globalShortcut';
   import { openPalette } from '$lib/stores/palette.svelte';
   import { openLastVault } from '$lib/api/vault';
+  import {
+    evaluateAutoLock,
+    lockVaultNow,
+    touchActivity,
+  } from '$lib/api/session';
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
   import onqIcon from '$lib/assets/onq-128.png';
+  import { t, locale } from '$lib/i18n';
 
   const shortcut = paletteShortcut();
   const STATUS_CLEAR_MS = 5_000;
@@ -78,6 +84,25 @@
     }
   }
 
+  function onSessionLocked(path: string | null | undefined) {
+    hasVault = false;
+    editorSession = null;
+    navigate('home');
+    if (path) {
+      passwordPath = path;
+      recoveryPath = null;
+    }
+  }
+
+  async function handleLockVault() {
+    try {
+      const path = await lockVaultNow();
+      onSessionLocked(path || passwordPath);
+    } catch (error) {
+      vaultError = `Could not lock vault: ${String(error)}`;
+    }
+  }
+
   onMount(() => {
     // Updater must not wait on vault open / keychain prompts — it has no
     // dependency on vault state and should work from the empty-state screen.
@@ -90,7 +115,7 @@
         else if (status.needsPassword && status.path) passwordPath = status.path;
         else if (status.needsRecovery && status.path) {
           recoveryPath = status.path;
-          vaultError = 'Encryption key missing from system keychain.';
+          vaultError = t('unlock.keyMissing');
         }
       } catch (error) {
         vaultError = `Could not open last vault: ${String(error)}`;
@@ -98,6 +123,40 @@
         checkingVault = false;
       }
     })();
+
+    const bumpActivity = () => {
+      if (!hasVault) return;
+      void touchActivity().catch(() => undefined);
+    };
+    window.addEventListener('pointerdown', bumpActivity, { passive: true });
+    window.addEventListener('keydown', bumpActivity, { passive: true });
+    window.addEventListener('focus', bumpActivity, { passive: true });
+
+    const idleTimer = window.setInterval(() => {
+      if (!hasVault) return;
+      void evaluateAutoLock()
+        .then((path) => {
+          if (path) onSessionLocked(path);
+        })
+        .catch(() => undefined);
+    }, 15_000);
+
+    const onVaultLockedEvent = (event: Event) => {
+      const path =
+        event instanceof CustomEvent
+          ? (event.detail?.path as string | undefined)
+          : undefined;
+      onSessionLocked(path || null);
+    };
+    window.addEventListener('onq:vault-locked', onVaultLockedEvent);
+
+    return () => {
+      window.removeEventListener('pointerdown', bumpActivity);
+      window.removeEventListener('keydown', bumpActivity);
+      window.removeEventListener('focus', bumpActivity);
+      window.removeEventListener('onq:vault-locked', onVaultLockedEvent);
+      window.clearInterval(idleTimer);
+    };
   });
 
   onDestroy(() => {
@@ -135,7 +194,7 @@
           else if (status.needsPassword && status.path) passwordPath = status.path;
           else if (status.needsRecovery && status.path) {
             recoveryPath = status.path;
-            vaultError = 'Encryption key missing from system keychain.';
+            vaultError = t('unlock.keyMissing');
           } else {
             passwordPath = result.path;
           }
@@ -178,8 +237,8 @@
     <button
       type="button"
       class="icon-button home-button glass"
-      aria-label="Home"
-      title="Home"
+      aria-label={t('app.home', undefined, $locale)}
+      title={t('app.home', undefined, $locale)}
       aria-current={$appView === 'home' ? 'page' : undefined}
       onclick={() => {
         editorSession = null;
@@ -200,8 +259,8 @@
       <button
         type="button"
         class="icon-button library-button glass"
-        aria-label="Open library"
-        title="Library"
+        aria-label={t('app.library', undefined, $locale)}
+        title={t('app.library', undefined, $locale)}
         aria-current={$appView === 'library' ? 'page' : undefined}
         onclick={() => go('library')}
       >
@@ -241,8 +300,8 @@
     <button
       type="button"
       class="icon-button settings-button glass"
-      aria-label="Open settings"
-      title="Settings"
+      aria-label={t('app.settings', undefined, $locale)}
+      title={t('app.settings', undefined, $locale)}
       aria-current={$appView === 'settings' ? 'page' : undefined}
       onclick={() => go('settings')}
     >
@@ -251,8 +310,8 @@
     <button
       type="button"
       class="icon-button theme-toggle glass"
-      aria-label="Toggle theme"
-      title="Toggle theme"
+      aria-label={t('app.theme', undefined, $locale)}
+      title={t('app.theme', undefined, $locale)}
       onclick={toggleTheme}
     >
       {$theme === 'dark' ? '☀️' : '🌙'}
@@ -260,8 +319,8 @@
     <button
       type="button"
       class="icon-button help-button glass"
-      aria-label="About onQ"
-      title="About onQ"
+      aria-label={t('app.about', undefined, $locale)}
+      title={t('app.about', undefined, $locale)}
       aria-current={$appView === 'about' || $appView === 'licenses' || $appView === 'credits'
         ? 'page'
         : undefined}
@@ -277,8 +336,8 @@
     <button
       type="button"
       class="app-version"
-      aria-label="App version, check for updates"
-      title="Check for updates"
+      aria-label={t('app.versionCheck', undefined, $locale)}
+      title={t('app.checkUpdates', undefined, $locale)}
       onclick={() => void checkForUpdates(true)}
       disabled={checkingForUpdates}
     >
@@ -323,10 +382,14 @@
       type="button"
       class="hero glass spring hero-button"
       onclick={() => openPalette()}
-      aria-label="Open onQ palette"
+      aria-label={t('app.openPalette', undefined, $locale)}
     >
       <img class="hero-logo" src={onqIcon} alt="onQ" width="96" height="96" draggable="false" />
-      <span class="hero-sub">Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span>
+      <span class="hero-sub"
+        >{t('app.pressPrefix', undefined, $locale)}
+        <kbd>{$globalShortcut || shortcut}</kbd>
+        {t('app.pressSuffix', undefined, $locale)}</span
+      >
     </button>
     <Palette />
     {#if editorSession}

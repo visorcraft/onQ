@@ -16,7 +16,8 @@ query that fuses two scoring streams:
 - **Semantic** — cosine similarity over `all-MiniLM-L6-v2` embeddings of each prompt.
 
 Results from both streams are merged via **Reciprocal Rank Fusion** with a recency-decay
-boost so newer prompts surface higher when relevance is otherwise tied.
+boost so newer prompts surface higher when relevance is otherwise tied. Half-life is
+tunable under **Settings → Search** (default 30 days).
 
 ### Search syntax
 
@@ -35,17 +36,19 @@ Combine freely: `tag:writing recent:30 alpha launch`.
 - **Folders** mirror your filesystem. Drag a prompt onto a folder in the sidebar to move
   its `.md` file.
 - **Tags** are free-form strings in the YAML frontmatter. Multi-tag queries are AND-joined.
-- **Smart folders** are saved searches. Build them with the visual query builder, or drop
-  into the DSL editor for power-user queries.
+- **Smart folders** are saved searches. Build with visual filter chips (tag/folder/favorite/locked/text)
+  or edit the DSL (`favorite:true tag:writing`).
+
+## Templates
+
+Prompt bodies may include `{{name}}` or `{{name|default}}` placeholders. Copying from
+the palette prompts for fill-in values when placeholders are present.
 
 ## Locked prompts
 
 Each prompt can have its body encrypted with a per-prompt key stored in the OS keychain.
 Locked prompts show title and metadata in search results, but the body stays sealed until
 you unlock it (which prompts for the master passphrase).
-
-This is useful for prompts that contain API keys, internal URLs, or any other secret you
-do not want sitting in plaintext on disk.
 
 ## Three-way merge
 
@@ -54,35 +57,30 @@ edit a prompt in Vim, the change is picked up the next time the file is saved. I
 edit the same prompt concurrently, a three-way merge runs against the last-known-good version.
 Conflicts surface in a glass diff UI; nothing is silently overwritten.
 
+## History
+
+Each save writes a snapshot under `.onq/history/`. Open a prompt → History to browse
+and restore prior bodies. Retention is configurable (default 30 days).
+
 ## Plugins
 
-onQ supports Rust-native plugins via a C ABI. Plugins can:
+onQ supports signed Rust-native plugins via a C ABI. Install/manage them under
+**Settings → Plugins**. See the [plugin authoring guide](/../plugins/) in the repo
+(`docs/plugins/README.md`).
 
-- Add new sidebar panels.
-- Register new commands in the palette.
-- Define custom DSL operators for smart folders.
-- Provide alternative embedding models.
+## Tag suggestions
 
-All plugins must be signed with an ed25519 key registered with the project. Manifests are
-verified on load; unsigned or tampered plugins are quarantined.
-
-See the [plugin authoring guide](https://github.com/visorcraft/onQ/tree/main/docs/plugins)
-(TBD) for the full SDK.
-
-## AI tag-suggest
-
-When you save a new prompt, onQ can suggest tags based on its content using a local
-zero-shot classifier. No data leaves your machine. Suggestions appear in the prompt editor's
-metadata panel — accept with **Tab**, dismiss with **Esc**.
+When editing a prompt, onQ can suggest tags by matching body tokens against your
+existing vault vocabulary (not a remote classifier). Accept with **Tab**, dismiss with **Esc**.
 
 ## Settings worth knowing
 
-- **Settings → Search → Recency decay** — controls how aggressively newer prompts outrank
-  older ones with the same relevance score. Default: 30 days.
-- **Settings → Encryption → Auto-lock after** — minutes of inactivity before the vault
-  re-locks. Default: 15.
+- **Settings → Search → Recency half-life** — how fast newer prompts outrank older ones. Default: 30 days.
+- **Settings → Vault → Auto-lock** — idle timeout, lock on quit, or disabled. Idle tracking resets on activity.
+- **Settings → Vault → History retention** — days of prompt snapshots kept.
+- **Settings → Backups** — export/import `.onqbak`; optional backup-age reminders.
 - **Settings → Updates → Beta channel** — opt into pre-release builds.
-- **Settings → Vault → Vault directory** — move your vault to a synced folder.
+- **Palette → Lock vault** — clear the session immediately without quitting.
 
 ## Keyboard shortcuts
 

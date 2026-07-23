@@ -1,5 +1,6 @@
 <script lang="ts">
   import { recoverVault, unlockVault } from '$lib/api/vault';
+  import { t, locale } from '$lib/i18n';
 
   let {
     path,
@@ -30,7 +31,7 @@
       }
       onVaultReady();
     } catch (cause) {
-      error = `Could not unlock vault: ${String(cause)}`;
+      error = `${t('common.error')}: ${String(cause)}`;
     } finally {
       busy = false;
     }
@@ -45,16 +46,20 @@
     }}
   >
     <h1 id="unlock-title">
-      {mode === 'password' ? 'Enter master password' : 'Recover vault access'}
+      {mode === 'password'
+        ? t('unlock.title', undefined, $locale)
+        : t('unlock.recovery', undefined, $locale)}
     </h1>
     <p>
       {mode === 'password'
-        ? 'This vault uses a master password.'
-        : 'Enter the 24-word recovery phrase saved when this no-password vault was created.'}
+        ? t('unlock.password', undefined, $locale)
+        : t('unlock.phrase', undefined, $locale)}
     </p>
     <p class="path">{path}</p>
     <label for="vault-credential">
-      {mode === 'password' ? 'Master password' : 'Recovery phrase'}
+      {mode === 'password'
+        ? t('unlock.password', undefined, $locale)
+        : t('unlock.phrase', undefined, $locale)}
     </label>
     {#if mode === 'password'}
       <input
@@ -74,9 +79,15 @@
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <div class="actions">
-      <button type="button" disabled={busy} onclick={onCancel}>Choose another vault</button>
+      <button type="button" disabled={busy} onclick={onCancel}
+        >{t('common.cancel', undefined, $locale)}</button
+      >
       <button type="submit" class="primary" disabled={busy || !credential.trim()}>
-        {busy ? 'Unlocking…' : mode === 'password' ? 'Unlock' : 'Recover'}
+        {busy
+          ? t('common.loading', undefined, $locale)
+          : mode === 'password'
+            ? t('unlock.unlock', undefined, $locale)
+            : t('unlock.recover', undefined, $locale)}
       </button>
     </div>
   </form>
