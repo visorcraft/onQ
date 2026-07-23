@@ -2,6 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` per **epic**, not as one mega-session. Each epic below becomes a kickoff-branch + TDD cycle. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Implementation status (2026-07-23)
+
+Shipped on branch `feat/gap-closure-waves` (see commits). Waves 0–6 delivered with tests;
+explicit deferrals in `DEFERRED.md`. See goal plan deviations for partial UI items.
+
 **Goal:** Close every documented/product gap between what onQ claims (or a competitive local-first prompt vault needs) and what ships today — without abandoning local-first, GPL-3.0-only, or Markdown-as-source-of-truth.
 
 **Architecture:** Ship in **seven dependency-ordered waves**. Wave 0–2 finish half-built surfaces that already have core code. Wave 3–4 add daily-driver product features. Wave 5 expands platform/extensibility. Wave 6 is polish and 1.0 freeze. Prefer **wiring existing modules** over greenfield rewrites; never introduce cloud accounts, telemetry, or non-GPL plugin licenses.
