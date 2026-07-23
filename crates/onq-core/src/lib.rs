@@ -1,5 +1,6 @@
 //! Domain logic for onQ. No Tauri dependencies.
 
+pub mod backup;
 pub mod crypto;
 pub mod db;
 pub mod embed;
@@ -12,6 +13,7 @@ pub mod keychain;
 pub mod lock;
 pub mod merge;
 pub mod migrate;
+pub mod path_util;
 pub mod plugin;
 pub mod plugin_install;
 pub mod reconcile;

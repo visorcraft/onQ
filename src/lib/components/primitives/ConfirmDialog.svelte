@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { tick } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
@@ -12,8 +13,10 @@
     confirmLabel = 'Delete',
     cancelLabel = 'Cancel',
     busy = false,
+    busyLabel = 'Working…',
     onConfirm,
     onCancel,
+    children,
   }: {
     open?: boolean;
     title?: string;
@@ -25,8 +28,12 @@
     confirmLabel?: string;
     cancelLabel?: string;
     busy?: boolean;
+    /** Label while `busy` (defaults to a neutral “Working…”). */
+    busyLabel?: string;
     onConfirm?: () => void | Promise<void>;
     onCancel?: () => void;
+    /** Optional extra body content (password field, checklist, …). */
+    children?: Snippet;
   } = $props();
 
   let confirmBtn = $state<HTMLButtonElement | undefined>();
@@ -135,6 +142,12 @@
         </p>
       </div>
 
+      {#if children}
+        <div class="extra">
+          {@render children()}
+        </div>
+      {/if}
+
       <div class="actions">
         <button type="button" class="btn cancel" disabled={busy} onclick={cancel}>
           {cancelLabel}
@@ -147,7 +160,7 @@
           onclick={() => void confirm()}
         >
           {#if busy}
-            Deleting…
+            {busyLabel}
           {:else}
             {confirmLabel}
           {/if}
@@ -257,6 +270,11 @@
     display: inline;
     color: var(--glass-text);
     font-weight: 600;
+  }
+  .extra {
+    position: relative;
+    width: 100%;
+    text-align: left;
   }
   .actions {
     position: relative;

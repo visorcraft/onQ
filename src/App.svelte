@@ -117,6 +117,36 @@
     hasVault = true;
   }
 
+  /** After Settings → Backups import: session closed, force unlock flow. */
+  function onVaultClosedFromBackup(result: { path: string; needsPassword: boolean }) {
+    hasVault = false;
+    editorSession = null;
+    navigate('home');
+    if (result.needsPassword) {
+      passwordPath = result.path;
+      recoveryPath = null;
+    } else {
+      // Keychain vault: try auto-open, else recovery/empty.
+      passwordPath = null;
+      recoveryPath = null;
+      void openLastVault()
+        .then((status) => {
+          if (status.opened) onVaultReady();
+          else if (status.needsPassword && status.path) passwordPath = status.path;
+          else if (status.needsRecovery && status.path) {
+            recoveryPath = status.path;
+            vaultError = 'Encryption key missing from system keychain.';
+          } else {
+            passwordPath = result.path;
+          }
+        })
+        .catch((error) => {
+          vaultError = `Could not reopen vault after import: ${String(error)}`;
+          passwordPath = result.path;
+        });
+    }
+  }
+
   function toggleTheme() {
     const next: Theme = $theme === 'dark' ? 'light' : 'dark';
     void setTheme(next);
@@ -272,7 +302,7 @@
       {/key}
     {/if}
   {:else if $appView === 'settings'}
-    <SettingsPage />
+    <SettingsPage onVaultClosed={onVaultClosedFromBackup} />
   {:else if $appView === 'about'}
     <AboutPage onLicenses={() => go('licenses')} onCredits={() => go('credits')} />
   {:else if $appView === 'licenses'}

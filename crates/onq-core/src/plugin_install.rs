@@ -26,6 +26,7 @@ use flate2::read::GzDecoder;
 use tar::Archive;
 
 use crate::error::{CoreError, CoreResult};
+use crate::path_util;
 use crate::signature;
 
 /// Per-archive entries the install pipeline looks up by exact name.
@@ -138,7 +139,10 @@ fn extract_tar_gz(archive: &Path, dest: &Path) -> CoreResult<()> {
     for entry in archive.entries()? {
         let mut entry = entry?;
         let entry_path = entry.path()?.into_owned();
-        let safe_path = safe_join(&canonical_dest, &entry_path)?;
+        let safe_path = path_util::safe_join(&canonical_dest, &entry_path).map_err(|e| {
+            // Preserve plugin-flavored errors for the install pipeline.
+            CoreError::Plugin(e.to_string())
+        })?;
         if entry_path.to_str().unwrap_or("").ends_with('/') || entry.header().entry_type().is_dir()
         {
             std::fs::create_dir_all(&safe_path)?;
@@ -152,53 +156,9 @@ fn extract_tar_gz(archive: &Path, dest: &Path) -> CoreResult<()> {
     Ok(())
 }
 
-/// Reject entries whose path would escape `base` after normalization.
-/// Symlink targets are also refused so a malicious archive can't drop a
-/// symlink that later resolves outside the staging dir.
-fn safe_join(base: &Path, entry_path: &Path) -> CoreResult<PathBuf> {
-    let joined = base.join(entry_path);
-    let normalized = normalize_path(&joined);
-    if !normalized.starts_with(base) {
-        return Err(CoreError::Plugin(format!(
-            "archive entry escapes staging dir: {}",
-            entry_path.display()
-        )));
-    }
-    Ok(normalized)
-}
-
-/// Lexical-normalize a path by collapsing `.`/`..` components without
-/// touching the filesystem. Used by `safe_join` to validate archive
-/// entries before extraction.
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for comp in path.components() {
-        match comp {
-            std::path::Component::ParentDir => {
-                out.pop();
-            }
-            std::path::Component::CurDir => {}
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
-/// Recursively copy `src` into `dst`, creating `dst` if needed. Stops on
-/// the first I/O error. Used to move the staging tree under
-/// `<plugins_dir>/installed/<id>/`.
+/// Recursively copy `src` into `dst`, creating `dst` if needed.
 fn copy_dir_all(src: &Path, dst: &Path) -> CoreResult<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        if ty.is_dir() {
-            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
-        } else {
-            std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
-        }
-    }
-    Ok(())
+    path_util::copy_path(src, dst)
 }
 
 /// Build a `.tar.gz` plugin archive in memory given the on-disk manifest

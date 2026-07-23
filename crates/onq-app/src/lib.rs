@@ -1,4 +1,5 @@
 mod auto_lock;
+mod backup;
 mod commands;
 mod global_shortcut;
 mod legal;
@@ -301,6 +302,10 @@ pub fn run() {
             commands::list_plugins,
             commands::set_plugin_enabled,
             commands::uninstall_plugin,
+            backup::get_backup_paths,
+            backup::backup_is_sealed,
+            backup::export_vault_backup,
+            backup::import_vault_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

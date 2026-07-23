@@ -35,3 +35,34 @@ impl Default for AppState {
         }
     }
 }
+
+impl AppState {
+    /// Absolute path of the currently open vault, if any.
+    pub fn open_vault_path(&self) -> Result<Option<PathBuf>, String> {
+        Ok(self
+            .vault_path
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone())
+    }
+
+    /// Require an open vault path (errors when locked / never opened).
+    pub fn require_vault_path(&self) -> Result<PathBuf, String> {
+        self.open_vault_path()?
+            .ok_or_else(|| "vault not unlocked".into())
+    }
+
+    /// Drop the open vault + DB handles so files can be replaced on disk.
+    ///
+    /// Returns the path that was open (if any). Embedder is left loaded —
+    /// it is process-global model state, not vault-scoped.
+    ///
+    /// Used by backup import and (later) explicit lock / switch-vault flows.
+    pub fn close_vault(&self) -> Result<Option<PathBuf>, String> {
+        let path = self.vault_path.lock().map_err(|e| e.to_string())?.take();
+        *self.vault.lock().map_err(|e| e.to_string())? = None;
+        // Drop Arc<Db> so MongrelDB releases its single-instance lock.
+        *self.db.lock().map_err(|e| e.to_string())? = None;
+        Ok(path)
+    }
+}

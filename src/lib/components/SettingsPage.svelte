@@ -33,16 +33,26 @@
     type UpdateCheckOutcome,
   } from '$lib/api/updates';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
+  import BackupsSection from '$lib/components/settings/BackupsSection.svelte';
+  import type { ImportBackupResult } from '$lib/api/backup';
 
-  type SectionId = 'general' | 'search' | 'vault' | 'updates';
+  type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'updates';
 
   const metaKeyLabel = metaModifierLabel();
   const sections: { id: SectionId; label: string; hint: string }[] = [
     { id: 'general', label: 'General', hint: 'Shortcut & theme' },
     { id: 'search', label: 'Search', hint: 'Model & index' },
     { id: 'vault', label: 'Vault', hint: 'Security keys' },
+    { id: 'backups', label: 'Backups', hint: 'Export & restore' },
     { id: 'updates', label: 'Updates', hint: 'Release channel' },
   ];
+
+  let {
+    onVaultClosed,
+  }: {
+    /** After destructive import: vault session closed, show unlock. */
+    onVaultClosed?: (result: ImportBackupResult) => void;
+  } = $props();
 
   let active = $state<SectionId>('general');
   let errorMessage = $state<string | null>(null);
@@ -549,6 +559,8 @@
             </div>
           </section>
         {/if}
+      {:else if active === 'backups'}
+        <BackupsSection {onVaultClosed} />
       {:else if active === 'updates'}
         <section class="panel">
           <div class="panel-head">
