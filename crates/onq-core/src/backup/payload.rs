@@ -42,8 +42,7 @@ pub fn unpack_tree(payload: &[u8], dest: &Path) -> CoreResult<()> {
         let mut entry = entry?;
         let entry_path = entry.path()?.into_owned();
         let safe_path = path_util::safe_join(&canonical_dest, &entry_path)?;
-        if entry.header().entry_type().is_dir()
-            || entry_path.to_str().unwrap_or("").ends_with('/')
+        if entry.header().entry_type().is_dir() || entry_path.to_str().unwrap_or("").ends_with('/')
         {
             std::fs::create_dir_all(&safe_path)?;
         } else {
@@ -56,11 +55,7 @@ pub fn unpack_tree(payload: &[u8], dest: &Path) -> CoreResult<()> {
     Ok(())
 }
 
-fn append_dir<W: Write>(
-    builder: &mut Builder<W>,
-    abs: &Path,
-    rel: &Path,
-) -> CoreResult<()> {
+fn append_dir<W: Write>(builder: &mut Builder<W>, abs: &Path, rel: &Path) -> CoreResult<()> {
     for entry in std::fs::read_dir(abs)? {
         let entry = entry?;
         let name = entry.file_name();

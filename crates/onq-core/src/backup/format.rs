@@ -106,9 +106,8 @@ pub fn read_container(archive: &Path, password: Option<&str>) -> CoreResult<Vec<
             let mut envelope = Vec::new();
             file.read_to_end(&mut envelope)?;
             let key = derive_kek(pw.as_bytes(), &salt)?;
-            crypto::decrypt_body(&key, &envelope).map_err(|_| {
-                CoreError::Other("wrong archive password or corrupted backup".into())
-            })
+            crypto::decrypt_body(&key, &envelope)
+                .map_err(|_| CoreError::Other("wrong archive password or corrupted backup".into()))
         }
         other => Err(CoreError::Other(format!(
             "unknown backup seal flag: {other:#x} (upgrade onQ?)"
@@ -151,7 +150,10 @@ mod tests {
         let path = dir.path().join("s.onqbak");
         write_container(&path, b"secret", SealMode::Password("pw")).unwrap();
         assert!(is_sealed_archive(&path).unwrap());
-        assert!(read_container(&path, None).unwrap_err().to_string().contains("password"));
+        assert!(read_container(&path, None)
+            .unwrap_err()
+            .to_string()
+            .contains("password"));
         assert!(read_container(&path, Some("nope")).is_err());
         assert_eq!(read_container(&path, Some("pw")).unwrap(), b"secret");
     }

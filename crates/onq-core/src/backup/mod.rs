@@ -26,7 +26,7 @@ use crate::error::{CoreError, CoreResult};
 
 pub use self::format::{is_sealed_archive, SealMode as BackupSealMode};
 pub use self::layout::{
-    database_path, salt_path, BackupPaths, AUTH_MODE_REL, SEARCH_INDEX_REL, SALT_REL,
+    database_path, salt_path, BackupPaths, AUTH_MODE_REL, SALT_REL, SEARCH_INDEX_REL,
 };
 
 /// Re-export for callers that need both paths for UI display.

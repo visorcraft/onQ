@@ -39,11 +39,7 @@ impl Default for AppState {
 impl AppState {
     /// Absolute path of the currently open vault, if any.
     pub fn open_vault_path(&self) -> Result<Option<PathBuf>, String> {
-        Ok(self
-            .vault_path
-            .lock()
-            .map_err(|e| e.to_string())?
-            .clone())
+        Ok(self.vault_path.lock().map_err(|e| e.to_string())?.clone())
     }
 
     /// Require an open vault path (errors when locked / never opened).

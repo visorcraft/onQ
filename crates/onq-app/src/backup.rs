@@ -106,10 +106,7 @@ pub async fn import_vault_backup(
 
 fn read_needs_password(vault_path: &std::path::Path) -> bool {
     let auth = vault_path.join(onq_core::backup::AUTH_MODE_REL);
-    match std::fs::read_to_string(auth) {
-        Ok(mode) if mode.trim() == "password" => true,
-        _ => false,
-    }
+    matches!(std::fs::read_to_string(auth), Ok(mode) if mode.trim() == "password")
 }
 
 #[cfg(test)]
