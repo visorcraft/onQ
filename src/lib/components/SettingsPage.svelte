@@ -401,9 +401,9 @@
   <div class="page-glow" aria-hidden="true"></div>
 
   <header class="settings-top">
-    <p class="eyebrow">Preferences</p>
-    <h1>Settings</h1>
-    <p class="sub">Search-first vault controls, organization, and power tools.</p>
+    <p class="eyebrow">{t('settings.preferences', undefined, $locale)}</p>
+    <h1>{t('settings.title', undefined, $locale)}</h1>
+    <p class="sub">{t('settings.subtitle', undefined, $locale)}</p>
   </header>
 
   <div class="settings-layout">
@@ -480,7 +480,9 @@
             {/if}
           </button>
           {#if recordingShortcut}
-            <p class="hint">Press Ctrl, Alt, or {metaKeyLabel} plus another key. Escape cancels.</p>
+            <p class="hint"
+              >{t('settings.shortcutHint', { meta: metaKeyLabel }, $locale)}</p
+            >
           {/if}
           {#if shortcutError}
             <p class="error" role="alert">{shortcutError}</p>
@@ -490,7 +492,7 @@
         <section class="panel">
           <div class="panel-head">
             <h3>{t('settings.theme', undefined, $locale)}</h3>
-            <p class="help">Theme applies immediately across the shell.</p>
+            <p class="help">{t('settings.themeHelp', undefined, $locale)}</p>
           </div>
           <div class="theme-row">
             <button
@@ -516,16 +518,17 @@
 
         <section class="panel" aria-labelledby="palette-heading">
           <div class="panel-head">
-            <h3 id="palette-heading">Palette</h3>
-            <p class="help">
-              Behaviour of the global command palette when you click a search
-              result or one of the Recent items.
-            </p>
+            <h3 id="palette-heading">{t('settings.palette', undefined, $locale)}</h3>
+            <p class="help">{t('settings.paletteHelp', undefined, $locale)}</p>
           </div>
           <label class="toggle-row">
             <span class="toggle-copy">
-              <span class="toggle-label">Automatically minimize after clicking search result</span>
-              <span class="toggle-desc">Hide onQ to the system tray once a prompt is on your clipboard</span>
+              <span class="toggle-label"
+                >{t('settings.minimizeOnCopy', undefined, $locale)}</span
+              >
+              <span class="toggle-desc"
+                >{t('settings.minimizeOnCopyDesc', undefined, $locale)}</span
+              >
             </span>
             <span class="switch" class:on={pendingMinimize}>
               <input
@@ -543,43 +546,47 @@
       {:else if active === 'search'}
         <section class="panel" aria-labelledby="search-status-heading">
           <div class="panel-head">
-            <h3 id="search-status-heading">How search works</h3>
-            <p class="help">
-              Free-text search ranks prompts with hybrid retrieval: keyword
-              matching over <strong>title, tags, project, and body</strong>,
-              fused with semantic ANN when the embedding model is loaded.
-            </p>
+            <h3 id="search-status-heading"
+              >{t('settings.searchHow', undefined, $locale)}</h3
+            >
+            <p class="help">{t('settings.searchHowHelp', undefined, $locale)}</p>
           </div>
           <ul class="status-list">
             <li>
-              <span class="status-k">Keyword index</span>
-              <span class="status-v ok">On</span>
-              <span class="status-note">Includes titles &amp; tags</span>
+              <span class="status-k">{t('settings.keywordIndex', undefined, $locale)}</span>
+              <span class="status-v ok">{t('settings.statusOn', undefined, $locale)}</span>
+              <span class="status-note"
+                >{t('settings.keywordIndexNote', undefined, $locale)}</span
+              >
             </li>
             <li>
-              <span class="status-k">Embedding model</span>
+              <span class="status-k"
+                >{t('settings.embeddingModel', undefined, $locale)}</span
+              >
               <span class="status-v" class:ok={searchStatus?.embedderLoaded} class:warn={!searchStatus?.embedderLoaded}>
                 {#if searchStatus?.embedderLoaded}
-                  Loaded
+                  {t('settings.statusLoaded', undefined, $locale)}
                 {:else if searchStatus?.modelCached}
-                  On disk (not loaded)
+                  {t('settings.statusOnDisk', undefined, $locale)}
                 {:else}
-                  Not installed
+                  {t('settings.statusNotInstalled', undefined, $locale)}
                 {/if}
               </span>
               <span class="status-note mono">{searchStatus?.modelId ?? 'sentence-transformers/all-MiniLM-L6-v2'}</span>
             </li>
             <li>
-              <span class="status-k">Semantic path</span>
+              <span class="status-k"
+                >{t('settings.semanticPath', undefined, $locale)}</span
+              >
               <span class="status-v" class:ok={!searchStatus?.sparseOnly} class:warn={searchStatus?.sparseOnly}>
                 {#if searchStatus?.sparseOnly}
-                  Sparse only (no ANN)
+                  {t('settings.sparseOnly', undefined, $locale)}
                 {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'ready'}
-                  Dense ANN live
+                  {t('settings.denseLive', undefined, $locale)}
                 {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'pending'}
-                  Dense pending (exact cosine)
+                  {t('settings.densePending', undefined, $locale)}
                 {:else}
-                  Binary ANN + rerank
+                  {t('settings.binaryAnn', undefined, $locale)}
                 {/if}
               </span>
             </li>
@@ -595,11 +602,11 @@
               onclick={() => void loadSearchModel()}
             >
               {#if loadingModel}
-                Loading model…
+                {t('settings.loadingModel', undefined, $locale)}
               {:else if searchStatus?.embedderLoaded}
-                Re-embed vault
+                {t('settings.reembed', undefined, $locale)}
               {:else}
-                Load MiniLM model
+                {t('settings.loadMinilm', undefined, $locale)}
               {/if}
             </button>
             <button
@@ -608,28 +615,23 @@
               disabled={loadingModel}
               onclick={() => void refreshSearchStatus()}
             >
-              Refresh status
+              {t('settings.refreshStatus', undefined, $locale)}
             </button>
           </div>
-          <p class="hint">
-            Without the model, Dense/Binary settings have no effect — only
-            keyword search runs. Loading downloads ~90&nbsp;MB once, then
-            re-embeds every prompt so ANN can rank them.
-          </p>
+          <p class="hint">{t('settings.searchModelHint', undefined, $locale)}</p>
         </section>
 
         <section class="panel" aria-labelledby="embedder-heading">
           <div class="panel-head">
-            <h3 id="embedder-heading">Embedding model</h3>
-            <p class="help">
-              Built-in MiniLM is the default. Plugins that advertise an
-              <code>embedding</code> capability can be selected as the preferred
-              embedder id (runtime swap loads when the plugin host wires the
-              session; preference is stored now).
-            </p>
+            <h3 id="embedder-heading"
+              >{t('settings.embedderHeading', undefined, $locale)}</h3
+            >
+            <p class="help">{t('settings.embedderHelp', undefined, $locale)}</p>
           </div>
           <label class="field">
-            <span class="field-label">Active embedder</span>
+            <span class="field-label"
+              >{t('settings.activeEmbedder', undefined, $locale)}</span
+            >
             <select bind:value={embedderPref}>
               <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
               {#each embedderPlugins as p (p.id)}
@@ -639,7 +641,7 @@
           </label>
           <div class="row-actions">
             <button type="button" class="control-btn primary" onclick={() => void saveEmbedderPref()}>
-              Save embedder preference
+              {t('settings.saveEmbedder', undefined, $locale)}
             </button>
           </div>
         </section>
@@ -662,14 +664,15 @@
 
         <section class="panel" aria-labelledby="embedding-heading">
           <div class="panel-head">
-            <h3 id="embedding-heading">Embedding quantization</h3>
-            <p class="help">
-              Trade-off between recall and search speed on the
-              <code>prompts.embedding</code> ANN index. Requires the model above.
-            </p>
+            <h3 id="embedding-heading"
+              >{t('settings.quantHeading', undefined, $locale)}</h3
+            >
+            <p class="help">{t('settings.quantHelp', undefined, $locale)}</p>
           </div>
           <fieldset class="radio-group" disabled={$rebuildingIndex || searchStatus?.sparseOnly}>
-            <legend class="visually-hidden">Embedding quantization mode</legend>
+            <legend class="visually-hidden"
+              >{t('settings.quantLegend', undefined, $locale)}</legend
+            >
             <label class="radio-card" class:selected={pendingQuant === 'binary'}>
               <input
                 type="radio"
@@ -679,10 +682,15 @@
                 onchange={() => pickQuant('binary')}
               />
               <span class="radio-copy">
-                <span class="radio-label">Binary <span class="badge">Default</span></span>
-                <span class="radio-desc">
-                  Binary HNSW candidates + exact cosine rerank. Fast; low memory.
-                </span>
+                <span class="radio-label"
+                  >{t('settings.binary', undefined, $locale)}
+                  <span class="badge"
+                    >{t('settings.defaultBadge', undefined, $locale)}</span
+                  ></span
+                >
+                <span class="radio-desc"
+                  >{t('settings.binaryDesc', undefined, $locale)}</span
+                >
               </span>
             </label>
             <label class="radio-card" class:selected={pendingQuant === 'dense'}>
@@ -694,21 +702,21 @@
                 onchange={() => pickQuant('dense')}
               />
               <span class="radio-copy">
-                <span class="radio-label">Dense</span>
-                <span class="radio-desc">
-                  Full-precision Dense ANN after index rebuild; exact cosine while rebuild is pending.
-                </span>
+                <span class="radio-label">{t('settings.dense', undefined, $locale)}</span>
+                <span class="radio-desc"
+                  >{t('settings.denseDesc', undefined, $locale)}</span
+                >
               </span>
             </label>
           </fieldset>
           {#if $rebuildingIndex}
             <p class="hint status" role="status">
               <span class="pulse" aria-hidden="true"></span>
-              Updating embedding index…
+              {t('settings.rebuildingIndex', undefined, $locale)}
             </p>
           {/if}
           {#if searchStatus?.sparseOnly}
-            <p class="hint">Load the MiniLM model first — ANN modes stay inactive until then.</p>
+            <p class="hint">{t('settings.loadMinilmFirst', undefined, $locale)}</p>
           {/if}
         </section>
       {:else if active === 'vault'}
@@ -777,21 +785,20 @@
         {#if authMode === 'keychain'}
           <section class="panel">
             <div class="panel-head">
-              <h3>Encryption key</h3>
-              <p class="help">
-                This vault uses a key stored in your system keychain. Enter its
-                recovery phrase only when you need to display that key.
-              </p>
+              <h3>{t('settings.encryptionKey', undefined, $locale)}</h3>
+              <p class="help"
+                >{t('settings.encryptionKeyHelp', undefined, $locale)}</p
+              >
             </div>
             {#if encryptionKey}
               <textarea class="secure" readonly rows="3" value={encryptionKey}></textarea>
-              <p class="hint">Keep this key private. Close settings when finished.</p>
+              <p class="hint">{t('settings.keepKeyPrivate', undefined, $locale)}</p>
             {:else}
               <textarea
                 class="secure"
                 rows="3"
                 bind:value={recoveryPhrase}
-                placeholder="24-word recovery phrase"
+                placeholder={t('settings.recoveryPlaceholder', undefined, $locale)}
                 autocomplete="off"
                 spellcheck="false"
               ></textarea>
@@ -801,7 +808,9 @@
                 disabled={retrievingKey || !recoveryPhrase.trim()}
                 onclick={() => void showEncryptionKey()}
               >
-                {retrievingKey ? 'Checking…' : 'Show encryption key'}
+                {retrievingKey
+                  ? t('settings.checkingKey', undefined, $locale)
+                  : t('settings.showKey', undefined, $locale)}
               </button>
             {/if}
             {#if keyError}<p class="error" role="alert">{keyError}</p>{/if}
@@ -809,20 +818,21 @@
         {:else}
           <section class="panel">
             <div class="panel-head">
-              <h3>Vault security</h3>
-              <p class="help">
-                Password-protected vault. Unlock when prompted; auto-lock policies
-                apply based on your vault settings.
-              </p>
+              <h3>{t('settings.vaultSecurity', undefined, $locale)}</h3>
+              <p class="help"
+                >{t('settings.vaultSecurityHelp', undefined, $locale)}</p
+              >
             </div>
             <div class="status-pill">
-              Auth mode: <strong>{authMode ?? 'unknown'}</strong>
+              {t('settings.authMode', { mode: authMode ?? 'unknown' }, $locale)}
             </div>
           </section>
         {/if}
       {:else if active === 'backups'}
         {#if backupRemind}
-          <p class="hint" role="status">Vault backup may be overdue — export a fresh .onqbak when you can.</p>
+          <p class="hint" role="status"
+            >{t('settings.backupOverdue', undefined, $locale)}</p
+          >
         {/if}
         <BackupsSection {onVaultClosed} />
       {:else if active === 'plugins'}
@@ -830,17 +840,17 @@
       {:else if active === 'updates'}
         <section class="panel">
           <div class="panel-head">
-            <h3>Beta channel</h3>
-            <p class="help">
-              Receive pre-release auto-updates earlier. Production
-              <code>latest.json</code> remains the default feed until beta
-              routing ships.
-            </p>
+            <h3>{t('settings.betaChannel', undefined, $locale)}</h3>
+            <p class="help">{t('settings.betaHelp', undefined, $locale)}</p>
           </div>
           <label class="toggle-row">
             <span class="toggle-copy">
-              <span class="toggle-label">Opt in to beta releases</span>
-              <span class="toggle-desc">Earlier builds, more frequent updates</span>
+              <span class="toggle-label"
+                >{t('settings.betaOptIn', undefined, $locale)}</span
+              >
+              <span class="toggle-desc"
+                >{t('settings.betaDesc', undefined, $locale)}</span
+              >
             </span>
             <span class="switch" class:on={pendingBeta}>
               <input

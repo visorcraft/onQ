@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t, locale } from '$lib/i18n';
 
   type DiffSide = 'base' | 'ours' | 'theirs';
   type DiffTone = 'base' | 'same' | 'ours-change' | 'theirs-change' | 'conflict' | 'marker' | 'empty';
@@ -209,23 +210,23 @@
   class="viewer"
   role={embedded ? 'region' : 'dialog'}
   aria-modal={embedded ? undefined : 'true'}
-  aria-label="Three-way diff viewer"
+  aria-label={t('diff.aria', undefined, $locale)}
   tabindex="-1"
   bind:this={dialog}
 >
   <header class="viewer-header">
     <div>
-      <p class="eyebrow">Sync conflict</p>
-      <h2>Review changes</h2>
+      <p class="eyebrow">{t('diff.eyebrow', undefined, $locale)}</p>
+      <h2>{t('diff.title', undefined, $locale)}</h2>
     </div>
-    <p class="hint">Conflicting lines are marked in amber.</p>
+    <p class="hint">{t('diff.hint', undefined, $locale)}</p>
   </header>
 
-  <div class="columns" aria-label="Base, ours, and theirs comparison">
+  <div class="columns" aria-label={t('diff.columnsAria', undefined, $locale)}>
     {#each [
-      { key: 'base', label: 'Base', detail: 'Last synced', count: baseLineCount },
-      { key: 'ours', label: 'Ours', detail: 'Current vault', count: oursLineCount },
-      { key: 'theirs', label: 'Theirs', detail: 'Incoming edit', count: theirsLineCount },
+      { key: 'base', label: t('diff.base', undefined, $locale), detail: t('diff.baseDetail', undefined, $locale), count: baseLineCount },
+      { key: 'ours', label: t('conflict.ours', undefined, $locale), detail: t('diff.oursDetail', undefined, $locale), count: oursLineCount },
+      { key: 'theirs', label: t('conflict.theirs', undefined, $locale), detail: t('diff.theirsDetail', undefined, $locale), count: theirsLineCount },
     ] as column (column.key)}
       <section class:ours-column={column.key === 'ours'} class:theirs-column={column.key === 'theirs'} class="column" aria-label={`${column.label} version`}>
         <header class="column-header">

@@ -7,6 +7,7 @@
     uninstallPlugin,
     type PluginInfo,
   } from '$lib/api/plugins';
+  import { t, locale } from '$lib/i18n';
 
   let plugins = $state<PluginInfo[]>([]);
   let error = $state<string | null>(null);
@@ -30,9 +31,14 @@
     error = null;
     try {
       const path = await open({
-        title: 'Install onQ plugin',
+        title: t('plugins.installTitle'),
         multiple: false,
-        filters: [{ name: 'Plugin', extensions: ['onqplugin', 'tar', 'gz', 'tgz'] }],
+        filters: [
+          {
+            name: t('plugins.filterName'),
+            extensions: ['onqplugin', 'tar', 'gz', 'tgz'],
+          },
+        ],
       });
       if (typeof path !== 'string') return;
       await installPlugin(path);
@@ -54,7 +60,7 @@
   }
 
   async function remove(p: PluginInfo) {
-    if (!confirm(`Uninstall plugin “${p.name}”?`)) return;
+    if (!confirm(t('plugins.uninstallConfirm', { name: p.name }))) return;
     try {
       await uninstallPlugin(p.id);
       await refresh();
@@ -66,23 +72,24 @@
 
 <section class="panel" aria-labelledby="plugins-heading">
   <div class="panel-head">
-    <h3 id="plugins-heading">Installed plugins</h3>
-    <p class="help">
-      Signed Rust-native plugins only. See <code>docs/plugins/README.md</code> for
-      authoring.
-    </p>
+    <h3 id="plugins-heading">{t('plugins.heading', undefined, $locale)}</h3>
+    <p class="help">{t('plugins.help', undefined, $locale)}</p>
   </div>
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
   <div class="row-actions">
     <button type="button" class="control-btn primary" disabled={busy} onclick={() => void onInstall()}>
-      {busy ? 'Installing…' : 'Install…'}
+      {busy
+        ? t('common.installing', undefined, $locale)
+        : t('common.install', undefined, $locale)}
     </button>
-    <button type="button" class="control-btn" onclick={() => void refresh()}>Refresh</button>
+    <button type="button" class="control-btn" onclick={() => void refresh()}
+      >{t('common.refresh', undefined, $locale)}</button
+    >
   </div>
   {#if plugins.length === 0}
-    <p class="hint">No plugins installed.</p>
+    <p class="hint">{t('plugins.none', undefined, $locale)}</p>
   {:else}
     <ul class="plugin-list">
       {#each plugins as p (p.id)}
@@ -93,9 +100,13 @@
           </div>
           <div class="actions">
             <button type="button" class="control-btn" onclick={() => void toggle(p)}>
-              {p.enabled ? 'Disable' : 'Enable'}
+              {p.enabled
+                ? t('common.disable', undefined, $locale)
+                : t('common.enable', undefined, $locale)}
             </button>
-            <button type="button" class="control-btn" onclick={() => void remove(p)}>Uninstall</button>
+            <button type="button" class="control-btn" onclick={() => void remove(p)}
+              >{t('common.uninstall', undefined, $locale)}</button
+            >
           </div>
         </li>
       {/each}

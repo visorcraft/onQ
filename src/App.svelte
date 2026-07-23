@@ -67,7 +67,7 @@
   async function checkForUpdates(manual: boolean) {
     if (checkingForUpdates) return;
     checkingForUpdates = true;
-    if (manual) setUpdateStatus('Checking for updates…');
+    if (manual) setUpdateStatus(t('app.checkingUpdates'));
     try {
       const outcome = await checkForAppUpdates(manual);
       const formatted = formatUpdateStatus(outcome);
@@ -369,7 +369,7 @@
   {:else if $appView === 'credits'}
     <CreditsPage />
   {:else if checkingVault}
-    <p role="status">Opening last vault…</p>
+    <p role="status">{t('app.openingVault', undefined, $locale)}</p>
   {:else if passwordPath}
     <VaultUnlock
       path={passwordPath}

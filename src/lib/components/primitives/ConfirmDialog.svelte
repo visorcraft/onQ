@@ -3,17 +3,18 @@
   import { tick } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
+  import { t, locale, getLocale } from '$lib/i18n';
 
   let {
     open = $bindable(false),
-    title = 'Delete item?',
-    description = 'This action cannot be undone.',
+    title = t('confirm.deleteItem', undefined, getLocale()),
+    description = t('confirm.cannotUndo', undefined, getLocale()),
     itemLabel = '',
     itemKind = '',
-    confirmLabel = 'Delete',
-    cancelLabel = 'Cancel',
+    confirmLabel = t('common.delete', undefined, getLocale()),
+    cancelLabel = t('common.cancel', undefined, getLocale()),
     busy = false,
-    busyLabel = 'Working…',
+    busyLabel = t('confirm.working', undefined, getLocale()),
     onConfirm,
     onCancel,
     children,
@@ -85,7 +86,7 @@
   <button
     type="button"
     class="backdrop"
-    aria-label="Dismiss"
+    aria-label={t('common.dismiss', undefined, $locale)}
     transition:fade={{ duration: 160 }}
     onclick={cancel}
   ></button>

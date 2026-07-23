@@ -11,26 +11,31 @@
   } from '$lib/stores/tutorial';
   import { paletteShortcut } from '$lib/shortcut';
   import { globalShortcut } from '$lib/stores/globalShortcut';
+  import { t, locale } from '$lib/i18n';
 
   const defaultShortcut = paletteShortcut();
-  const steps = [
+  const steps = $derived([
     {
-      title: 'Open your prompt palette',
-      body: `Press ${$globalShortcut || defaultShortcut} anywhere to open the palette. Search your vault, jump to a prompt, or start something new without leaving the keyboard.`,
+      title: t('tutorial.step0title', undefined, $locale),
+      body: t(
+        'tutorial.step0body',
+        { shortcut: $globalShortcut || defaultShortcut },
+        $locale,
+      ),
     },
     {
-      title: 'Create your first prompt',
-      body: 'Open the palette and choose “New prompt.” Give it a clear title, add the prompt body, then save it to your local vault.',
+      title: t('tutorial.step1title', undefined, $locale),
+      body: t('tutorial.step1body', undefined, $locale),
     },
     {
-      title: 'Add tags as you go',
-      body: 'Tags keep related prompts together. Use a few specific labels so you can narrow a search without building a complicated folder tree.',
+      title: t('tutorial.step2title', undefined, $locale),
+      body: t('tutorial.step2body', undefined, $locale),
     },
     {
-      title: 'Your vault stays encrypted',
-      body: 'Password vaults ask for their master password when opened. No-password vaults open from the system keychain; their recovery phrase is only for manual recovery.',
+      title: t('tutorial.step3title', undefined, $locale),
+      body: t('tutorial.step3body', undefined, $locale),
     },
-  ] as const;
+  ]);
 
   const current = $derived(steps[$tutorialStep]);
   const returnFocusTo =
@@ -88,25 +93,35 @@
       <button
         type="button"
         class="dismiss"
-        aria-label="Dismiss tutorial"
-        title="Dismiss tutorial"
+        aria-label={t('tutorial.dismiss', undefined, $locale)}
+        title={t('tutorial.dismiss', undefined, $locale)}
         disabled={busy}
         onclick={() => void finish()}
       >×</button>
 
-      <ol class="progress" aria-label="Tutorial progress">
+      <ol class="progress" aria-label={t('tutorial.progress', undefined, $locale)}>
         {#each steps as step, index}
           <li
             class:active={index === $tutorialStep}
             class:complete={index < $tutorialStep}
             aria-current={index === $tutorialStep ? 'step' : undefined}
-            aria-label={`Step ${index + 1}: ${step.title}`}
+            aria-label={t(
+              'tutorial.stepLabel',
+              { n: String(index + 1), title: step.title },
+              $locale,
+            )}
           ></li>
         {/each}
       </ol>
 
       <header>
-        <p class="eyebrow">Step {$tutorialStep + 1} of {steps.length}</p>
+        <p class="eyebrow"
+          >{t(
+            'tutorial.stepOf',
+            { current: String($tutorialStep + 1), total: String(steps.length) },
+            $locale,
+          )}</p
+        >
         <Dialog.Title class="tutorial-title">{current.title}</Dialog.Title>
         <Dialog.Description class="tutorial-body">{current.body}</Dialog.Description>
       </header>
@@ -116,27 +131,30 @@
           <div class="palette-demo" aria-hidden="true">
             <div class="palette-query">
               <span class="search-mark">⌕</span>
-              <span>Search prompts…</span>
+              <span>{t('tutorial.demoSearch', undefined, $locale)}</span>
               <span class="shortcut"><kbd>{$globalShortcut || defaultShortcut}</kbd></span>
             </div>
             <div class="palette-result selected">
-              <span>Release checklist</span>
+              <span>{t('tutorial.demoRelease', undefined, $locale)}</span>
               <small>workflow</small>
             </div>
             <div class="palette-result">
-              <span>Support response</span>
+              <span>{t('tutorial.demoSupport', undefined, $locale)}</span>
               <small>writing</small>
             </div>
           </div>
         {:else if $tutorialStep === 1}
           <div class="create-demo" aria-hidden="true">
-            <span class="create-label">Command palette</span>
-            <span class="create-action"><strong>+</strong> New prompt</span>
-            <span class="create-hint">Press Enter</span>
+            <span class="create-label">{t('tutorial.demoPalette', undefined, $locale)}</span>
+            <span class="create-action"
+              ><strong>+</strong>
+              {t('tutorial.demoNewPrompt', undefined, $locale).replace(/^\+\s*/, '')}</span
+            >
+            <span class="create-hint">{t('tutorial.demoPressEnter', undefined, $locale)}</span>
           </div>
         {:else if $tutorialStep === 2}
-          <div class="tags-demo" aria-label="Example prompt tags">
-            <span>Example tags</span>
+          <div class="tags-demo" aria-label={t('tutorial.demoExampleTags', undefined, $locale)}>
+            <span>{t('tutorial.demoExampleTags', undefined, $locale)}</span>
             <div>
               <TagChip label="writing" active />
               <TagChip label="workflow" />
@@ -145,30 +163,38 @@
           </div>
         {:else}
           <div class="create-demo">
-            <span class="create-label">Vault encryption</span>
-            <span class="create-action"><strong>✓</strong> Master password or system keychain</span>
-            <span class="create-hint">You choose during vault creation</span>
+            <span class="create-label">{t('tutorial.demoVaultEnc', undefined, $locale)}</span>
+            <span class="create-action"
+              ><strong>✓</strong> {t('tutorial.demoVaultAction', undefined, $locale)}</span
+            >
+            <span class="create-hint">{t('tutorial.demoVaultHint', undefined, $locale)}</span>
           </div>
         {/if}
       </div>
 
       <footer>
         <button type="button" class="skip" disabled={busy} onclick={() => void finish()}>
-          Skip tutorial
+          {t('tutorial.skip', undefined, $locale)}
         </button>
         <div class="navigation">
-          <button type="button" disabled={$tutorialStep === 0 || busy} onclick={prev}>Back</button>
+          <button type="button" disabled={$tutorialStep === 0 || busy} onclick={prev}
+            >{t('common.back', undefined, $locale)}</button
+          >
           {#if $tutorialStep === steps.length - 1}
             <button type="button" class="primary" disabled={busy} onclick={() => void finish()}>
-              {busy ? 'Saving…' : 'Done'}
+              {busy
+                ? t('editor.saving', undefined, $locale)
+                : t('common.done', undefined, $locale)}
             </button>
           {:else}
-            <button type="button" class="primary" disabled={busy} onclick={next}>Next</button>
+            <button type="button" class="primary" disabled={busy} onclick={next}
+              >{t('common.next', undefined, $locale)}</button
+            >
           {/if}
         </div>
       </footer>
 
-      <p class="keyboard-hint">Use ← and → to move between steps</p>
+      <p class="keyboard-hint">{t('tutorial.keyboard', undefined, $locale)}</p>
     </Dialog.Content>
   </Dialog.Portal>
 </Dialog.Root>

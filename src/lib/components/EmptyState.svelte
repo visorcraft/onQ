@@ -209,7 +209,9 @@
         {t('empty.createWithPassword', undefined, $locale)}
       </button>
       <div class="secondary-actions">
-        <button disabled={busy} onclick={() => (createPath = null)}>Back</button>
+        <button disabled={busy} onclick={() => (createPath = null)}
+          >{t('empty.back', undefined, $locale)}</button
+        >
         <button disabled={busy} onclick={() => void create(null)}>
           {t('empty.createKeychain', undefined, $locale)}
         </button>

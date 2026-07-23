@@ -14,6 +14,7 @@
     type ImportBackupResult,
   } from '$lib/api/backup';
   import ConfirmDialog from '$lib/components/primitives/ConfirmDialog.svelte';
+  import { t, locale } from '$lib/i18n';
 
   let {
     onVaultClosed,
@@ -55,12 +56,12 @@
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      status = 'Path copied';
+      status = t('backup.pathCopied');
       setTimeout(() => {
-        if (status === 'Path copied') status = null;
+        if (status === t('backup.pathCopied')) status = null;
       }, 2_000);
     } catch {
-      status = 'Could not copy path';
+      status = t('backup.pathCopyFailed');
     }
   }
 
@@ -70,11 +71,11 @@
     status = null;
     if (protectExport) {
       if (!exportPassword.trim()) {
-        actionError = 'Enter an archive password, or turn off password protection.';
+        actionError = t('backup.needPassword');
         return;
       }
       if (exportPassword !== exportConfirm) {
-        actionError = 'Archive password confirmation does not match.';
+        actionError = t('backup.passwordMismatch');
         return;
       }
     }
@@ -82,7 +83,7 @@
     try {
       const dest = await exportVaultBackup(protectExport ? exportPassword : null);
       if (dest) {
-        status = `Backup written to ${dest}`;
+        status = t('backup.writtenTo', { path: dest });
         exportPassword = '';
         exportConfirm = '';
       }
@@ -112,7 +113,7 @@
   async function confirmImport() {
     if (!pendingArchive || busy) return;
     if (pendingSealed && !importPassword.trim()) {
-      actionError = 'This backup is password-protected. Enter the archive password.';
+      actionError = t('backup.sealedNeedPassword');
       return;
     }
     busy = true;
@@ -142,11 +143,8 @@
 
 <section class="panel" aria-labelledby="backup-paths-heading">
   <div class="panel-head">
-    <h3 id="backup-paths-heading">Vault locations</h3>
-    <p class="help">
-      Full vault root and the encrypted MongrelDB search index. Paths are absolute
-      so you can find them in a file manager.
-    </p>
+    <h3 id="backup-paths-heading">{t('backup.locations', undefined, $locale)}</h3>
+    <p class="help">{t('backup.locationsHelp', undefined, $locale)}</p>
   </div>
 
   {#if loadError}
@@ -156,16 +154,16 @@
     {@const databasePath = paths.databasePath}
     <dl class="path-list">
       <div class="path-row">
-        <dt>Vault</dt>
+        <dt>{t('backup.vault', undefined, $locale)}</dt>
         <dd>
           <code class="path mono" title={vaultPath}>{vaultPath}</code>
           <button type="button" class="control-btn slim" onclick={() => void copyText(vaultPath)}>
-            Copy
+            {t('editor.copyAction', undefined, $locale)}
           </button>
         </dd>
       </div>
       <div class="path-row">
-        <dt>Database</dt>
+        <dt>{t('backup.database', undefined, $locale)}</dt>
         <dd>
           <code class="path mono" title={databasePath}>{databasePath}</code>
           <button
@@ -173,30 +171,26 @@
             class="control-btn slim"
             onclick={() => void copyText(databasePath)}
           >
-            Copy
+            {t('editor.copyAction', undefined, $locale)}
           </button>
         </dd>
       </div>
     </dl>
   {:else}
-    <p class="hint">Loading paths…</p>
+    <p class="hint">{t('backup.loadingPaths', undefined, $locale)}</p>
   {/if}
 </section>
 
 <section class="panel" aria-labelledby="backup-export-heading">
   <div class="panel-head">
-    <h3 id="backup-export-heading">Export backup</h3>
-    <p class="help">
-      Creates a single <code>.onqbak</code> archive of the entire vault (prompts,
-      history, encrypted index). Optional archive password is separate from your
-      vault password.
-    </p>
+    <h3 id="backup-export-heading">{t('backup.exportHeading', undefined, $locale)}</h3>
+    <p class="help">{t('backup.exportHelp', undefined, $locale)}</p>
   </div>
 
   <label class="toggle-row">
     <span class="toggle-copy">
-      <span class="toggle-label">Password-protect archive</span>
-      <span class="toggle-desc">Optional outer seal on the backup file</span>
+      <span class="toggle-label">{t('backup.protect', undefined, $locale)}</span>
+      <span class="toggle-desc">{t('backup.protectDesc', undefined, $locale)}</span>
     </span>
     <span class="switch" class:on={protectExport}>
       <input type="checkbox" bind:checked={protectExport} />
@@ -208,7 +202,7 @@
 
   {#if protectExport}
     <label class="field">
-      <span class="field-label">Archive password</span>
+      <span class="field-label">{t('backup.archivePassword', undefined, $locale)}</span>
       <input
         class="text-input"
         type="password"
@@ -218,7 +212,7 @@
       />
     </label>
     <label class="field">
-      <span class="field-label">Confirm password</span>
+      <span class="field-label">{t('backup.confirmPassword', undefined, $locale)}</span>
       <input
         class="text-input"
         type="password"
@@ -236,18 +230,17 @@
       disabled={busy || !paths}
       onclick={() => void runExport()}
     >
-      {busy ? 'Working…' : 'Export backup…'}
+      {busy
+        ? t('common.working', undefined, $locale)
+        : t('backup.exportBtn', undefined, $locale)}
     </button>
   </div>
 </section>
 
 <section class="panel" aria-labelledby="backup-import-heading">
   <div class="panel-head">
-    <h3 id="backup-import-heading">Import backup</h3>
-    <p class="help">
-      Replaces the <strong>current vault</strong> with an archive. This cannot be
-      undone from onQ. You will need to unlock again after import.
-    </p>
+    <h3 id="backup-import-heading">{t('backup.importHeading', undefined, $locale)}</h3>
+    <p class="help">{t('backup.importHelp', undefined, $locale)}</p>
   </div>
   <div class="row-actions">
     <button
@@ -256,7 +249,7 @@
       disabled={busy || !paths}
       onclick={() => void startImport()}
     >
-      Import backup…
+      {t('backup.importBtn', undefined, $locale)}
     </button>
   </div>
 </section>
@@ -270,20 +263,20 @@
 
 <ConfirmDialog
   bind:open={confirmImportOpen}
-  title="Replace current vault?"
-  description="All prompts and the search index at this vault path will be replaced by the backup. The app will lock afterward so you can unlock the restored vault."
+  title={t('backup.replaceTitle', undefined, $locale)}
+  description={t('backup.replaceDesc', undefined, $locale)}
   itemLabel={pendingArchive ?? ''}
-  itemKind="backup archive"
-  confirmLabel="Replace vault"
-  busyLabel="Importing…"
-  cancelLabel="Cancel"
+  itemKind={t('backup.itemKind', undefined, $locale)}
+  confirmLabel={t('backup.replaceConfirm', undefined, $locale)}
+  busyLabel={t('backup.importing', undefined, $locale)}
+  cancelLabel={t('common.cancel', undefined, $locale)}
   {busy}
   onConfirm={() => void confirmImport()}
   onCancel={cancelImport}
 >
   {#if pendingSealed}
     <label class="field import-pw">
-      <span class="field-label">Archive password</span>
+      <span class="field-label">{t('backup.archivePassword', undefined, $locale)}</span>
       <input
         class="text-input"
         type="password"

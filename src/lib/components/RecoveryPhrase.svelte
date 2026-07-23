@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t, locale } from '$lib/i18n';
+
   let {
     phrase,
     onAcknowledged,
@@ -24,30 +26,37 @@
 </script>
 
 {#if preview}
-  <div class="preview" aria-label="Recovery phrase preview">
-    <span>Recovery phrase</span>
+  <div class="preview" aria-label={t('recovery.previewAria', undefined, $locale)}>
+    <span>{t('recovery.previewLabel', undefined, $locale)}</span>
     <code>{phrase}</code>
   </div>
 {:else}
   <div class="backdrop">
     <div class="modal glass-elevated" role="dialog" aria-labelledby="recovery-title">
-      <h2 id="recovery-title">Save your recovery phrase</h2>
-      <p class="warn">
-        This no-password vault opens automatically with its system keychain
-        entry. This 24-word phrase is ONLY for manual recovery if that entry is
-        lost. Write it down. Store it somewhere safe.
-      </p>
-      <textarea readonly rows="4" value={phrase} aria-label="Recovery phrase"></textarea>
+      <h2 id="recovery-title">{t('recovery.title', undefined, $locale)}</h2>
+      <p class="warn">{t('recovery.warn', undefined, $locale)}</p>
+      <textarea
+        readonly
+        rows="4"
+        value={phrase}
+        aria-label={t('recovery.aria', undefined, $locale)}
+      ></textarea>
       {#if copied}
-        <p class="copy-status" role="status">Copied!</p>
+        <p class="copy-status" role="status">{t('editor.copiedAction', undefined, $locale)}</p>
         <label class="ack">
           <input type="checkbox" bind:checked />
-          I have saved this phrase somewhere safe
+          {t('recovery.ack', undefined, $locale)}
         </label>
-        <button disabled={!checked} onclick={onAcknowledged}>Continue</button>
+        <button disabled={!checked} onclick={onAcknowledged}
+          >{t('common.continue', undefined, $locale)}</button
+        >
       {:else}
-        {#if copyFailed}<p class="copy-error" role="alert">Unable to copy. Try again.</p>{/if}
-        <button onclick={() => void copyPhrase()}>Copy</button>
+        {#if copyFailed}
+          <p class="copy-error" role="alert">{t('recovery.copyFailed', undefined, $locale)}</p>
+        {/if}
+        <button onclick={() => void copyPhrase()}
+          >{t('editor.copyAction', undefined, $locale)}</button
+        >
       {/if}
     </div>
   </div>

@@ -5,6 +5,7 @@
     licenseDocs,
     type LicenseDocMeta,
   } from '$lib/api/about';
+  import { t, locale } from '$lib/i18n';
 
   let docs = $state<LicenseDocMeta[]>([]);
   let active = $state('app');
@@ -62,17 +63,19 @@
 <div class="about-page licenses-page">
   <header class="row-header">
     <div class="header-grow">
-      <h1>Licenses</h1>
-      <p class="sub">Bundled license and attribution documents, available without opening a browser.</p>
+      <h1>{t('about.licenses', undefined, $locale)}</h1>
+      <p class="sub">{t('about.licensesSub', undefined, $locale)}</p>
     </div>
-    <button type="button" class="btn-ghost sm" onclick={() => void copyBody()}>Copy</button>
+    <button type="button" class="btn-ghost sm" onclick={() => void copyBody()}
+      >{t('editor.copyAction', undefined, $locale)}</button
+    >
   </header>
 
   {#if err}
     <div class="error-banner" role="alert">{err}</div>
   {/if}
 
-  <div class="licenses-tabs" role="tablist" aria-label="License documents">
+  <div class="licenses-tabs" role="tablist" aria-label={t('about.licenseDocs', undefined, $locale)}>
     {#each docs as d (d.id)}
       <button
         type="button"
@@ -99,7 +102,7 @@
     <input
       class="filter-input"
       type="search"
-      placeholder="Find by crate, package, license, or phrase…"
+      placeholder={t('about.findPlaceholder', undefined, $locale)}
       bind:value={filter}
     />
     <label class="wrap-toggle">

@@ -97,40 +97,41 @@
   let confirmOpen = $state(false);
 
   const deleteDialog = $derived.by(() => {
+    void $locale;
     const p = pendingDelete;
     if (!p) {
       return {
-        title: 'Delete?',
-        description: 'This action cannot be undone.',
+        title: t('library.deleteGeneric', undefined, $locale),
+        description: t('confirm.cannotUndo', undefined, $locale),
         itemLabel: '',
         itemKind: '',
-        confirmLabel: 'Delete',
+        confirmLabel: t('common.delete', undefined, $locale),
       };
     }
     switch (p.kind) {
       case 'prompt':
         return {
-          title: 'Delete this prompt?',
-          description: 'It will be permanently removed from your vault.',
+          title: t('library.deletePromptTitle', undefined, $locale),
+          description: t('library.deletePromptDesc', undefined, $locale),
           itemLabel: p.label,
-          itemKind: 'Prompt',
-          confirmLabel: 'Delete prompt',
+          itemKind: t('library.kindPrompt', undefined, $locale),
+          confirmLabel: t('library.deletePromptConfirm', undefined, $locale),
         };
       case 'project':
         return {
-          title: 'Delete this project?',
-          description: 'Sub-projects are removed too. Prompts inside move to Unfiled.',
+          title: t('library.deleteProjectTitle', undefined, $locale),
+          description: t('library.deleteProjectDesc', undefined, $locale),
           itemLabel: p.label,
-          itemKind: 'Project',
-          confirmLabel: 'Delete project',
+          itemKind: t('library.kindProject', undefined, $locale),
+          confirmLabel: t('library.deleteProjectConfirm', undefined, $locale),
         };
       case 'smart':
         return {
-          title: 'Delete this smart folder?',
-          description: 'Only the saved search is removed — matching prompts stay in your vault.',
+          title: t('library.deleteSmartTitle', undefined, $locale),
+          description: t('library.deleteSmartDesc', undefined, $locale),
           itemLabel: p.label,
-          itemKind: 'Smart folder',
-          confirmLabel: 'Delete smart folder',
+          itemKind: t('library.kindSmart', undefined, $locale),
+          confirmLabel: t('library.deleteSmartConfirm', undefined, $locale),
         };
     }
   });
@@ -615,13 +616,13 @@
   <div class="page-glow" aria-hidden="true"></div>
   <header class="lib-top">
     <div class="lib-top-main">
-      <p class="eyebrow">Vault</p>
-      <h1>Library</h1>
-      <p class="sub">Browse projects, review prompts, and run smart folders.</p>
+      <p class="eyebrow">{t('library.eyebrow', undefined, $locale)}</p>
+      <h1>{t('library.title', undefined, $locale)}</h1>
+      <p class="sub">{t('library.subtitle', undefined, $locale)}</p>
     </div>
     <button type="button" class="control-btn primary" disabled={busy} onclick={() => void newPromptHere()}>
       <span class="plus" aria-hidden="true">+</span>
-      New prompt
+      {t('library.newPrompt', undefined, $locale)}
     </button>
   </header>
 
@@ -685,7 +686,9 @@
         {#if showNewProject}
           <div class="inline-create">
             {#if newProjectParent}
-              <div class="hint">Under {newProjectParent}</div>
+              <div class="hint"
+                >{t('library.under', { path: newProjectParent }, $locale)}</div
+              >
             {/if}
             <input
               type="text"
@@ -719,7 +722,9 @@
               <button
                 type="button"
                 class="twist"
-                aria-label={isExpanded(node.path) ? 'Collapse' : 'Expand'}
+                aria-label={isExpanded(node.path)
+                  ? t('library.collapse', undefined, $locale)
+                  : t('library.expand', undefined, $locale)}
                 onclick={() => toggleExpand(node.path)}
               >
                 {isExpanded(node.path) ? '▾' : '▸'}
@@ -751,22 +756,22 @@
                 <button
                   type="button"
                   class="icon-sm"
-                  title="Add sub-project"
-                  aria-label="Add sub-project under {node.name}"
+                  title={t('library.addSub', undefined, $locale)}
+                  aria-label={t('library.addSubUnder', { name: node.name }, $locale)}
                   onclick={() => openNewChild(node.path)}>+</button
                 >
                 <button
                   type="button"
                   class="icon-sm"
-                  title="Rename"
-                  aria-label="Rename {node.name}"
+                  title={t('library.rename', undefined, $locale)}
+                  aria-label={t('library.renameNamed', { name: node.name }, $locale)}
                   onclick={() => startRename(node.path)}>✎</button
                 >
                 <button
                   type="button"
                   class="icon-sm danger"
-                  title="Delete"
-                  aria-label="Delete {node.name}"
+                  title={t('common.delete', undefined, $locale)}
+                  aria-label={t('library.deleteNamed', { name: node.name }, $locale)}
                   onclick={() => requestRemoveProject(node.path)}>×</button
                 >
               </div>
@@ -813,13 +818,10 @@
             <input
               type="text"
               class="mono"
-              placeholder='DSL e.g. favorite:true  tag:writing'
+              placeholder={t('library.dslPlaceholder', undefined, $locale)}
               bind:value={newSmartDsl}
             />
-            <p class="hint">
-              Build with chips or edit DSL: <code>folder:</code> <code>tag:</code>
-              <code>favorite:true</code> <code>text:"…"</code>
-            </p>
+            <p class="hint">{t('library.dslHint', undefined, $locale)}</p>
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy} onclick={() => void addSmart()}
                 >{t('library.create', undefined, $locale)}</button
@@ -862,15 +864,15 @@
                 <button
                   type="button"
                   class="icon-sm"
-                  title="Edit"
-                  aria-label="Edit {sf.name}"
+                  title={t('editor.edit', undefined, $locale)}
+                  aria-label={t('library.editNamed', { name: sf.name }, $locale)}
                   onclick={() => startEditSmart(sf)}>✎</button
                 >
                 <button
                   type="button"
                   class="icon-sm danger"
-                  title="Delete"
-                  aria-label="Delete {sf.name}"
+                  title={t('common.delete', undefined, $locale)}
+                  aria-label={t('library.deleteNamed', { name: sf.name }, $locale)}
                   onclick={() => requestRemoveSmart(sf)}>×</button
                 >
               </div>
@@ -878,7 +880,7 @@
           {/if}
         {:else}
           {#if !showNewSmart}
-            <p class="empty-side">Saved searches live here — not under Projects.</p>
+            <p class="empty-side">{t('library.smartEmpty', undefined, $locale)}</p>
           {/if}
         {/each}
       </div>
@@ -932,21 +934,29 @@
               {#if p.preview}
                 <div class="prompt-preview">{p.preview}</div>
               {:else if p.locked}
-                <div class="prompt-preview dim">Encrypted body — unlock to view</div>
+                <div class="prompt-preview dim"
+                  >{t('library.encryptedBody', undefined, $locale)}</div
+                >
               {:else if p.char_count === 0}
-                <div class="prompt-preview dim">Empty draft</div>
+                <div class="prompt-preview dim"
+                  >{t('library.emptyDraft', undefined, $locale)}</div
+                >
               {/if}
               <div class="prompt-meta">
                 {#if p.folder}
                   <span class="folder-badge">{p.folder}</span>
                 {:else}
-                  <span class="folder-badge muted">Unfiled</span>
+                  <span class="folder-badge muted"
+                    >{t('library.unfiled', undefined, $locale)}</span
+                  >
                 {/if}
                 {#each p.tags ?? [] as tag (tag)}
                   <span class="tag-badge">#{tag}</span>
                 {/each}
                 <span class="chars"
-                  >{p.locked ? 'encrypted' : `${p.char_count} chars`}</span
+                  >{p.locked
+                    ? t('library.encrypted', undefined, $locale)
+                    : t('library.chars', { n: String(p.char_count) }, $locale)}</span
                 >
               </div>
             </button>
@@ -955,8 +965,12 @@
                 type="button"
                 class="icon-sm star"
                 class:on={p.favorite}
-                title={p.favorite ? 'Unfavorite' : 'Favorite'}
-                aria-label={p.favorite ? 'Unfavorite' : 'Favorite'}
+                title={p.favorite
+                  ? t('editor.unfavorite', undefined, $locale)
+                  : t('editor.favorite', undefined, $locale)}
+                aria-label={p.favorite
+                  ? t('editor.unfavorite', undefined, $locale)
+                  : t('editor.favorite', undefined, $locale)}
                 onclick={() => void toggleFavorite(p)}
               >
                 {p.favorite ? '★' : '☆'}
@@ -965,8 +979,12 @@
                 <button
                   type="button"
                   class="icon-sm"
-                  title="Move to project"
-                  aria-label="Move {p.title} to project"
+                  title={t('library.moveToProject', undefined, $locale)}
+                  aria-label={t(
+                    'library.moveNamed',
+                    { title: p.title || t('library.untitled', undefined, $locale) },
+                    $locale,
+                  )}
                   onclick={() => (moveMenuId = moveMenuId === p.id ? null : p.id)}
                 >
                   ↗
@@ -974,7 +992,7 @@
                 {#if moveMenuId === p.id}
                   <div class="move-menu" role="menu">
                     <button type="button" role="menuitem" onclick={() => void moveTo(p, null)}
-                      >Unfiled</button
+                      >{t('library.unfiled', undefined, $locale)}</button
                     >
                     {#each flatProjectPaths as path (path)}
                       <button type="button" role="menuitem" onclick={() => void moveTo(p, path)}
@@ -982,7 +1000,9 @@
                       >
                     {/each}
                     {#if flatProjectPaths.length === 0}
-                      <div class="hint pad">Create a project first</div>
+                      <div class="hint pad"
+                        >{t('library.createProjectFirst', undefined, $locale)}</div
+                      >
                     {/if}
                   </div>
                 {/if}
@@ -990,8 +1010,12 @@
               <button
                 type="button"
                 class="icon-sm danger"
-                title="Delete"
-                aria-label="Delete {p.title}"
+                title={t('common.delete', undefined, $locale)}
+                aria-label={t(
+                  'library.deleteNamed',
+                  { name: p.title || t('library.untitled', undefined, $locale) },
+                  $locale,
+                )}
                 onclick={() => requestRemovePrompt(p)}
               >
                 ×
@@ -1002,18 +1026,18 @@
           <li class="empty-main">
             <div class="empty-icon" aria-hidden="true">◇</div>
             {#if selection.kind === 'unfiled'}
-              <p>Nothing unfiled — every prompt lives in a project.</p>
+              <p>{t('library.nothingUnfiled', undefined, $locale)}</p>
             {:else if selection.kind === 'project'}
-              <p>No prompts in this project yet.</p>
+              <p>{t('library.noInProject', undefined, $locale)}</p>
               <button type="button" class="control-btn primary sm" onclick={() => void newPromptHere()}
-                >Create one here</button
+                >{t('library.createOneHere', undefined, $locale)}</button
               >
             {:else if selection.kind === 'smart'}
-              <p>No prompts match this smart folder.</p>
+              <p>{t('library.noSmartMatch', undefined, $locale)}</p>
             {:else}
-              <p>No prompts yet. Create one to get started.</p>
+              <p>{t('library.noPromptsYet', undefined, $locale)}</p>
               <button type="button" class="control-btn primary sm" onclick={() => void newPromptHere()}
-                >New prompt</button
+                >{t('library.newPrompt', undefined, $locale)}</button
               >
             {/if}
           </li>

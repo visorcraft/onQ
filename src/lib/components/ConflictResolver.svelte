@@ -8,6 +8,7 @@
     type ConflictHunk,
     type ConflictSegment,
   } from '$lib/api/sync';
+  import { t, locale } from '$lib/i18n';
 
   type HunkResolution = ConflictChoice | 'manual';
 
@@ -148,47 +149,47 @@
   class="resolver"
   role="dialog"
   aria-modal="true"
-  aria-label="Resolve sync conflict"
+  aria-label={t('conflict.resolveAria', undefined, $locale)}
   tabindex="-1"
   bind:this={dialog}
 >
   <div class="resolver-header">
     <div>
-      <p class="eyebrow">Merge requires your decision</p>
-      <h1>Resolve conflict</h1>
-      <p class="description">Choose how to combine the current vault with the incoming edit.</p>
+      <p class="eyebrow">{t('conflict.eyebrow', undefined, $locale)}</p>
+      <h1>{t('conflict.title', undefined, $locale)}</h1>
+      <p class="description">{t('conflict.description', undefined, $locale)}</p>
     </div>
     <p class="status" aria-live="polite">{statusMessage}</p>
   </div>
 
   <DiffViewer base={baseVersion} ours={oursVersion} theirs={theirsVersion} embedded />
 
-  <section class="resolution-panel" aria-label="Conflict resolution actions">
+  <section class="resolution-panel" aria-label={t('conflict.actionsAria', undefined, $locale)}>
     <div class="panel-heading">
       <div>
-        <h2>Choose a resolution</h2>
-        <p>Apply one choice to every hunk, or resolve them individually below.</p>
+        <h2>{t('conflict.choose', undefined, $locale)}</h2>
+        <p>{t('conflict.chooseHelp', undefined, $locale)}</p>
       </div>
       {#if allHunksResolved}
-        <span class="resolved-badge">Ready to apply</span>
+        <span class="resolved-badge">{t('conflict.ready', undefined, $locale)}</span>
       {/if}
     </div>
 
     <div class="bulk-actions">
-      <button type="button" class="primary" onclick={() => resolveAll('ours')}>Accept ours</button>
-      <button type="button" class="secondary" onclick={() => resolveAll('theirs')}>Accept theirs</button>
-      <button type="button" class="secondary" onclick={() => resolveAll('both')}>Keep both</button>
-      <button type="button" class="quiet" onclick={startManualEdit}>Edit manually</button>
+      <button type="button" class="primary" onclick={() => resolveAll('ours')}>{t('conflict.acceptOurs', undefined, $locale)}</button>
+      <button type="button" class="secondary" onclick={() => resolveAll('theirs')}>{t('conflict.acceptTheirs', undefined, $locale)}</button>
+      <button type="button" class="secondary" onclick={() => resolveAll('both')}>{t('conflict.keepBoth', undefined, $locale)}</button>
+      <button type="button" class="quiet" onclick={startManualEdit}>{t('conflict.editManual', undefined, $locale)}</button>
     </div>
 
-    <div class="hunks" aria-label="Per-hunk resolutions">
+    <div class="hunks" aria-label={t('conflict.hunksAria', undefined, $locale)}>
       {#if hasHunks}
         {#each hunks as hunk, index (hunk.id)}
           {@const selected = choices[hunk.id]}
           <article class="hunk" class:selected={selected !== undefined}>
             <div class="hunk-header">
               <div>
-                <h3>Conflict {index + 1}</h3>
+                <h3>{t('conflict.hunkTitle', { n: String(index + 1) }, $locale)}</h3>
                 <span>{selected ? `Using ${selected}` : 'Needs a choice'}</span>
               </div>
               <div class="hunk-actions">
@@ -196,17 +197,17 @@
                   type="button"
                   class:active={selected === 'ours'}
                   onclick={() => resolveHunk(hunk.id, 'ours')}
-                >Take ours</button>
+                >{t('conflict.takeOurs', undefined, $locale)}</button>
                 <button
                   type="button"
                   class:active={selected === 'theirs'}
                   onclick={() => resolveHunk(hunk.id, 'theirs')}
-                >Take theirs</button>
+                >{t('conflict.takeTheirs', undefined, $locale)}</button>
                 <button
                   type="button"
                   class:active={selected === 'both'}
                   onclick={() => resolveHunk(hunk.id, 'both')}
-                >Keep both</button>
+                >{t('conflict.keepBoth', undefined, $locale)}</button>
                 <button type="button" class:active={selected === 'manual'} onclick={() => startHunkEdit(hunk)}>
                   Edit
                 </button>
@@ -215,7 +216,7 @@
 
             {#if editingHunkId === hunk.id}
               <div class="hunk-editor">
-                <label for={`hunk-edit-${hunk.id}`}>Manual text for conflict {index + 1}</label>
+                <label for={`hunk-edit-${hunk.id}`}>{t('conflict.manualLabel', { n: String(index + 1) }, $locale)}</label>
                 <textarea
                   id={`hunk-edit-${hunk.id}`}
                   value={manualHunkText[hunk.id] ?? ''}
@@ -225,16 +226,16 @@
                       [hunk.id]: (event.currentTarget as HTMLTextAreaElement).value,
                     })}
                 ></textarea>
-                <button type="button" class="primary small" onclick={() => applyHunkEdit(hunk)}>Apply edit</button>
+                <button type="button" class="primary small" onclick={() => applyHunkEdit(hunk)}>{t('conflict.applyEdit', undefined, $locale)}</button>
               </div>
             {:else}
               <div class="hunk-preview">
                 <div>
-                  <span class="preview-label ours-label">Ours</span>
+                  <span class="preview-label ours-label">{t('conflict.ours', undefined, $locale)}</span>
                   <pre>{hunk.ours || ' '}</pre>
                 </div>
                 <div>
-                  <span class="preview-label theirs-label">Theirs</span>
+                  <span class="preview-label theirs-label">{t('conflict.theirs', undefined, $locale)}</span>
                   <pre>{hunk.theirs || ' '}</pre>
                 </div>
               </div>
@@ -242,28 +243,28 @@
           </article>
         {/each}
       {:else}
-        <p class="empty">This text is already clean. Applying it will keep the current content unchanged.</p>
+        <p class="empty">{t('conflict.clean', undefined, $locale)}</p>
       {/if}
     </div>
   </section>
 
-  <section class="manual-panel" aria-label="Manual resolution editor">
+  <section class="manual-panel" aria-label={t('conflict.manualAria', undefined, $locale)}>
     <div class="panel-heading">
       <div>
-        <h2>Manual resolution</h2>
-        <p>Use this editor when the automatic choices do not fit.</p>
+        <h2>{t('conflict.manualTitle', undefined, $locale)}</h2>
+        <p>{t('conflict.manualHelp', undefined, $locale)}</p>
       </div>
     </div>
     <textarea
-      aria-label="Resolved conflict text"
+      aria-label={t('conflict.resolvedAria', undefined, $locale)}
       bind:value={manualText}
-      placeholder="Edit the merged prompt here…"
+      placeholder={t('conflict.manualPlaceholder', undefined, $locale)}
     ></textarea>
     {#if manualError}
       <p class="error" role="alert">{manualError}</p>
     {/if}
     <div class="manual-actions">
-      <button type="button" class="primary" onclick={applyManualEdit}>Apply manual resolution</button>
+      <button type="button" class="primary" onclick={applyManualEdit}>{t('conflict.applyManual', undefined, $locale)}</button>
     </div>
   </section>
 </div>

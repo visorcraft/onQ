@@ -5,6 +5,7 @@
     setAuditEnabled,
     type AuditEvent,
   } from '$lib/api/audit';
+  import { t, locale } from '$lib/i18n';
 
   let events = $state<AuditEvent[]>([]);
   let error = $state<string | null>(null);
@@ -40,14 +41,11 @@
 
 <section class="panel" aria-labelledby="audit-heading">
   <div class="panel-head">
-    <h3 id="audit-heading">Security audit log</h3>
-    <p class="help">
-      Local JSONL under <code>.onq/audit.log</code>. Unlock, lock (including idle), import/export
-      backup, prompt unlock, plugin install, and history restore are recorded when enabled.
-    </p>
+    <h3 id="audit-heading">{t('audit.heading', undefined, $locale)}</h3>
+    <p class="help">{t('audit.help', undefined, $locale)}</p>
   </div>
   <label class="toggle-row">
-    <span>Enable audit logging</span>
+    <span>{t('audit.enable', undefined, $locale)}</span>
     <input
       type="checkbox"
       checked={enabled}
@@ -59,11 +57,13 @@
   {/if}
   <div class="row-actions">
     <button type="button" class="control-btn" disabled={loading} onclick={() => void refresh()}>
-      {loading ? 'Loading…' : 'Refresh'}
+      {loading
+        ? t('common.loading', undefined, $locale)
+        : t('common.refresh', undefined, $locale)}
     </button>
   </div>
   {#if events.length === 0}
-    <p class="hint">No audit events yet.</p>
+    <p class="hint">{t('audit.none', undefined, $locale)}</p>
   {:else}
     <ul class="audit-list">
       {#each events as ev, i (`${ev.at}-${ev.kind}-${i}`)}

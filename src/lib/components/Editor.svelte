@@ -508,10 +508,10 @@
     <div class="meta">
       <span class="char-count">
         <span class="char-num">{charCount.toLocaleString()}</span>
-        characters
+        {t('editor.characters', undefined, $locale)}
       </span>
       {#if locked}
-        <span class="lock-badge">Encrypted</span>
+        <span class="lock-badge">{t('editor.encryptedBadge', undefined, $locale)}</span>
       {/if}
     </div>
 
@@ -521,7 +521,7 @@
 
     <footer class="actions">
       {#if isDraft}
-        <span class="draft-hint">Not saved yet — cancel discards this draft.</span>
+        <span class="draft-hint">{t('editor.draftHint', undefined, $locale)}</span>
       {:else}
         <button type="button" class="btn ghost danger-text" onclick={requestDelete} disabled={busy}>
           {t('editor.delete', undefined, $locale)}

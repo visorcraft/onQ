@@ -1,5 +1,6 @@
 <script lang="ts">
   import { visualToDsl, type VisualPredicate, type VisualQuery } from '$lib/api/smartFolderVisual';
+  import { t, locale } from '$lib/i18n';
 
   let {
     predicates = $bindable<VisualPredicate[]>([]),
@@ -44,7 +45,7 @@
     if (field === 'favorite' || field === 'locked') {
       v = v === 'false' || v === '0' ? 'false' : 'true';
     } else if (!v) {
-      error = 'Value required';
+      error = t('smart.valueRequired');
       return;
     }
     const next = [...predicates, { field, op, value: v }];
@@ -60,40 +61,52 @@
   }
 </script>
 
-<div class="visual-builder" aria-label="Visual smart folder builder">
+<div class="visual-builder" aria-label={t('smart.builderAria', undefined, $locale)}>
   <div class="chips">
     {#each predicates as p, i (i)}
-      <button type="button" class="chip" onclick={() => void removeChip(i)} title="Remove">
+      <button
+        type="button"
+        class="chip"
+        onclick={() => void removeChip(i)}
+        title={t('common.remove', undefined, $locale)}
+      >
         {p.field}:{p.op === 'not' ? '!' : ''}{p.value}
         <span aria-hidden="true">×</span>
       </button>
     {/each}
     {#if predicates.length === 0}
-      <span class="empty">No filters — add chips below</span>
+      <span class="empty">{t('smart.noFilters', undefined, $locale)}</span>
     {/if}
   </div>
   <div class="add-row">
-    <select bind:value={field} aria-label="Field">
+    <select bind:value={field} aria-label={t('smart.field', undefined, $locale)}>
       <option value="tag">tag</option>
       <option value="folder">folder</option>
       <option value="favorite">favorite</option>
       <option value="locked">locked</option>
       <option value="text">text</option>
     </select>
-    <select bind:value={op} aria-label="Operator">
+    <select bind:value={op} aria-label={t('smart.operator', undefined, $locale)}>
       {#each fieldOps[field] ?? ['is'] as o (o)}
         <option value={o}>{o}</option>
       {/each}
     </select>
     {#if field === 'favorite' || field === 'locked'}
-      <select bind:value={value} aria-label="Value">
+      <select bind:value={value} aria-label={t('smart.value', undefined, $locale)}>
         <option value="true">true</option>
         <option value="false">false</option>
       </select>
     {:else}
-      <input type="text" bind:value placeholder="value" aria-label="Value" />
+      <input
+        type="text"
+        bind:value
+        placeholder={t('smart.valuePlaceholder', undefined, $locale)}
+        aria-label={t('smart.value', undefined, $locale)}
+      />
     {/if}
-    <button type="button" class="control-btn sm" onclick={() => void addChip()}>Add</button>
+    <button type="button" class="control-btn sm" onclick={() => void addChip()}
+      >{t('common.add', undefined, $locale)}</button
+    >
   </div>
   {#if error}
     <p class="err" role="alert">{error}</p>

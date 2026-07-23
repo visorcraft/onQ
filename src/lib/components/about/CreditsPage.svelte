@@ -6,6 +6,7 @@
     type CreditsData,
   } from '$lib/api/about';
   import { openExternalUrl } from '$lib/openUrl';
+  import { t, locale } from '$lib/i18n';
 
   let data = $state<CreditsData | null>(null);
   let err = $state<string | null>(null);
@@ -236,7 +237,7 @@
       <header class="dialog-head">
         <h3>{licenseDialog.title}</h3>
         <button type="button" class="btn-ghost sm" onclick={() => (licenseDialog = null)}
-          >Close</button
+          >{t('about.close', undefined, $locale)}</button
         >
       </header>
       <pre class="licenses-body wrap">{licenseDialog.body}</pre>

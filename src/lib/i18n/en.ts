@@ -11,6 +11,8 @@ export const en = {
   'app.openPalette': 'Open onQ palette',
   'app.pressPrefix': 'Press',
   'app.pressSuffix': 'to begin',
+  'app.openingVault': 'Opening last vault…',
+  'app.checkingUpdates': 'Checking for updates…',
 
   // Palette
   'palette.placeholder': 'Search prompts, or type to create…',
@@ -31,6 +33,9 @@ export const en = {
 
   // Settings sections
   'settings.nav': 'Settings sections',
+  'settings.title': 'Settings',
+  'settings.subtitle': 'Search-first vault controls, organization, and power tools.',
+  'settings.preferences': 'Preferences',
   'settings.general': 'General',
   'settings.generalHint': 'Shortcut & theme',
   'settings.search': 'Search',
@@ -67,9 +72,75 @@ export const en = {
   'settings.import': 'Import…',
   'settings.export': 'Export…',
   'settings.shortcut': 'Global shortcut',
+  'settings.shortcutHint':
+    'Press Ctrl, Alt, or {meta} plus another key. Escape cancels.',
   'settings.theme': 'Theme',
+  'settings.themeHelp': 'Theme applies immediately across the shell.',
   'settings.themeDark': 'Dark',
   'settings.themeLight': 'Light',
+  'settings.palette': 'Palette',
+  'settings.paletteHelp':
+    'Behaviour of the global command palette when you click a search result or one of the Recent items.',
+  'settings.minimizeOnCopy': 'Automatically minimize after clicking search result',
+  'settings.minimizeOnCopyDesc':
+    'Hide onQ to the system tray once a prompt is on your clipboard',
+  'settings.searchHow': 'How search works',
+  'settings.searchHowHelp':
+    'Free-text search ranks prompts with hybrid retrieval: keyword matching over title, tags, project, and body, fused with semantic ANN when the embedding model is loaded.',
+  'settings.keywordIndex': 'Keyword index',
+  'settings.keywordIndexNote': 'Includes titles & tags',
+  'settings.embeddingModel': 'Embedding model',
+  'settings.semanticPath': 'Semantic path',
+  'settings.statusOn': 'On',
+  'settings.statusLoaded': 'Loaded',
+  'settings.statusOnDisk': 'On disk (not loaded)',
+  'settings.statusNotInstalled': 'Not installed',
+  'settings.sparseOnly': 'Sparse only (no ANN)',
+  'settings.denseLive': 'Dense ANN live',
+  'settings.densePending': 'Dense pending (exact cosine)',
+  'settings.binaryAnn': 'Binary ANN + rerank',
+  'settings.loadingModel': 'Loading model…',
+  'settings.reembed': 'Re-embed vault',
+  'settings.loadMinilm': 'Load MiniLM model',
+  'settings.refreshStatus': 'Refresh status',
+  'settings.searchModelHint':
+    'Without the model, Dense/Binary settings have no effect — only keyword search runs. Loading downloads ~90 MB once, then re-embeds every prompt so ANN can rank them.',
+  'settings.embedderHeading': 'Embedding model',
+  'settings.embedderHelp':
+    'Built-in MiniLM is the default. Plugins that advertise an embedding capability can be selected as the preferred embedder id.',
+  'settings.activeEmbedder': 'Active embedder',
+  'settings.saveEmbedder': 'Save embedder preference',
+  'settings.quantHeading': 'Embedding quantization',
+  'settings.quantHelp':
+    'Trade-off between recall and search speed on the prompts.embedding ANN index. Requires the model above.',
+  'settings.quantLegend': 'Embedding quantization mode',
+  'settings.binary': 'Binary',
+  'settings.binaryDesc': 'Binary HNSW candidates + exact cosine rerank. Fast; low memory.',
+  'settings.dense': 'Dense',
+  'settings.denseDesc':
+    'Full-precision Dense ANN after index rebuild; exact cosine while rebuild is pending.',
+  'settings.defaultBadge': 'Default',
+  'settings.rebuildingIndex': 'Updating embedding index…',
+  'settings.loadMinilmFirst':
+    'Load the MiniLM model first — ANN modes stay inactive until then.',
+  'settings.encryptionKey': 'Encryption key',
+  'settings.encryptionKeyHelp':
+    'This vault uses a key stored in your system keychain. Enter its recovery phrase only when you need to display that key.',
+  'settings.keepKeyPrivate': 'Keep this key private. Close settings when finished.',
+  'settings.recoveryPlaceholder': '24-word recovery phrase',
+  'settings.showKey': 'Show encryption key',
+  'settings.checkingKey': 'Checking…',
+  'settings.vaultSecurity': 'Vault security',
+  'settings.vaultSecurityHelp':
+    'Password-protected vault. Unlock when prompted; auto-lock policies apply based on your vault settings.',
+  'settings.authMode': 'Auth mode: {mode}',
+  'settings.backupOverdue':
+    'Vault backup may be overdue — export a fresh .onqbak when you can.',
+  'settings.betaChannel': 'Beta channel',
+  'settings.betaHelp':
+    'Receive pre-release auto-updates earlier. Production latest.json remains the default feed until beta routing ships.',
+  'settings.betaOptIn': 'Opt in to beta releases',
+  'settings.betaDesc': 'Earlier builds, more frequent updates',
 
   // Empty / unlock
   'empty.welcome': 'Welcome to onQ',
@@ -86,6 +157,7 @@ export const en = {
   'empty.removeRecent': 'Remove {path} from recent',
   'empty.createWithPassword': 'Create with password',
   'empty.createKeychain': 'Create without password',
+  'empty.back': 'Back',
   'unlock.title': 'Unlock vault',
   'unlock.password': 'Master password',
   'unlock.unlock': 'Unlock',
@@ -96,6 +168,9 @@ export const en = {
 
   // Library
   'library.nav': 'Library navigation',
+  'library.title': 'Library',
+  'library.subtitle': 'Browse projects, review prompts, and run smart folders.',
+  'library.eyebrow': 'Vault',
   'library.all': 'All prompts',
   'library.favorites': 'Favorites',
   'library.recent': 'Recent',
@@ -116,6 +191,47 @@ export const en = {
   'library.noProjects': 'No projects yet. Create one to organize prompts.',
   'library.projectName': 'Project name',
   'library.subProjectName': 'Sub-project name',
+  'library.under': 'Under {path}',
+  'library.addSub': 'Add sub-project',
+  'library.addSubUnder': 'Add sub-project under {name}',
+  'library.rename': 'Rename',
+  'library.renameNamed': 'Rename {name}',
+  'library.deleteNamed': 'Delete {name}',
+  'library.editNamed': 'Edit {name}',
+  'library.collapse': 'Collapse',
+  'library.expand': 'Expand',
+  'library.smartEmpty': 'Saved searches live here — not under Projects.',
+  'library.dslPlaceholder': 'DSL e.g. favorite:true  tag:writing',
+  'library.dslHint':
+    'Build with chips or edit DSL: folder: tag: favorite:true text:"…"',
+  'library.encryptedBody': 'Encrypted body — unlock to view',
+  'library.emptyDraft': 'Empty draft',
+  'library.chars': '{n} chars',
+  'library.encrypted': 'encrypted',
+  'library.moveToProject': 'Move to project',
+  'library.moveNamed': 'Move {title} to project',
+  'library.createProjectFirst': 'Create a project first',
+  'library.nothingUnfiled': 'Nothing unfiled — every prompt lives in a project.',
+  'library.noInProject': 'No prompts in this project yet.',
+  'library.createOneHere': 'Create one here',
+  'library.noSmartMatch': 'No prompts match this smart folder.',
+  'library.noPromptsYet': 'No prompts yet. Create one to get started.',
+  'library.newPrompt': 'New prompt',
+  'library.deleteGeneric': 'Delete?',
+  'library.deletePromptTitle': 'Delete this prompt?',
+  'library.deletePromptDesc': 'It will be permanently removed from your vault.',
+  'library.deletePromptConfirm': 'Delete prompt',
+  'library.deleteProjectTitle': 'Delete this project?',
+  'library.deleteProjectDesc':
+    'Sub-projects are removed too. Prompts inside move to Unfiled.',
+  'library.deleteProjectConfirm': 'Delete project',
+  'library.deleteSmartTitle': 'Delete this smart folder?',
+  'library.deleteSmartDesc':
+    'Only the saved search is removed — matching prompts stay in your vault.',
+  'library.deleteSmartConfirm': 'Delete smart folder',
+  'library.kindPrompt': 'Prompt',
+  'library.kindProject': 'Project',
+  'library.kindSmart': 'Smart folder',
 
   // Editor
   'editor.newPrompt': 'New prompt',
@@ -152,6 +268,9 @@ export const en = {
   'editor.delete': 'Delete',
   'editor.copyAction': 'Copy',
   'editor.copiedAction': 'Copied!',
+  'editor.draftHint': 'Not saved yet — cancel discards this draft.',
+  'editor.characters': 'characters',
+  'editor.encryptedBadge': 'Encrypted',
 
   // Common
   'common.locked': 'locked',
@@ -163,11 +282,177 @@ export const en = {
   'common.save': 'Save',
   'common.delete': 'Delete',
   'common.refresh': 'Refresh',
+  'common.back': 'Back',
+  'common.next': 'Next',
+  'common.done': 'Done',
+  'common.skip': 'Skip',
+  'common.continue': 'Continue',
+  'common.add': 'Add',
+  'common.working': 'Working…',
+  'common.dismiss': 'Dismiss',
+  'common.enable': 'Enable',
+  'common.disable': 'Disable',
+  'common.install': 'Install…',
+  'common.installing': 'Installing…',
+  'common.uninstall': 'Uninstall',
+  'common.remove': 'Remove',
+
+  // Confirm dialog defaults
+  'confirm.deleteItem': 'Delete item?',
+  'confirm.cannotUndo': 'This action cannot be undone.',
+  'confirm.working': 'Working…',
+
+  // Recovery phrase
+  'recovery.title': 'Save your recovery phrase',
+  'recovery.warn':
+    'This no-password vault opens automatically with its system keychain entry. This 24-word phrase is ONLY for manual recovery if that entry is lost. Write it down. Store it somewhere safe.',
+  'recovery.previewLabel': 'Recovery phrase',
+  'recovery.previewAria': 'Recovery phrase preview',
+  'recovery.aria': 'Recovery phrase',
+  'recovery.ack': 'I have saved this phrase somewhere safe',
+  'recovery.copyFailed': 'Unable to copy. Try again.',
+
+  // Tutorial
+  'tutorial.dismiss': 'Dismiss tutorial',
+  'tutorial.progress': 'Tutorial progress',
+  'tutorial.stepOf': 'Step {current} of {total}',
+  'tutorial.stepLabel': 'Step {n}: {title}',
+  'tutorial.skip': 'Skip tutorial',
+  'tutorial.keyboard': 'Use ← and → to move between steps',
+  'tutorial.step0title': 'Open your prompt palette',
+  'tutorial.step0body':
+    'Press {shortcut} anywhere to open the palette. Search your vault, jump to a prompt, or start something new without leaving the keyboard.',
+  'tutorial.step1title': 'Create your first prompt',
+  'tutorial.step1body':
+    'Open the palette and choose “New prompt.” Give it a clear title, add the prompt body, then save it to your local vault.',
+  'tutorial.step2title': 'Add tags as you go',
+  'tutorial.step2body':
+    'Tags keep related prompts together. Use a few specific labels so you can narrow a search without building a complicated folder tree.',
+  'tutorial.step3title': 'Your vault stays encrypted',
+  'tutorial.step3body':
+    'Password vaults ask for their master password when opened. No-password vaults open from the system keychain; their recovery phrase is only for manual recovery.',
+  'tutorial.demoSearch': 'Search prompts…',
+  'tutorial.demoRelease': 'Release checklist',
+  'tutorial.demoSupport': 'Support response',
+  'tutorial.demoPalette': 'Command palette',
+  'tutorial.demoNewPrompt': '+ New prompt',
+  'tutorial.demoPressEnter': 'Press Enter',
+  'tutorial.demoExampleTags': 'Example tags',
+  'tutorial.demoVaultEnc': 'Vault encryption',
+  'tutorial.demoVaultAction': 'Master password or system keychain',
+  'tutorial.demoVaultHint': 'You choose during vault creation',
 
   // Backup
   'backup.remind': 'Vault backup is overdue',
   'backup.export': 'Export vault backup',
   'backup.import': 'Import vault backup',
+  'backup.locations': 'Vault locations',
+  'backup.locationsHelp':
+    'Full vault root and the encrypted MongrelDB search index. Paths are absolute so you can find them in a file manager.',
+  'backup.vault': 'Vault',
+  'backup.database': 'Database',
+  'backup.loadingPaths': 'Loading paths…',
+  'backup.pathCopied': 'Path copied',
+  'backup.pathCopyFailed': 'Could not copy path',
+  'backup.exportHeading': 'Export backup',
+  'backup.exportHelp':
+    'Creates a single .onqbak archive of the entire vault (prompts, history, encrypted index). Optional archive password is separate from your vault password.',
+  'backup.protect': 'Password-protect archive',
+  'backup.protectDesc': 'Optional outer seal on the backup file',
+  'backup.archivePassword': 'Archive password',
+  'backup.confirmPassword': 'Confirm password',
+  'backup.exportBtn': 'Export backup…',
+  'backup.importHeading': 'Import backup',
+  'backup.importHelp':
+    'Replaces the current vault with an archive. This cannot be undone from onQ. You will need to unlock again after import.',
+  'backup.importBtn': 'Import backup…',
+  'backup.needPassword':
+    'Enter an archive password, or turn off password protection.',
+  'backup.passwordMismatch': 'Archive password confirmation does not match.',
+  'backup.sealedNeedPassword':
+    'This backup is password-protected. Enter the archive password.',
+  'backup.writtenTo': 'Backup written to {path}',
+  'backup.replaceTitle': 'Replace current vault?',
+  'backup.replaceDesc':
+    'All prompts and the search index at this vault path will be replaced by the backup. The app will lock afterward so you can unlock the restored vault.',
+  'backup.replaceConfirm': 'Replace vault',
+  'backup.importing': 'Importing…',
+  'backup.itemKind': 'backup archive',
+
+  // Plugins
+  'plugins.heading': 'Installed plugins',
+  'plugins.help':
+    'Signed Rust-native plugins only. See docs/plugins/README.md for authoring.',
+  'plugins.none': 'No plugins installed.',
+  'plugins.installTitle': 'Install onQ plugin',
+  'plugins.filterName': 'Plugin',
+  'plugins.uninstallConfirm': 'Uninstall plugin “{name}”?',
+
+  // Audit
+  'audit.heading': 'Security audit log',
+  'audit.help':
+    'Local JSONL under .onq/audit.log. Unlock, lock (including idle), import/export backup, prompt unlock, plugin install, and history restore are recorded when enabled.',
+  'audit.enable': 'Enable audit logging',
+  'audit.none': 'No audit events yet.',
+
+  // Smart folder builder
+  'smart.builderAria': 'Visual smart folder builder',
+  'smart.noFilters': 'No filters — add chips below',
+  'smart.field': 'Field',
+  'smart.operator': 'Operator',
+  'smart.value': 'Value',
+  'smart.valueRequired': 'Value required',
+  'smart.valuePlaceholder': 'value',
+
+  // About / licenses chrome
+  'about.licenses': 'Licenses',
+  'about.licensesSub':
+    'Bundled license and attribution documents, available without opening a browser.',
+  'about.licenseDocs': 'License documents',
+  'about.findPlaceholder': 'Find by crate, package, license, or phrase…',
+  'about.close': 'Close',
+
+  // Conflict / diff (product surfaces)
+  'conflict.resolveAria': 'Resolve sync conflict',
+  'conflict.eyebrow': 'Merge requires your decision',
+  'conflict.title': 'Resolve conflict',
+  'conflict.description':
+    'Choose how to combine the current vault with the incoming edit.',
+  'conflict.actionsAria': 'Conflict resolution actions',
+  'conflict.choose': 'Choose a resolution',
+  'conflict.chooseHelp':
+    'Apply one choice to every hunk, or resolve them individually below.',
+  'conflict.ready': 'Ready to apply',
+  'conflict.acceptOurs': 'Accept ours',
+  'conflict.acceptTheirs': 'Accept theirs',
+  'conflict.keepBoth': 'Keep both',
+  'conflict.editManual': 'Edit manually',
+  'conflict.hunksAria': 'Per-hunk resolutions',
+  'conflict.hunkTitle': 'Conflict {n}',
+  'conflict.takeOurs': 'Take ours',
+  'conflict.takeTheirs': 'Take theirs',
+  'conflict.manualLabel': 'Manual text for conflict {n}',
+  'conflict.applyEdit': 'Apply edit',
+  'conflict.ours': 'Ours',
+  'conflict.theirs': 'Theirs',
+  'conflict.clean':
+    'This text is already clean. Applying it will keep the current content unchanged.',
+  'conflict.manualAria': 'Manual resolution editor',
+  'conflict.manualTitle': 'Manual resolution',
+  'conflict.manualHelp':
+    'Use this editor when the automatic choices do not fit.',
+  'conflict.resolvedAria': 'Resolved conflict text',
+  'conflict.manualPlaceholder': 'Edit the merged prompt here…',
+  'conflict.applyManual': 'Apply manual resolution',
+  'diff.aria': 'Three-way diff viewer',
+  'diff.eyebrow': 'Sync conflict',
+  'diff.title': 'Review changes',
+  'diff.hint': 'Conflicting lines are marked in amber.',
+  'diff.columnsAria': 'Base, ours, and theirs comparison',
+  'diff.base': 'Base',
+  'diff.baseDetail': 'Last synced',
+  'diff.oursDetail': 'Current vault',
+  'diff.theirsDetail': 'Incoming edit',
 
   // Locale names (shown in selector)
   'locale.en': 'English',
