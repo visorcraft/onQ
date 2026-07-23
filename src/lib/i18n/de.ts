@@ -14,6 +14,7 @@ export const de: Record<MessageKey, string> = {
   'app.pressSuffix': 'zum Starten',
   'app.openingVault': 'Letzten Tresor öffnen…',
   'app.checkingUpdates': 'Nach Updates suchen…',
+  'palette.dialogAria': 'Befehlspalette',
   'palette.placeholder': 'Prompts suchen oder tippen zum Erstellen…',
   'palette.lockVault': 'Tresor sperren',
   'palette.newPrompt': '+ Neuer Prompt',

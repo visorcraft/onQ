@@ -14,6 +14,7 @@ export const zh: Record<MessageKey, string> = {
   'app.pressSuffix': '开始',
   'app.openingVault': '正在打开上次的保险库…',
   'app.checkingUpdates': '正在检查更新…',
+  'palette.dialogAria': '命令面板',
   'palette.placeholder': '搜索提示词，或输入以创建…',
   'palette.lockVault': '锁定保险库',
   'palette.newPrompt': '+ 新建提示词',

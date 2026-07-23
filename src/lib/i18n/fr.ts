@@ -14,6 +14,7 @@ export const fr: Record<MessageKey, string> = {
   'app.pressSuffix': 'pour commencer',
   'app.openingVault': 'Ouverture du dernier coffre…',
   'app.checkingUpdates': 'Recherche de mises à jour…',
+  'palette.dialogAria': 'Palette de commandes',
   'palette.placeholder': 'Rechercher des prompts, ou taper pour créer…',
   'palette.lockVault': 'Verrouiller le coffre',
   'palette.newPrompt': '+ Nouveau prompt',

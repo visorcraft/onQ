@@ -15,6 +15,7 @@ export const en = {
   'app.checkingUpdates': 'Checking for updates…',
 
   // Palette
+  'palette.dialogAria': 'Command palette',
   'palette.placeholder': 'Search prompts, or type to create…',
   'palette.lockVault': 'Lock vault',
   'palette.newPrompt': '+ New prompt',

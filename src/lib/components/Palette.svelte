@@ -373,7 +373,7 @@
     class="palette glass-elevated spring"
     transition:fly={{ y: -20, duration: 240, easing: quintOut }}
     role="dialog"
-    aria-label={t('app.openPalette', undefined, $locale)}
+    aria-label={t('palette.dialogAria', undefined, $locale)}
     tabindex="-1"
     onkeydown={moveSelection}
   >

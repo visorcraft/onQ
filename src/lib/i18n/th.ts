@@ -14,6 +14,7 @@ export const th: Record<MessageKey, string> = {
   'app.pressSuffix': 'เพื่อเริ่ม',
   'app.openingVault': 'กำลังเปิดห้องนิรภัยล่าสุด…',
   'app.checkingUpdates': 'กำลังตรวจหาอัปเดต…',
+  'palette.dialogAria': 'พาเลทคำสั่ง',
   'palette.placeholder': 'ค้นหาพรอมต์ หรือพิมพ์เพื่อสร้าง…',
   'palette.lockVault': 'ล็อกห้องนิรภัย',
   'palette.newPrompt': '+ พรอมต์ใหม่',
