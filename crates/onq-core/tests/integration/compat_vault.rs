@@ -90,11 +90,7 @@ fn pack_tree(vault_path: &Path) -> std::io::Result<Vec<u8>> {
     Ok(raw)
 }
 
-fn append_dir<W: Write>(
-    builder: &mut Builder<W>,
-    abs: &Path,
-    rel: &Path,
-) -> std::io::Result<()> {
+fn append_dir<W: Write>(builder: &mut Builder<W>, abs: &Path, rel: &Path) -> std::io::Result<()> {
     let mut entries: Vec<_> = fs::read_dir(abs)?.collect::<Result<_, _>>()?;
     entries.sort_by_key(|e| e.file_name());
     for entry in entries {
