@@ -1,19 +1,35 @@
 <script lang="ts">
-  import { readAuditLog, type AuditEvent } from '$lib/api/audit';
+  import {
+    getAuditEnabled,
+    readAuditLog,
+    setAuditEnabled,
+    type AuditEvent,
+  } from '$lib/api/audit';
 
   let events = $state<AuditEvent[]>([]);
   let error = $state<string | null>(null);
   let loading = $state(false);
+  let enabled = $state(true);
 
   async function refresh() {
     loading = true;
     error = null;
     try {
+      enabled = await getAuditEnabled();
       events = await readAuditLog(80);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function toggleEnabled(next: boolean) {
+    try {
+      await setAuditEnabled(next);
+      enabled = next;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -26,10 +42,18 @@
   <div class="panel-head">
     <h3 id="audit-heading">Security audit log</h3>
     <p class="help">
-      Local JSONL under <code>.onq/audit.log</code>. Unlock, lock, import, export, and history restore
-      are recorded.
+      Local JSONL under <code>.onq/audit.log</code>. Unlock, lock (including idle), import/export
+      backup, prompt unlock, plugin install, and history restore are recorded when enabled.
     </p>
   </div>
+  <label class="toggle-row">
+    <span>Enable audit logging</span>
+    <input
+      type="checkbox"
+      checked={enabled}
+      onchange={(e) => void toggleEnabled(e.currentTarget.checked)}
+    />
+  </label>
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
@@ -106,5 +130,12 @@
   .mono {
     font-family: ui-monospace, monospace;
     font-size: 0.75rem;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.75rem;
   }
 </style>

@@ -65,6 +65,7 @@ pub async fn export_vault_backup(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let vault = state.require_vault_path()?;
+    let dest_for_audit = dest_path.clone();
     let dest = PathBuf::from(dest_path);
     let pw = password.filter(|s| !s.trim().is_empty());
     let db = state.db.lock().map_err(|e| e.to_string())?.clone();
@@ -73,10 +74,16 @@ pub async fn export_vault_backup(
         if let Some(db) = db {
             let _ = db.set_app_setting("last_backup_at", &chrono::Utc::now().to_rfc3339());
         }
-        Ok(())
+        Ok::<(), String>(())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if state.is_audit_enabled() {
+        if let Ok(v) = onq_core::vault::Vault::new(&state.require_vault_path()?) {
+            let _ = onq_core::audit::append(&v, "export_backup", Some(&dest_for_audit));
+        }
+    }
+    Ok(())
 }
 
 /// Import a `.onqbak` over the **currently open** vault path, then close the session.
@@ -89,6 +96,11 @@ pub async fn import_vault_backup(
     state: State<'_, AppState>,
 ) -> Result<ImportBackupResult, String> {
     let vault = state.require_vault_path()?;
+    if state.is_audit_enabled() {
+        if let Ok(v) = onq_core::vault::Vault::new(&vault) {
+            let _ = onq_core::audit::append(&v, "import_backup", Some(&archive_path));
+        }
+    }
     // Release MongrelDB file locks before rewriting the search-index tree.
     let closed = state.close_vault()?;
     let path = closed.unwrap_or(vault);

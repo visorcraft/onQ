@@ -13,14 +13,16 @@ Explicitly tracked so roadmap gaps are not silent drops.
 | Cloud sync service | Users already use Git/Dropbox/Syncthing | Never (unless identity changes) |
 | Full MongrelDB Kit migration | Large rewrite; no user-facing win in-band | Schema pain exceeds hand-rolled layer |
 | Multi-vault simultaneous open | One session design; recent list + switch covers UX | Users need concurrent vaults |
+| Arbitrary plugin handler ABI | Host records handler ptr; safe typed invoke needs stable callback signature | Document plugin handler ABI |
 
 ## Shipped end-to-end (gap-closure waves)
 
-- Auto-lock policy **persisted** + **loaded at startup**; idle evaluate + activity tracking
+- Auto-lock policy **persisted** + **loaded at startup**; idle evaluate writes **vault_lock** audit
 - History list/restore UI; tag suggestions; search **snippets** with `<mark>`
 - Smart-folder **visual chip builder** + DSL codec
 - Templates fill-on-copy; bulk import/export; backup remind
-- Plugin manager UI; **plugin palette commands** registry; embedder preference setting
-- Audit module + **Settings audit panel**; unlock/lock instrumentation
+- Plugin manager UI; HostApi **register_command** + `onq_plugin_init` load; palette refresh via `list_plugin_commands`
+- Embedder preference setting
+- Audit **enable/disable** + panel; events: vault_unlock/lock, idle lock, export_backup, import_backup, prompt_unlock, plugin_install, history_restore, import/export prompts
 - Multi-vault **recent list + switch/unlock** on empty state
 - i18n scaffold; plugin authoring docs; embedder ADR

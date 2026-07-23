@@ -3,6 +3,7 @@ mod backup;
 mod commands;
 mod global_shortcut;
 mod legal;
+mod plugin_host;
 mod state;
 
 use commands::apply_auto_lock_on_start;
@@ -323,6 +324,8 @@ pub fn run() {
             commands::run_plugin_command,
             commands::get_embedder_preference,
             commands::set_embedder_preference,
+            commands::get_audit_enabled,
+            commands::set_audit_enabled,
             backup::get_backup_paths,
             backup::backup_is_sealed,
             backup::export_vault_backup,

@@ -36,6 +36,7 @@ const SEARCH_INDEX_DIR: &str = "search-index";
 const LAST_VAULT_FILE: &str = "last-vault";
 const AUTO_LOCK_POLICY_FILE: &str = "auto-lock-policy";
 const RECENT_VAULTS_FILE: &str = "recent-vaults.json";
+const AUDIT_ENABLED_FILE: &str = "audit-enabled";
 /// Whether this vault uses a user password or an app-generated key.
 const AUTH_MODE_FILE: &str = "auth-mode";
 /// Keychain entry used by vaults created before per-vault keys.
@@ -161,6 +162,26 @@ fn push_recent_vault_path(config_dir: &Path, vault_path: &Path) -> Result<(), St
     write_recent_vault_paths(config_dir, &list)
 }
 
+/// Append an audit event when auditing is enabled and a vault path is known.
+fn try_audit(state: &AppState, kind: &str, detail: Option<&str>) {
+    if !state.is_audit_enabled() {
+        return;
+    }
+    let path = match state.open_vault_path() {
+        Ok(Some(p)) => p,
+        _ => return,
+    };
+    if let Ok(v) = Vault::new(&path) {
+        let _ = onq_core::audit::append(&v, kind, detail);
+    }
+}
+
+/// Close vault after writing `vault_lock` (when audit enabled).
+fn close_vault_audited(state: &AppState, reason: &str) -> Result<Option<PathBuf>, String> {
+    try_audit(state, "vault_lock", Some(reason));
+    state.close_vault()
+}
+
 /// Pure evaluation used by the Tauri command and unit tests.
 fn evaluate_auto_lock_impl(
     state: &AppState,
@@ -177,19 +198,42 @@ fn evaluate_auto_lock_impl(
     if !should_lock_now(&policy, last, now) {
         return Ok(None);
     }
-    let path = state.close_vault()?;
+    let path = close_vault_audited(state, "idle_auto_lock")?;
     Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+fn write_audit_enabled_file(config_dir: &Path, enabled: bool) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    std::fs::write(
+        config_dir.join(AUDIT_ENABLED_FILE),
+        if enabled { b"1" as &[u8] } else { b"0" },
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn read_audit_enabled_file(config_dir: &Path) -> Result<Option<bool>, String> {
+    match std::fs::read_to_string(config_dir.join(AUDIT_ENABLED_FILE)) {
+        Ok(s) => {
+            let t = s.trim();
+            Ok(Some(t == "1" || t.eq_ignore_ascii_case("true")))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 fn set_open_vault(vault_path: PathBuf, db: Db, state: &State<'_, AppState>) -> Result<(), String> {
     let vault = Vault::new(vault_path.clone()).map_err(|error| error.to_string())?;
     let db = Arc::new(db);
     backfill_sparse_vectors(&vault, &db)?;
-    let _ = onq_core::audit::append(
-        &vault,
-        "vault_unlock",
-        Some(vault_path.to_string_lossy().as_ref()),
-    );
+    // Audit after vault is constructible; respect enable flag.
+    if state.is_audit_enabled() {
+        let _ = onq_core::audit::append(
+            &vault,
+            "vault_unlock",
+            Some(vault_path.to_string_lossy().as_ref()),
+        );
+    }
     *state.vault.lock().map_err(|error| error.to_string())? = Some(vault);
     *state.vault_path.lock().map_err(|error| error.to_string())? = Some(vault_path);
     *state.db.lock().map_err(|error| error.to_string())? = Some(db);
@@ -679,13 +723,15 @@ pub async fn unlock_prompt(
     let db = state.db.lock().map_err(|e| e.to_string())?.clone();
     let vault_root = vault_path;
     let pid_for_blocking = pid;
-    tokio::task::spawn_blocking(move || {
+    let summary = tokio::task::spawn_blocking(move || {
         let vault = Vault { root: vault_root };
         let db_ref = db.as_ref();
         unlock_prompt_blocking(&vault, &pid_for_blocking, db_ref, &OsKeychain)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    try_audit(&state, "prompt_unlock", Some(&summary.id));
+    Ok(summary)
 }
 
 /// First-line / short body excerpt for library list rows. Empty when locked
@@ -2745,13 +2791,7 @@ pub fn get_auto_lock_policy(app: AppHandle, state: State<'_, AppState>) -> Resul
 /// when nothing was open.
 #[tauri::command]
 pub fn lock_vault_now(state: State<'_, AppState>) -> Result<String, String> {
-    // Audit while vault path is still known.
-    if let Ok(Some(vp)) = state.open_vault_path() {
-        if let Ok(v) = onq_core::vault::Vault::new(&vp) {
-            let _ = onq_core::audit::append(&v, "vault_lock", Some(vp.to_string_lossy().as_ref()));
-        }
-    }
-    let path = state.close_vault()?;
+    let path = close_vault_audited(&state, "lock_vault_now")?;
     Ok(path
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_default())
@@ -2869,7 +2909,9 @@ pub async fn restore_prompt_history(
     let p = v.read(&pid).map_err(|e| e.to_string())?;
     if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
         index_prompt_with_state(&db, &p, &state)?;
-        let _ = onq_core::audit::append(v, "history_restore", Some(pid.as_str()));
+        if state.is_audit_enabled() {
+            let _ = onq_core::audit::append(v, "history_restore", Some(pid.as_str()));
+        }
     }
     Ok(PromptDetail::from(&p))
 }
@@ -2961,7 +3003,9 @@ pub async fn import_prompts(
                 let _ = index_prompt_with_state(&db, &p, &state);
             }
         }
-        let _ = onq_core::audit::append(v, "import_prompts", Some(&path));
+        if state.is_audit_enabled() {
+            let _ = onq_core::audit::append(v, "import_prompts", Some(&path));
+        }
     }
     Ok(ImportReportDto {
         created: report.created,
@@ -2997,7 +3041,9 @@ pub async fn export_prompts(
         },
     )
     .map_err(|e| e.to_string())?;
-    let _ = onq_core::audit::append(v, "export_prompts", Some(&dest));
+    if state.is_audit_enabled() {
+        let _ = onq_core::audit::append(v, "export_prompts", Some(&dest));
+    }
     Ok(ExportReportDto {
         exported: report.exported,
         skipped: report.skipped,
@@ -3248,9 +3294,9 @@ pub async fn install_plugin(
         .clone()
         .ok_or_else(|| "vault not open".to_string())?;
     let db = require_db(&state)?;
-    let archive = PathBuf::from(archive_path);
+    let archive = PathBuf::from(archive_path.clone());
     let plugins_dir = plugins_root(&vault_path);
-    tokio::task::spawn_blocking(move || -> Result<String, String> {
+    let dest = tokio::task::spawn_blocking(move || -> Result<String, String> {
         // 1. Verify + extract on disk via the core pipeline.
         let dest =
             onq_core::plugin_install::install(&archive, &plugins_dir).map_err(|e| e.to_string())?;
@@ -3307,7 +3353,11 @@ pub async fn install_plugin(
         Ok(dest.to_string_lossy().into_owned())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    try_audit(&state, "plugin_install", Some(&archive_path));
+    // Init plugin dylib + register commands immediately.
+    let _ = list_plugins(state).await;
+    Ok(dest)
 }
 
 /// Convert a `toml::Value` to `serde_json::Value`. Falls back to `Null`
@@ -3357,6 +3407,18 @@ pub async fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginInfo>,
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
     let plugins: Vec<PluginInfo> = rows.iter().map(PluginInfo::from_row).collect();
+    // Best-effort: load dylibs and call onq_plugin_init for enabled plugins.
+    if let Ok(Some(vp)) = state.open_vault_path() {
+        for p in plugins.iter().filter(|p| p.enabled) {
+            let dir = PathBuf::from(&p.path);
+            let dir = if dir.is_absolute() {
+                dir
+            } else {
+                vp.join(&p.path)
+            };
+            let _ = crate::plugin_host::load_and_init_plugin(&p.id, &dir);
+        }
+    }
     sync_plugin_commands_from_list(&state, &plugins)?;
     Ok(plugins)
 }
@@ -3423,15 +3485,45 @@ fn capabilities_as_strings(caps: &serde_json::Value) -> Vec<String> {
 }
 
 /// Palette-visible commands registered by plugins / host.
+///
+/// When a vault is open, re-syncs capability-declared commands and merges
+/// HostApi registrations so the palette does not depend on Settings first.
 #[tauri::command]
-pub fn list_plugin_commands(
+pub async fn list_plugin_commands(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::state::PluginCommand>, String> {
+    // Refresh from plugins table when vault is unlocked (same path Settings uses).
+    if let Ok(db) = require_db(&state) {
+        let rows = tokio::task::spawn_blocking(move || {
+            db.handle()
+                .query_for_current_principal("plugins", &Query::default(), None)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+        let plugins: Vec<PluginInfo> = rows.iter().map(PluginInfo::from_row).collect();
+        if let Ok(Some(vp)) = state.open_vault_path() {
+            for p in plugins.iter().filter(|p| p.enabled) {
+                let dir = PathBuf::from(&p.path);
+                let dir = if dir.is_absolute() {
+                    dir
+                } else {
+                    vp.join(&p.path)
+                };
+                let _ = crate::plugin_host::load_and_init_plugin(&p.id, &dir);
+            }
+        }
+        sync_plugin_commands_from_list(&state, &plugins)?;
+    }
+    // Merge HostApi registry into AppState.
+    for cmd in crate::plugin_host::host_registered_commands() {
+        let _ = state.register_plugin_command(cmd);
+    }
     let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
     Ok(guard.clone())
 }
 
-/// Host-side registration (tests / future FFI bridge).
+/// Host-side registration (tests / HostApi bridge).
 #[tauri::command]
 pub fn register_plugin_command(
     id: String,
@@ -3439,22 +3531,59 @@ pub fn register_plugin_command(
     plugin_id: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
-    state.register_plugin_command(crate::state::PluginCommand {
-        id,
-        name,
-        plugin_id,
-    })
+    let cmd = crate::state::PluginCommand {
+        id: id.clone(),
+        name: name.clone(),
+        plugin_id: plugin_id.clone(),
+    };
+    crate::plugin_host::register_from_host(cmd.clone());
+    state.register_plugin_command(cmd)
 }
 
-/// Run a registered plugin command by id (best-effort no-op body for now).
+/// Run a registered plugin command by id.
 #[tauri::command]
 pub fn run_plugin_command(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    // Prefer HostApi-registered path (real handler pointer when present).
+    match crate::plugin_host::run_registered(&id) {
+        Ok(msg) => return Ok(msg),
+        Err(_) => {}
+    }
     let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
     let cmd = guard
         .iter()
         .find(|c| c.id == id)
         .ok_or_else(|| format!("unknown plugin command: {id}"))?;
-    Ok(format!("ran {} ({})", cmd.name, cmd.plugin_id))
+    Ok(format!(
+        "executed {} (capability command, plugin {})",
+        cmd.name, cmd.plugin_id
+    ))
+}
+
+#[tauri::command]
+pub fn get_audit_enabled(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?;
+    if let Some(v) = read_audit_enabled_file(&config_dir)? {
+        *state.audit_enabled.lock().map_err(|e| e.to_string())? = v;
+        return Ok(v);
+    }
+    Ok(state.is_audit_enabled())
+}
+
+#[tauri::command]
+pub fn set_audit_enabled(
+    enabled: bool,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    *state.audit_enabled.lock().map_err(|e| e.to_string())? = enabled;
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?;
+    write_audit_enabled_file(&config_dir, enabled)
 }
 
 #[tauri::command]
@@ -3904,6 +4033,11 @@ pub fn apply_auto_lock_on_start(app: &AppHandle, state: &AppState) {
 /// Testable core of [`apply_auto_lock_on_start`]: load disk policy into
 /// memory, then evaluate `should_lock_now` against process-start activity.
 pub fn apply_auto_lock_on_start_with_config(config_dir: &Path, state: &AppState) {
+    if let Ok(Some(enabled)) = read_audit_enabled_file(config_dir) {
+        if let Ok(mut g) = state.audit_enabled.lock() {
+            *g = enabled;
+        }
+    }
     if let Ok(Some(saved)) = read_auto_lock_policy_file(config_dir) {
         match parse_auto_lock_policy(&saved) {
             Ok(parsed) => {
@@ -3927,7 +4061,7 @@ pub fn apply_auto_lock_on_start_with_config(config_dir: &Path, state: &AppState)
         Err(_) => std::time::Instant::now(),
     };
     if should_lock_now(&policy, last, std::time::Instant::now()) {
-        let _ = state.close_vault();
+        let _ = close_vault_audited(state, "startup_idle_auto_lock");
     }
 }
 
@@ -5214,6 +5348,33 @@ mod tests {
         );
         assert!(state.db.lock().unwrap().is_none());
         assert!(state.vault.lock().unwrap().is_none());
+        // Idle lock must write vault_lock audit (enabled by default).
+        let vault = Vault::new(dir.path()).unwrap();
+        let events = onq_core::audit::read_recent(&vault, 10).unwrap();
+        assert!(
+            events.iter().any(|e| e.kind == "vault_lock"),
+            "expected vault_lock audit event, got {events:?}"
+        );
+    }
+
+    #[test]
+    fn evaluate_auto_lock_skips_audit_when_disabled() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        *state.audit_enabled.lock().unwrap() = false;
+        let dir = tempfile::TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
+        *state.last_activity.lock().unwrap() = Instant::now() - Duration::from_secs(5);
+        let _ = evaluate_auto_lock_impl(&state, Instant::now()).unwrap();
+        let events = onq_core::audit::read_recent(&Vault::new(dir.path()).unwrap(), 10).unwrap();
+        assert!(
+            events.is_empty(),
+            "disabled audit must not write vault_lock: {events:?}"
+        );
     }
 
     #[test]

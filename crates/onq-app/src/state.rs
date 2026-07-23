@@ -39,6 +39,8 @@ pub struct AppState {
     pub plugin_commands: Mutex<Vec<PluginCommand>>,
     /// Preferred embedder id: `"builtin"` or a plugin id with embedding cap.
     pub embedder_preference: Mutex<String>,
+    /// When false, audit appends are no-ops (persisted in app config).
+    pub audit_enabled: Mutex<bool>,
 }
 
 impl Default for AppState {
@@ -52,6 +54,7 @@ impl Default for AppState {
             last_activity: Mutex::new(Instant::now()),
             plugin_commands: Mutex::new(Vec::new()),
             embedder_preference: Mutex::new("builtin".into()),
+            audit_enabled: Mutex::new(true),
         }
     }
 }
@@ -102,5 +105,12 @@ impl AppState {
         let mut guard = self.plugin_commands.lock().map_err(|e| e.to_string())?;
         guard.retain(|c| c.plugin_id != plugin_id);
         Ok(())
+    }
+
+    pub fn is_audit_enabled(&self) -> bool {
+        self.audit_enabled
+            .lock()
+            .map(|g| *g)
+            .unwrap_or(true)
     }
 }
