@@ -397,14 +397,6 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  .help code {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 12px;
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: var(--glass-control-bg);
-    border: 1px solid var(--glass-border);
-  }
   .hint {
     margin: 0;
     font-size: 12px;

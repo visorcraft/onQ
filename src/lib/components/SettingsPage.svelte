@@ -950,14 +950,6 @@
     font-size: 13px;
     margin-bottom: 0;
   }
-  .help code {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 12px;
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: var(--glass-control-bg);
-    border: 1px solid var(--glass-border);
-  }
   .settings-layout {
     position: relative;
     display: grid;
@@ -1365,10 +1357,6 @@
     background: var(--glass-control-bg);
     font-size: 12px;
     color: var(--glass-text-dim);
-  }
-  .status-pill strong {
-    color: var(--glass-text);
-    font-weight: 650;
   }
   .status-list {
     list-style: none;

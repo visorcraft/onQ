@@ -20,11 +20,7 @@
   import { globalShortcut } from '$lib/stores/globalShortcut';
   import { openPalette } from '$lib/stores/palette.svelte';
   import { openLastVault } from '$lib/api/vault';
-  import {
-    evaluateAutoLock,
-    lockVaultNow,
-    touchActivity,
-  } from '$lib/api/session';
+  import { evaluateAutoLock, touchActivity } from '$lib/api/session';
   import { appView, navigate, type AppView } from '$lib/stores/navigation';
   import { version as appVersion } from '../package.json';
   import onqIcon from '$lib/assets/onq-128.png';
@@ -91,15 +87,6 @@
     if (path) {
       passwordPath = path;
       recoveryPath = null;
-    }
-  }
-
-  async function handleLockVault() {
-    try {
-      const path = await lockVaultNow();
-      onSessionLocked(path || passwordPath);
-    } catch (error) {
-      vaultError = `Could not lock vault: ${String(error)}`;
     }
   }
 

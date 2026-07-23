@@ -1337,10 +1337,6 @@
   .hint.pad {
     padding: 8px;
   }
-  .hint code {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 10px;
-  }
   .row-actions {
     display: flex;
     gap: 6px;

@@ -327,6 +327,8 @@
           {/if}
         </span>
         {#if snippet}
+          <!-- highlightSnippet escapes HTML before inserting <mark> tags -->
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           <span class="palette-snippet">{@html highlightSnippet(snippet, query)}</span>
         {/if}
       </span>
