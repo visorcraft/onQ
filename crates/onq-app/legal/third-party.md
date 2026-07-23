@@ -195,8 +195,8 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## BSD-2-Clause OR Apache-2.0 OR MIT
 
-- `zerocopy` 0.8.54 — https://github.com/google/zerocopy
-- `zerocopy-derive` 0.8.54 — https://github.com/google/zerocopy
+- `zerocopy` 0.8.55 — https://github.com/google/zerocopy
+- `zerocopy-derive` 0.8.55 — https://github.com/google/zerocopy
 
 ## BSD-3-Clause
 
@@ -221,7 +221,7 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## BSL-1.0
 
-- `xxhash-rust` 0.8.17 — https://github.com/DoumanAsh/xxhash-rust
+- `xxhash-rust` 0.8.18 — https://github.com/DoumanAsh/xxhash-rust
 
 ## CC0-1.0
 
@@ -300,7 +300,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `http-body` 1.1.0 — https://github.com/hyperium/http-body
 - `http-body-util` 0.1.4 — https://github.com/hyperium/http-body
 - `hyper` 0.14.32 — https://github.com/hyperium/hyper
-- `hyper` 1.10.1 — https://github.com/hyperium/hyper
+- `hyper` 1.11.0 — https://github.com/hyperium/hyper
 - `hyper-util` 0.1.20 — https://github.com/hyperium/hyper-util
 - `ico` 0.5.0 — https://github.com/mdsteele/rust-ico
 - `indicatif` 0.17.11 — https://github.com/console-rs/indicatif
@@ -361,10 +361,10 @@ Regenerate with `scripts/regen-credits.sh`.
 - `strsim` 0.11.1 — https://github.com/rapidfuzz/strsim-rs
 - `synstructure` 0.13.2 — https://github.com/mystor/synstructure
 - `tauri-winres` 0.3.6 — https://github.com/tauri-apps/winres
-- `tokio` 1.53.0 — https://github.com/tokio-rs/tokio
+- `tokio` 1.53.1 — https://github.com/tokio-rs/tokio
 - `tokio-macros` 2.7.1 — https://github.com/tokio-rs/tokio
 - `tokio-native-tls` 0.3.1 — https://github.com/tokio-rs/tls
-- `tokio-util` 0.7.18 — https://github.com/tokio-rs/tokio
+- `tokio-util` 0.7.19 — https://github.com/tokio-rs/tokio
 - `tower` 0.5.3 — https://github.com/tower-rs/tower
 - `tower-http` 0.6.11 — https://github.com/tower-rs/tower-http
 - `tower-layer` 0.3.3 — https://github.com/tower-rs/tower
@@ -435,7 +435,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `cfg-if` 1.0.4 — https://github.com/rust-lang/cfg-if
 - `chrono` 0.4.45 — https://github.com/chronotope/chrono
 - `cipher` 0.4.4 — https://github.com/RustCrypto/traits
-- `clap` 4.6.2 — https://github.com/clap-rs/clap
+- `clap` 4.6.4 — https://github.com/clap-rs/clap
 - `clap_builder` 4.6.2 — https://github.com/clap-rs/clap
 - `clap_lex` 1.1.0 — https://github.com/clap-rs/clap
 - `cookie` 0.18.1 — https://github.com/SergioBenitez/cookie-rs
@@ -491,7 +491,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `getrandom` 0.2.17 — https://github.com/rust-random/getrandom
 - `getrandom` 0.3.4 — https://github.com/rust-random/getrandom
 - `getrandom` 0.4.3 — https://github.com/rust-random/getrandom
-- `glob` 0.3.3 — https://github.com/rust-lang/glob
+- `glob` 0.3.4 — https://github.com/rust-lang/glob
 - `half` 2.7.1 — https://github.com/VoidStarKat/half-rs
 - `hashbrown` 0.12.3 — https://github.com/rust-lang/hashbrown
 - `hashbrown` 0.17.1 — https://github.com/rust-lang/hashbrown
@@ -525,7 +525,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `keyboard-types` 0.7.0 — https://github.com/pyfisch/keyboard-types
 - `keyring` 3.6.3 — https://github.com/hwchen/keyring-rs.git
 - `lazy_static` 1.5.0 — https://github.com/rust-lang-nursery/lazy-static.rs
-- `libc` 0.2.186 — https://github.com/rust-lang/libc
+- `libc` 0.2.189 — https://github.com/rust-lang/libc
 - `lock_api` 0.4.14 — https://github.com/Amanieu/parking_lot
 - `log` 0.4.33 — https://github.com/rust-lang/log
 - `markup5ever` 0.38.0 — https://github.com/servo/html5ever
@@ -589,7 +589,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `reqwest` 0.13.4 — https://github.com/seanmonstar/reqwest
 - `roaring` 0.10.12 — https://github.com/RoaringBitmap/roaring-rs
 - `rustc_version` 0.4.1 — https://github.com/djc/rustc-version-rs
-- `rustls-pki-types` 1.15.0 — https://github.com/rustls/pki-types
+- `rustls-pki-types` 1.15.1 — https://github.com/rustls/pki-types
 - `rustls-platform-verifier` 0.7.0 — https://github.com/rustls/rustls-platform-verifier
 - `rustls-platform-verifier-android` 0.1.1 — https://github.com/rustls/rustls-platform-verifier
 - `rustversion` 1.0.23 — https://github.com/dtolnay/rustversion
@@ -602,7 +602,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `serde_core` 1.0.229 — https://github.com/serde-rs/serde
 - `serde_derive` 1.0.229 — https://github.com/serde-rs/serde
 - `serde_derive_internals` 0.29.1 — https://github.com/serde-rs/serde
-- `serde_json` 1.0.150 — https://github.com/serde-rs/json
+- `serde_json` 1.0.151 — https://github.com/serde-rs/json
 - `serde_repr` 0.1.21 — https://github.com/dtolnay/serde-repr
 - `serde_spanned` 0.6.9 — https://github.com/toml-rs/toml
 - `serde_spanned` 1.1.1 — https://github.com/toml-rs/toml
@@ -626,7 +626,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `swift-rs` 1.0.7 — https://github.com/Brendonovich/swift-rs
 - `syn` 1.0.109 — https://github.com/dtolnay/syn
 - `syn` 2.0.119 — https://github.com/dtolnay/syn
-- `syn` 3.0.1 — https://github.com/dtolnay/syn
+- `syn` 3.0.3 — https://github.com/dtolnay/syn
 - `system-configuration` 0.5.1 — https://github.com/mullvad/system-configuration-rs
 - `system-configuration-sys` 0.5.0 — https://github.com/mullvad/system-configuration-rs
 - `system-deps` 6.2.2 — https://github.com/gdesmott/system-deps
@@ -639,9 +639,9 @@ Regenerate with `scripts/regen-credits.sh`.
 - `thiserror-impl` 1.0.69 — https://github.com/dtolnay/thiserror
 - `thiserror-impl` 2.0.19 — https://github.com/dtolnay/thiserror
 - `thread_local` 1.1.10 — https://github.com/Amanieu/thread_local-rs
-- `time` 0.3.53 — https://github.com/time-rs/time
+- `time` 0.3.54 — https://github.com/time-rs/time
 - `time-core` 0.1.9 — https://github.com/time-rs/time
-- `time-macros` 0.2.31 — https://github.com/time-rs/time
+- `time-macros` 0.2.32 — https://github.com/time-rs/time
 - `tokio-rustls` 0.26.4 — https://github.com/rustls/tokio-rustls
 - `toml` 0.8.2 — https://github.com/toml-rs/toml
 - `toml` 0.9.12+spec-1.1.0 — https://github.com/toml-rs/toml
@@ -767,7 +767,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `filetime` 0.2.29 — https://github.com/alexcrichton/filetime
 - `foreign-types` 0.3.2 — https://github.com/sfackler/foreign-types
 - `foreign-types` 0.5.0 — https://github.com/sfackler/foreign-types
-- `foreign-types-macros` 0.2.3 — https://github.com/sfackler/foreign-types
+- `foreign-types-macros` 0.2.4 — https://github.com/sfackler/foreign-types
 - `foreign-types-shared` 0.1.1 — https://github.com/sfackler/foreign-types
 - `foreign-types-shared` 0.3.1 — https://github.com/sfackler/foreign-types
 - `fs2` 0.4.3 — https://github.com/danburkert/fs2-rs

@@ -108,8 +108,17 @@ MiniLM 384-dimensional local embeddings
 
 ## Status
 
-onQ is approaching 1.0. Storage formats may still change; backup before upgrading major versions.
+onQ is on the **1.x** line (see [Releases](https://github.com/visorcraft/onQ/releases)).
+Vault and index formats can still evolve between major versions — back up before large upgrades.
+
+## Documentation
+
+- [Contributing](CONTRIBUTING.md) — setup and PR expectations
+- [AGENTS.md](AGENTS.md) — repository map and agent/contributor working notes
+- [Plugin authoring](docs/plugins/README.md)
+- User site source: `docs-site/` (`npm run docs:dev`)
 
 ## License
 
-GPL-3.0-only. See [LICENSE](LICENSE).
+GPL-3.0-only. See [LICENSE](LICENSE). In-app **Credits** and **Licenses** list
+third-party crates, npm packages, and runtime components.

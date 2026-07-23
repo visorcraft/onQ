@@ -1,9 +1,8 @@
 //! Auto-lock policy logic.
 //!
-//! Policies govern when the open vault should be cleared from memory.
-//! The brief is explicit: do not wire full activity tracking here — the
-//! check function lives on its own so future tasks can drive it from a
-//! real "last input" timestamp without changing the public signature.
+//! Pure decision helper: given a policy, last activity instant, and "now",
+//! decide whether the open vault should be cleared from memory. The app
+//! layer owns activity tracking (`touch_activity`) and persistence.
 
 use std::time::{Duration, Instant};
 
@@ -30,8 +29,7 @@ pub enum AutoLockPolicy {
 ///
 /// `last_activity` and `now` are passed in (rather than read from
 /// `Instant::now()`) so unit tests can drive both edges of the timeout
-/// without sleeping. A real activity tracker will be wired in a later
-/// task; this signature is the contract that tracker has to honour.
+/// without sleeping.
 pub fn should_lock_now(policy: &AutoLockPolicy, last_activity: Instant, now: Instant) -> bool {
     match policy {
         AutoLockPolicy::Disabled | AutoLockPolicy::LockOnQuit => false,

@@ -409,7 +409,7 @@
   },
   {
     "name": "clap",
-    "version": "4.6.2",
+    "version": "4.6.4",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/clap-rs/clap"
   },
@@ -961,7 +961,7 @@
   },
   {
     "name": "foreign-types-macros",
-    "version": "0.2.3",
+    "version": "0.2.4",
     "license": "MIT/Apache-2.0",
     "repository": "https://github.com/sfackler/foreign-types"
   },
@@ -1165,7 +1165,7 @@
   },
   {
     "name": "glob",
-    "version": "0.3.3",
+    "version": "0.3.4",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/rust-lang/glob"
   },
@@ -1333,7 +1333,7 @@
   },
   {
     "name": "hyper",
-    "version": "1.10.1",
+    "version": "1.11.0",
     "license": "MIT",
     "repository": "https://github.com/hyperium/hyper"
   },
@@ -1639,7 +1639,7 @@
   },
   {
     "name": "libc",
-    "version": "0.2.186",
+    "version": "0.2.189",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/rust-lang/libc"
   },
@@ -2563,7 +2563,7 @@
   },
   {
     "name": "rustls-pki-types",
-    "version": "1.15.0",
+    "version": "1.15.1",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/rustls/pki-types"
   },
@@ -2695,7 +2695,7 @@
   },
   {
     "name": "serde_json",
-    "version": "1.0.150",
+    "version": "1.0.151",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/serde-rs/json"
   },
@@ -2923,7 +2923,7 @@
   },
   {
     "name": "syn",
-    "version": "3.0.1",
+    "version": "3.0.3",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/dtolnay/syn"
   },
@@ -3121,7 +3121,7 @@
   },
   {
     "name": "time",
-    "version": "0.3.53",
+    "version": "0.3.54",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/time-rs/time"
   },
@@ -3133,7 +3133,7 @@
   },
   {
     "name": "time-macros",
-    "version": "0.2.31",
+    "version": "0.2.32",
     "license": "MIT OR Apache-2.0",
     "repository": "https://github.com/time-rs/time"
   },
@@ -3169,7 +3169,7 @@
   },
   {
     "name": "tokio",
-    "version": "1.53.0",
+    "version": "1.53.1",
     "license": "MIT",
     "repository": "https://github.com/tokio-rs/tokio"
   },
@@ -3193,7 +3193,7 @@
   },
   {
     "name": "tokio-util",
-    "version": "0.7.18",
+    "version": "0.7.19",
     "license": "MIT",
     "repository": "https://github.com/tokio-rs/tokio"
   },
@@ -4105,7 +4105,7 @@
   },
   {
     "name": "xxhash-rust",
-    "version": "0.8.17",
+    "version": "0.8.18",
     "license": "BSL-1.0",
     "repository": "https://github.com/DoumanAsh/xxhash-rust"
   },
@@ -4141,13 +4141,13 @@
   },
   {
     "name": "zerocopy",
-    "version": "0.8.54",
+    "version": "0.8.55",
     "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
     "repository": "https://github.com/google/zerocopy"
   },
   {
     "name": "zerocopy-derive",
-    "version": "0.8.54",
+    "version": "0.8.55",
     "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
     "repository": "https://github.com/google/zerocopy"
   },

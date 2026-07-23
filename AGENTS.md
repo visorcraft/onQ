@@ -1,0 +1,164 @@
+# Repository Guidelines
+
+Agent working notes for onQ. Prefer this file over ad-hoc exploration.
+
+## Agent working style
+
+- Be concise. Do not scan `node_modules/`, `target/`, `dist/`, or generated legal inventories line-by-line unless regenerating them.
+- Reuse existing helpers (`src/lib/api/*`, `onq_core::*`) before adding parallel paths.
+- Keep changes small and verifiable. Every behavior change needs a test (Rust unit/integration or Vitest).
+- No AI/agent attribution in commits, PRs, code comments, or test data. Conventional Commits only.
+- Never commit secrets, recovery phrases, or signing private keys.
+
+## Product
+
+onQ is a **local-first encrypted prompt vault** (desktop): Markdown prompts + YAML frontmatter on disk, encrypted MongrelDB search index under `.onq/`, hybrid sparse+vector search, system tray + global shortcut (Win/Meta/⌘+Q or user-recorded). License: **GPL-3.0-only**. App id: `com.visorcraft.onq`. Current line: **1.x** (`package.json` / workspace version).
+
+Hard constraints:
+
+- Local-first: no cloud account, no telemetry. Hugging Face model download is the only optional network path (embeddings).
+- Prompts remain portable `.md` files; the index is derived and disposable.
+- Plugins are signed Rust native code (C ABI), GPL-3.0-only enforced.
+
+## Project map
+
+```text
+src/                         Svelte 5 + TypeScript UI (Vite)
+  lib/api/                   Tauri invoke wrappers (one module per domain)
+  lib/components/            App screens + primitives/ + about/ + settings/
+  lib/stores/                Svelte stores (settings, search, palette, theme, …)
+  lib/i18n/                  Locales: en (source of truth), th, es, zh, fr, de
+  lib/styles/                tokens.css, tokens.light.css, glass.css, motion.css
+crates/
+  onq-app/                   Tauri 2 shell: commands, tray, shortcuts, legal embeds
+    legal/                   Bundled licenses + crates.json + npm-packages.json
+  onq-core/                  Domain: vault, crypto, search, sync, plugins, import…
+  onq-plugin-sdk/            Versioned C ABI for native plugins
+  onq-test-utils/            Shared Rust test fixtures / mocks
+docs/                        ADR, plugin authoring, deferred roadmap
+docs-site/                   VitePress user docs
+tests/                       Playwright a11y + e2e; sample-plugin fixture
+scripts/                     release, credits regen, perf, prereqs
+```
+
+Key core modules (`crates/onq-core/src/`):
+
+| Module | Role |
+|---|---|
+| `vault`, `frontmatter` | Markdown vault I/O + YAML frontmatter |
+| `db`, `schema`, `migrate` | MongrelDB index open, columns, migrations |
+| `crypto`, `keychain`, `recovery`, `lock` | Vault key, OS keychain, BIP39 phrase, per-prompt lock |
+| `search`, `embed`, `embedding_index` | Hybrid RRF search, MiniLM ONNX, quant preference |
+| `history`, `merge`, `reconcile`, `sync`, `sync_state` | Snapshots, three-way merge, file-watch primitives |
+| `plugin`, `plugin_install`, `signature` | Plugin load/install/ed25519 verify |
+| `import/*`, `export`, `backup/*` | Bulk import/export, `.onqbak` archives |
+| `template`, `tag_suggest`, `smart_folder_*` | `{{vars}}`, vocab tags, DSL + visual builder |
+
+`mongreldb-core` is a **crates.io** dependency (encrypted feature). Never path/git-pin a sibling checkout.
+
+## Build, test, run
+
+Prereqs: **Node 24+**, **Rust stable** (`rust-toolchain.toml`), [Tauri platform deps](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+npm install
+npm run dev:app          # tauri dev
+npm run build:app        # tauri build → target/release/bundle/
+npm run check            # svelte-check
+npm run lint
+npm test                 # vitest
+npm run test:a11y        # playwright a11y
+npm run test:e2e
+npm run storybook
+npm run docs:dev         # VitePress
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all -- --check
+cargo deny check         # licenses/advisories (deny.toml)
+```
+
+Heavy / optional:
+
+```bash
+ONQ_RUN_HEAVY_TESTS=1 cargo test -p onq-core --test embed_real
+cargo bench -p onq-core
+bash scripts/check-perf-regression.sh
+```
+
+CI (`.github/workflows/ci.yml`): `cargo fmt`, clippy `-D warnings`, cargo-deny, `cargo test --workspace`, then frontend check/lint/test/build + Playwright a11y on Node 24.
+
+## Dependency & credits maintenance
+
+After changing Rust or npm dependencies:
+
+```bash
+cargo update                 # within Cargo.toml constraints
+npm update                   # within package.json ranges
+bash scripts/regen-credits.sh
+```
+
+That rewrites:
+
+- `crates/onq-app/legal/crates.json` + `third-party.md`
+- `crates/onq-app/legal/npm-packages.json` + `npm-third-party.md`
+
+In-app **Credits** / **Licenses** pages embed these at compile time (`crates/onq-app/src/legal.rs`). Keep inventories complete: every direct npm package and every resolved non-workspace crate. Runtime OS libraries (WebKitGTK, GTK, WebView2, …) are documented in `acknowledgments.md` + `runtime.md` / `runtime/*.txt` — not regenerated by the script.
+
+Do **not** introduce non-GPL plugin licenses or proprietary SDKs. `deny.toml` allow-list is authoritative for crate licenses.
+
+Major upgrades that need API work (e.g. bits-ui 2, eslint 10, notify 8, ed25519-dalek 3, keyring 4) are out of band for “simple upgrade” passes — leave constraints until deliberately planned.
+
+## Frontend conventions
+
+- TypeScript strict; Svelte 5 runes (`$state`, `$derived`, `$props`).
+- UI IPC only through `src/lib/api/*` wrappers — keep them in sync with `crates/onq-app/src/commands.rs` / `backup.rs` / `legal.rs` / `global_shortcut.rs`.
+- i18n: add keys to `en.ts` first (`MessageKey`); mirror in all six locale files. Prefer `t(key, vars, $locale)`.
+- Styles: CSS variables in `tokens.css` / `tokens.light.css`; glass surfaces via `glass.css`. Settings chrome uses `settings-chrome.css`.
+- Colocate Vitest tests as `*.test.ts` next to source. Mock Tauri at the invoke boundary.
+- Storybook covers primitives and some product components; Storybook-only components are not dead code.
+
+## Rust conventions
+
+- `cargo fmt`; modules/fns `snake_case`, types `PascalCase`.
+- Prefer `thiserror` / `CoreResult` in `onq-core`; Tauri commands return `Result<T, String>` for IPC.
+- No `unwrap()`/`expect()` on IPC paths outside tests.
+- Feature `real-keychain` on `onq-core` enables OS keyring (enabled by `onq-app`).
+- Schema/migrations live in `schema.rs` + `migrate.rs`; bump migrations carefully and keep `tests/integration/compat_vault.rs` green.
+- Workspace path dep versions for `onq-core` / `onq-plugin-sdk` / `onq-test-utils` must match `[workspace.package].version`.
+
+## Domain rules (load-bearing)
+
+- **Vault root**: user-chosen directory of `.md` files. Index: `<vault>/.onq/search-index` (encrypted MongrelDB). History: `.onq/history/`. Audit: `.onq/audit.log`.
+- **Auth modes**: master password (key derived, never stored) **or** keychain-held generated key + 24-word recovery phrase (BIP39).
+- **Search**: sparse keyword + optional dense MiniLM (384-d) embeddings; fuse with RRF; recency half-life from app settings (default 30 days). Binary vs dense embedding quant is a user preference reconciled on open.
+- **Auto-lock**: policy in app config; idle timer driven by frontend `touch_activity` + `evaluate_auto_lock`. Pure decision logic: `auto_lock::should_lock_now`.
+- **Sync**: `notify` watcher + `reconcile` / three-way `merge` exist in core; conflict UI (`ConflictResolver`, `DiffViewer`, `api/sync.ts`) is present for Storybook / future wiring. Do not remove without replacing the product path.
+- **Plugins**: install verifies ed25519 signature against trust anchor; host may register palette commands via `HostApi`. See `docs/plugins/README.md` and `docs/adr/0001-plugin-embedders.md`.
+- **Backups**: sealed `.onqbak` export/import; optional archive password separate from vault password.
+- **Templates**: `{{name}}` and `{{name|default}}` filled on copy from the palette.
+
+## Docs layout
+
+| Path | Purpose |
+|---|---|
+| `README.md` | User-facing overview |
+| `CONTRIBUTING.md` | Contributor setup / PR basics |
+| `docs/plugins/` | Plugin authoring |
+| `docs/adr/` | Architecture decision records |
+| `docs/superpowers/plans/DEFERRED.md` | Explicit post-1.0 deferrals |
+| `docs-site/` | Public VitePress site |
+
+Do not re-add completed implementation plans under `docs/superpowers/` once shipped; keep only open deferrals / ADRs / living guides.
+
+## Commit / PR
+
+- Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `style:`, `perf:`.
+- Scope optional (`fix(search): …`). Imperative subject, ~50 chars preferred.
+- PRs: user-visible summary, verification commands run, screenshots for UI.
+- Security issues: private reporting only (`.github/SECURITY.md`).
+
+## Release notes
+
+- Version is synchronized across `package.json`, `[workspace.package]`, and `crates/onq-app/tauri.conf.json`.
+- Updater endpoints and signing live in Tauri config + release workflow; do not point production at prerelease channels by default.
+- Scripts: `scripts/release.sh`, `generate-latest.json.sh`, `compute-sha256.sh`.

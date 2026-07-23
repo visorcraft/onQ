@@ -22,14 +22,14 @@
   },
   {
     "name": "@storybook/addon-a11y",
-    "version": "10.5.2",
+    "version": "10.5.3",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
   },
   {
     "name": "@storybook/addon-docs",
-    "version": "10.5.2",
+    "version": "10.5.3",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
@@ -43,7 +43,7 @@
   },
   {
     "name": "@storybook/svelte-vite",
-    "version": "10.5.2",
+    "version": "10.5.3",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
@@ -106,14 +106,14 @@
   },
   {
     "name": "@typescript-eslint/eslint-plugin",
-    "version": "8.64.0",
+    "version": "8.65.0",
     "license": "MIT",
     "repository": "https://github.com/typescript-eslint/typescript-eslint",
     "role": "dev"
   },
   {
     "name": "@typescript-eslint/parser",
-    "version": "8.64.0",
+    "version": "8.65.0",
     "license": "MIT",
     "repository": "https://github.com/typescript-eslint/typescript-eslint",
     "role": "dev"
@@ -148,7 +148,7 @@
   },
   {
     "name": "eslint-plugin-storybook",
-    "version": "10.5.2",
+    "version": "10.5.3",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
@@ -176,21 +176,21 @@
   },
   {
     "name": "postcss",
-    "version": "8.5.20",
+    "version": "8.5.22",
     "license": "MIT",
     "repository": "postcss/postcss",
     "role": "dev"
   },
   {
     "name": "storybook",
-    "version": "10.5.2",
+    "version": "10.5.3",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
   },
   {
     "name": "svelte",
-    "version": "5.56.6",
+    "version": "5.56.7",
     "license": "MIT",
     "repository": "https://github.com/sveltejs/svelte",
     "role": "dev"

@@ -35,5 +35,12 @@ Licenses page **Runtime components** tab and summarized in Credits.
 
 ## Direct product dependencies
 
-onQ is built with Rust, Tauri 2, Svelte 5, and MongrelDB for local storage
-and hybrid search. See Credits for complete crate and npm inventories.
+onQ is built with **Rust**, **Tauri 2**, **Svelte 5**, and **MongrelDB**
+(`mongreldb-core`) for the encrypted local index and hybrid search. Local
+embeddings use ONNX Runtime (`ort`) with a MiniLM model. The desktop shell
+uses `@tauri-apps/*` plugins (dialog, opener, updater) and `bits-ui` for a
+subset of accessible UI primitives.
+
+Inventories of every resolved Cargo crate and every direct npm package ship
+in the app **Credits** page and under `crates/onq-app/legal/`. Regenerate
+those files with `scripts/regen-credits.sh` after dependency changes.

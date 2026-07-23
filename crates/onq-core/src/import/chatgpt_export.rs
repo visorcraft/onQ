@@ -23,8 +23,8 @@ struct Conversation {
     mapping: Option<serde_json::Value>,
     /// Present in ChatGPT export JSON; not required for import.
     #[serde(default)]
-    #[allow(dead_code)]
-    current_node: Option<String>,
+    #[serde(rename = "current_node")]
+    _current_node: Option<String>,
 }
 
 /// Import ChatGPT conversations as one prompt per conversation title+last message.
