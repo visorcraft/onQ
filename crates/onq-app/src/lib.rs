@@ -302,6 +302,8 @@ pub fn run() {
             commands::export_prompts,
             commands::list_recent_vaults,
             commands::push_recent_vault,
+            commands::remove_recent_vault,
+            commands::switch_vault,
             commands::read_audit_log,
             commands::backup_should_remind,
             commands::visual_to_dsl,

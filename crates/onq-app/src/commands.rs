@@ -34,6 +34,8 @@ const SEARCH_INDEX_DIR: &str = "search-index";
 /// Last successfully opened vault, stored outside the encrypted vault so it
 /// can be found before unlock.
 const LAST_VAULT_FILE: &str = "last-vault";
+const AUTO_LOCK_POLICY_FILE: &str = "auto-lock-policy";
+const RECENT_VAULTS_FILE: &str = "recent-vaults.json";
 /// Whether this vault uses a user password or an app-generated key.
 const AUTH_MODE_FILE: &str = "auth-mode";
 /// Keychain entry used by vaults created before per-vault keys.
@@ -108,7 +110,75 @@ fn remember_vault(app: &AppHandle, vault_path: &Path) -> Result<(), String> {
         .path()
         .app_config_dir()
         .map_err(|error| error.to_string())?;
-    write_last_vault(&config_dir, vault_path)
+    write_last_vault(&config_dir, vault_path)?;
+    push_recent_vault_path(&config_dir, vault_path)?;
+    Ok(())
+}
+
+fn auto_lock_policy_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(AUTO_LOCK_POLICY_FILE)
+}
+
+fn write_auto_lock_policy_file(config_dir: &Path, policy: &str) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    std::fs::write(auto_lock_policy_path(config_dir), policy.as_bytes()).map_err(|e| e.to_string())
+}
+
+fn read_auto_lock_policy_file(config_dir: &Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(auto_lock_policy_path(config_dir)) {
+        Ok(s) if s.trim().is_empty() => Ok(None),
+        Ok(s) => Ok(Some(s.trim().to_string())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn recent_vaults_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(RECENT_VAULTS_FILE)
+}
+
+fn read_recent_vault_paths(config_dir: &Path) -> Result<Vec<String>, String> {
+    match std::fs::read_to_string(recent_vaults_path(config_dir)) {
+        Ok(raw) if raw.trim().is_empty() => Ok(Vec::new()),
+        Ok(raw) => serde_json::from_str(&raw).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn write_recent_vault_paths(config_dir: &Path, paths: &[String]) -> Result<(), String> {
+    std::fs::create_dir_all(config_dir).map_err(|e| e.to_string())?;
+    let raw = serde_json::to_string(paths).map_err(|e| e.to_string())?;
+    std::fs::write(recent_vaults_path(config_dir), raw).map_err(|e| e.to_string())
+}
+
+fn push_recent_vault_path(config_dir: &Path, vault_path: &Path) -> Result<(), String> {
+    let path = vault_path.to_string_lossy().into_owned();
+    let mut list = read_recent_vault_paths(config_dir)?;
+    list.retain(|p| p != &path);
+    list.insert(0, path);
+    list.truncate(10);
+    write_recent_vault_paths(config_dir, &list)
+}
+
+/// Pure evaluation used by the Tauri command and unit tests.
+fn evaluate_auto_lock_impl(
+    state: &AppState,
+    now: std::time::Instant,
+) -> Result<Option<String>, String> {
+    use crate::auto_lock::should_lock_now;
+
+    let policy = state
+        .auto_lock_policy
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let last = *state.last_activity.lock().map_err(|e| e.to_string())?;
+    if !should_lock_now(&policy, last, now) {
+        return Ok(None);
+    }
+    let path = state.close_vault()?;
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
 }
 
 fn set_open_vault(vault_path: PathBuf, db: Db, state: &State<'_, AppState>) -> Result<(), String> {
@@ -2616,17 +2686,50 @@ fn format_auto_lock_policy(policy: &AutoLockPolicy) -> String {
 }
 
 /// Store the user's auto-lock preference. Wire format: see module docs.
+///
+/// Persists to the app config dir so the choice survives restart (must work
+/// before a vault is unlocked — not only in encrypted app_state).
 #[tauri::command]
-pub fn set_auto_lock_policy(policy: String, state: State<'_, AppState>) -> Result<(), String> {
+pub fn set_auto_lock_policy(
+    policy: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let parsed = parse_auto_lock_policy(&policy)?;
+    let wire = format_auto_lock_policy(&parsed);
     *state.auto_lock_policy.lock().map_err(|e| e.to_string())? = parsed;
     state.touch_activity();
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    write_auto_lock_policy_file(&config_dir, &wire)?;
     Ok(())
 }
 
 /// Read the currently active auto-lock preference as the wire-format string.
+/// Loads from disk on first call if the in-memory value is still the default
+/// and a saved policy file exists.
 #[tauri::command]
-pub fn get_auto_lock_policy(state: State<'_, AppState>) -> Result<String, String> {
+pub fn get_auto_lock_policy(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    // Prefer in-memory (may already be set this session).
+    {
+        let guard = state.auto_lock_policy.lock().map_err(|e| e.to_string())?;
+        let current = format_auto_lock_policy(&guard);
+        // If non-default, trust memory.
+        if current != "lock_on_quit" {
+            return Ok(current);
+        }
+    }
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    if let Some(saved) = read_auto_lock_policy_file(&config_dir)? {
+        let parsed = parse_auto_lock_policy(&saved)?;
+        *state.auto_lock_policy.lock().map_err(|e| e.to_string())? = parsed.clone();
+        return Ok(format_auto_lock_policy(&parsed));
+    }
     let guard = state.auto_lock_policy.lock().map_err(|e| e.to_string())?;
     Ok(format_auto_lock_policy(&guard))
 }
@@ -2654,20 +2757,7 @@ pub fn touch_activity(state: State<'_, AppState>) -> Result<(), String> {
 /// or `None` when the session stays open.
 #[tauri::command]
 pub fn evaluate_auto_lock(state: State<'_, AppState>) -> Result<Option<String>, String> {
-    use crate::auto_lock::should_lock_now;
-    use std::time::Instant;
-
-    let policy = state
-        .auto_lock_policy
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
-    let last = *state.last_activity.lock().map_err(|e| e.to_string())?;
-    if !should_lock_now(&policy, last, Instant::now()) {
-        return Ok(None);
-    }
-    let path = state.close_vault()?;
-    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+    evaluate_auto_lock_impl(&state, std::time::Instant::now())
 }
 
 /// Build a short snippet around the first case-insensitive match of `query`.
@@ -2903,47 +2993,47 @@ pub async fn export_prompts(
     })
 }
 
+/// Recent vault paths from app config (works before unlock).
 #[tauri::command]
-pub async fn list_recent_vaults(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone()
-        .ok_or_else(|| "vault not unlocked".to_string())?;
-    let raw = tokio::task::spawn_blocking(move || db.get_app_setting("recent_vaults"))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
-    if raw.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    serde_json::from_str(&raw).map_err(|e| e.to_string())
+pub fn list_recent_vaults(app: AppHandle) -> Result<Vec<String>, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    read_recent_vault_paths(&config_dir)
 }
 
 #[tauri::command]
-pub async fn push_recent_vault(path: String, state: State<'_, AppState>) -> Result<(), String> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone()
-        .ok_or_else(|| "vault not unlocked".to_string())?;
-    tokio::task::spawn_blocking(move || {
-        let raw = db.get_app_setting("recent_vaults").unwrap_or_default();
-        let mut list: Vec<String> = if raw.trim().is_empty() {
-            Vec::new()
-        } else {
-            serde_json::from_str(&raw).unwrap_or_default()
-        };
-        list.retain(|p| p != &path);
-        list.insert(0, path);
-        list.truncate(10);
-        db.set_app_setting("recent_vaults", &serde_json::to_string(&list).unwrap_or_default())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())
+pub fn push_recent_vault(path: String, app: AppHandle) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    push_recent_vault_path(&config_dir, Path::new(&path))
+}
+
+#[tauri::command]
+pub fn remove_recent_vault(path: String, app: AppHandle) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
+    let mut list = read_recent_vault_paths(&config_dir)?;
+    list.retain(|p| p != &path);
+    write_recent_vault_paths(&config_dir, &list)
+}
+
+/// Close the current vault session and remember a different path as last vault.
+/// UI must then unlock the new path (password/keychain).
+#[tauri::command]
+pub fn switch_vault(path: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let target = PathBuf::from(&path);
+    if !target.exists() {
+        return Err(format!("vault path does not exist: {path}"));
+    }
+    let _ = state.close_vault()?;
+    remember_vault(&app, &target)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -4917,8 +5007,50 @@ mod tests {
         *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
         *state.auto_lock_policy.lock().unwrap() =
             AutoLockPolicy::IdleTimeout(Duration::from_secs(1));
-        *state.last_activity.lock().unwrap() = Instant::now() - Duration::from_secs(5);
-        let path = state.close_vault().unwrap();
-        assert!(path.is_some());
+        let last = Instant::now() - Duration::from_secs(5);
+        *state.last_activity.lock().unwrap() = last;
+        let path = evaluate_auto_lock_impl(&state, Instant::now())
+            .expect("evaluate_auto_lock_impl");
+        assert_eq!(
+            path.as_deref(),
+            Some(dir.path().to_string_lossy().as_ref()),
+            "idle timeout must close the vault via evaluate_auto_lock_impl"
+        );
+        assert!(state.db.lock().unwrap().is_none());
+        assert!(state.vault.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn evaluate_auto_lock_skips_when_recent_activity() {
+        use std::time::{Duration, Instant};
+        let state = AppState::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), "p").unwrap()));
+        *state.auto_lock_policy.lock().unwrap() =
+            AutoLockPolicy::IdleTimeout(Duration::from_secs(600));
+        *state.last_activity.lock().unwrap() = Instant::now();
+        let path = evaluate_auto_lock_impl(&state, Instant::now()).unwrap();
+        assert!(path.is_none());
+        assert!(state.db.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn auto_lock_policy_file_roundtrip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:900").unwrap();
+        let got = read_auto_lock_policy_file(dir.path()).unwrap();
+        assert_eq!(got.as_deref(), Some("idle_timeout:900"));
+    }
+
+    #[test]
+    fn recent_vault_paths_ring_buffer() {
+        let dir = tempfile::TempDir::new().unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/a")).unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/b")).unwrap();
+        push_recent_vault_path(dir.path(), Path::new("/a")).unwrap();
+        let list = read_recent_vault_paths(dir.path()).unwrap();
+        assert_eq!(list, vec!["/a".to_string(), "/b".to_string()]);
     }
 }

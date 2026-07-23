@@ -27,6 +27,7 @@
   import { lockVaultNow } from '$lib/api/session';
   import { parseTemplateFields, renderTemplateBody } from '$lib/api/template';
   import { t } from '$lib/i18n/en';
+  import { highlightSnippet } from '$lib/utils/highlightSnippet';
 
   let query = $state('');
   /** Existing prompt id, or `null` for an unsaved draft. */
@@ -259,7 +260,13 @@
   });
 </script>
 
-{#snippet promptRow(id: string, title: string, locked: boolean, favorite: boolean)}
+{#snippet promptRow(
+  id: string,
+  title: string,
+  locked: boolean,
+  favorite: boolean,
+  snippet: string = '',
+)}
   <div class="palette-row">
     <button
       class="palette-item palette-copy"
@@ -268,31 +275,36 @@
       disabled={copyingId === id}
       onclick={() => void onCopy(id)}
     >
-      <span class="palette-title">
-        {#if favorite}
-          <span class="favorite-star" aria-label="Favorite" title="Favorite">★</span>
-        {/if}
-        {title}
-        {#if locked}
-          <svg class="lock-icon" viewBox="0 0 16 16" width="12" height="12" aria-label="locked">
-            <path
-              d="M5 7V5.2a3 3 0 0 1 6 0V7"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              stroke-linecap="round"
-            />
-            <rect
-              x="3.5"
-              y="7"
-              width="9"
-              height="6.5"
-              rx="1.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-            />
-          </svg>
+      <span class="palette-main">
+        <span class="palette-title">
+          {#if favorite}
+            <span class="favorite-star" aria-label="Favorite" title="Favorite">★</span>
+          {/if}
+          {title}
+          {#if locked}
+            <svg class="lock-icon" viewBox="0 0 16 16" width="12" height="12" aria-label="locked">
+              <path
+                d="M5 7V5.2a3 3 0 0 1 6 0V7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              />
+              <rect
+                x="3.5"
+                y="7"
+                width="9"
+                height="6.5"
+                rx="1.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+              />
+            </svg>
+          {/if}
+        </span>
+        {#if snippet}
+          <span class="palette-snippet">{@html highlightSnippet(snippet, query)}</span>
         {/if}
       </span>
       <span class="palette-hint">Copy</span>
@@ -367,14 +379,20 @@
         {#if recentPrompts.length > 0}
           <div class="palette-group-heading">Recent</div>
           {#each recentPrompts as p (p.id)}
-            {@render promptRow(p.id, p.title || 'Untitled', p.locked, p.favorite)}
+            {@render promptRow(p.id, p.title || 'Untitled', p.locked, p.favorite, '')}
           {/each}
         {/if}
         {#if hits.length > 0}
           <!-- e.g. "More like this" results while the query is still empty -->
           <div class="palette-group-heading">Similar</div>
           {#each hits as h (h.id)}
-            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
+            {@render promptRow(
+              h.id,
+              h.title || 'Untitled',
+              h.locked,
+              h.favorite,
+              h.snippet ?? '',
+            )}
           {/each}
         {/if}
       {:else}
@@ -383,7 +401,13 @@
           <div class="palette-empty">No results.</div>
         {:else}
           {#each hits as h (h.id)}
-            {@render promptRow(h.id, h.title || 'Untitled', h.locked, h.favorite)}
+            {@render promptRow(
+              h.id,
+              h.title || 'Untitled',
+              h.locked,
+              h.favorite,
+              h.snippet ?? '',
+            )}
           {/each}
         {/if}
       {/if}
@@ -440,6 +464,31 @@
     max-height: 50vh;
     overflow-y: auto;
     padding: 4px;
+  }
+  .palette-main {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+  .palette-snippet {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--glass-text-dim);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: left;
+    width: 100%;
+  }
+  .palette-snippet :global(mark) {
+    background: color-mix(in oklab, var(--accent, #7aa2ff) 35%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
   }
   .palette-row {
     display: flex;

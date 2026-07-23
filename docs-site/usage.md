@@ -36,8 +36,9 @@ Combine freely: `tag:writing recent:30 alpha launch`.
 - **Folders** mirror your filesystem. Drag a prompt onto a folder in the sidebar to move
   its `.md` file.
 - **Tags** are free-form strings in the YAML frontmatter. Multi-tag queries are AND-joined.
-- **Smart folders** are saved searches. Use the DSL editor (`favorite:true tag:writing`)
-  or the visual predicate builder (chips for tag/folder/favorite/locked/text).
+- **Smart folders** are saved searches. Use the DSL editor (`favorite:true tag:writing`).
+  A visual↔DSL codec exists in the backend for structured predicates; the Library UI
+  is DSL-first today (chip builder is deferred).
 
 ## Templates
 

@@ -1,5 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { pickVaultDir, setupNewVault, unlockVault } from '$lib/api/vault';
+  import {
+    listRecentVaults,
+    removeRecentVault,
+    switchVault,
+  } from '$lib/api/vaults';
   import RecoveryPhrase from './RecoveryPhrase.svelte';
   import VaultUnlock from './VaultUnlock.svelte';
 
@@ -22,11 +28,50 @@
   let recoverablePath = $state<string | null>(null);
   let unlockPath = $state<string | null>(null);
   let unlockMode = $state<'password' | 'recovery'>('password');
+  let recentVaults = $state<string[]>([]);
 
   $effect(() => {
     error = initialError;
     recoverablePath = initialRecoveryPath;
   });
+
+  onMount(() => {
+    void listRecentVaults()
+      .then((paths) => {
+        recentVaults = paths;
+      })
+      .catch(() => undefined);
+  });
+
+  async function openRecent(path: string) {
+    busy = true;
+    error = null;
+    try {
+      await switchVault(path);
+      const status = await unlockVault(path);
+      if (status.opened) onVaultReady(path);
+      else if (status.needsPassword) {
+        unlockPath = path;
+        unlockMode = 'password';
+      } else if (status.needsRecovery) {
+        recoverablePath = path;
+        error = 'Encryption key missing from system keychain.';
+      }
+    } catch (e) {
+      error = String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function forgetRecent(path: string) {
+    try {
+      await removeRecentVault(path);
+      recentVaults = recentVaults.filter((p) => p !== path);
+    } catch (e) {
+      error = String(e);
+    }
+  }
 
   async function start() {
     busy = true;
@@ -123,6 +168,35 @@
   {:else}
     <h1 id="welcome">Welcome to onQ</h1>
     <p>Search-oriented encrypted prompt vault.</p>
+    {#if (recentVaults ?? []).length > 0}
+      <div class="recent-vaults" aria-label="Recent vaults">
+        <h2 class="recent-heading">Recent vaults</h2>
+        <ul class="recent-list">
+          {#each recentVaults ?? [] as path (path)}
+            <li class="recent-row">
+              <button
+                type="button"
+                class="recent-open"
+                disabled={busy}
+                title={path}
+                onclick={() => void openRecent(path)}
+              >
+                {path}
+              </button>
+              <button
+                type="button"
+                class="recent-forget"
+                disabled={busy}
+                aria-label="Remove {path} from recent"
+                onclick={() => void forgetRecent(path)}
+              >
+                ×
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
   {/if}
   {#if error}
     <p class="err" role="alert">{error}</p>
@@ -249,5 +323,42 @@
   .err {
     color: #ff7a7a;
     margin-top: 12px;
+  }
+  .recent-vaults {
+    width: min(480px, 100%);
+    margin: 1rem auto 0;
+    text-align: left;
+  }
+  .recent-heading {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+    margin: 0 0 0.4rem;
+  }
+  .recent-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .recent-row {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .recent-open {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .recent-forget {
+    padding: 6px 10px;
+    flex-shrink: 0;
   }
 </style>
