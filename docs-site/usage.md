@@ -41,7 +41,8 @@ Combine freely: `tag:writing recent:30 alpha launch`.
 
 ## Templates
 
-Prompt bodies may include `{{name}}` or `{{name|default}}` placeholders. Copying from
+Prompt bodies may include <code v-pre>{{name}}</code> or
+<code v-pre>{{name|default}}</code> placeholders. Copying from
 the palette prompts for fill-in values when placeholders are present.
 
 ## Locked prompts
@@ -65,8 +66,9 @@ and restore prior bodies. Retention is configurable (default 30 days).
 ## Plugins
 
 onQ supports signed Rust-native plugins via a C ABI. Install/manage them under
-**Settings → Plugins**. See the [plugin authoring guide](/../plugins/) in the repo
-(`docs/plugins/README.md`).
+**Settings → Plugins**. See the
+[plugin authoring guide](https://github.com/visorcraft/onQ/blob/master/docs/plugins/README.md)
+in the repo (`docs/plugins/README.md`).
 
 ## Tag suggestions
 
