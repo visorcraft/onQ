@@ -208,11 +208,9 @@ pub fn run() {
             if let Some(watcher) = PlasmaTrayWatcher::install() {
                 app.manage(watcher);
             }
-            // M5.5: evaluate the active auto-lock policy at launch. Activity
-            // tracking is not yet wired, so this is a no-op today except for
-            // serving as the entry point the future input tracker hooks into.
+            // Load persisted auto-lock policy from app config and evaluate.
             let state = app.state::<AppState>();
-            apply_auto_lock_on_start(&state);
+            apply_auto_lock_on_start(app.handle(), &state);
             let shortcut_state = app.state::<GlobalShortcutState>();
             global_shortcut::start_input_listener(app.handle(), &shortcut_state);
 

@@ -3746,16 +3746,37 @@ pub async fn hide_to_tray(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Clear the in-memory vault if the active policy says to. Wired into the
-/// `setup` hook so an idle vault that survived process start (e.g. user
-/// closed the laptop with the app running) is re-locked immediately on
-/// the next launch.
+/// Load persisted auto-lock policy into `AppState` and evaluate whether to
+/// clear a vault session on process start.
 ///
-/// Activity tracking is intentionally out of scope for M5.5: `last_activity`
-/// here is the process start time, so `IdleTimeout(d)` only fires when the
-/// vault has been idle for the full duration. Once an input tracker lands
-/// it will update `last_activity` from the real event stream.
-pub fn apply_auto_lock_on_start(state: &AppState) {
+/// Called from Tauri `setup` so a user-chosen `idle_timeout:…` survives
+/// restart without waiting for Settings to mount. Policy is read from the
+/// app config dir file written by `set_auto_lock_policy`.
+pub fn apply_auto_lock_on_start(app: &AppHandle, state: &AppState) {
+    let config_dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("auto_lock: app_config_dir unavailable: {e}");
+            return;
+        }
+    };
+    apply_auto_lock_on_start_with_config(&config_dir, state);
+}
+
+/// Testable core of [`apply_auto_lock_on_start`]: load disk policy into
+/// memory, then evaluate `should_lock_now` against process-start activity.
+pub fn apply_auto_lock_on_start_with_config(config_dir: &Path, state: &AppState) {
+    if let Ok(Some(saved)) = read_auto_lock_policy_file(config_dir) {
+        match parse_auto_lock_policy(&saved) {
+            Ok(parsed) => {
+                if let Ok(mut guard) = state.auto_lock_policy.lock() {
+                    *guard = parsed;
+                }
+            }
+            Err(e) => tracing::warn!("auto_lock: invalid saved policy '{saved}': {e}"),
+        }
+    }
+
     let policy = match state.auto_lock_policy.lock() {
         Ok(g) => g.clone(),
         Err(e) => {
@@ -3763,16 +3784,13 @@ pub fn apply_auto_lock_on_start(state: &AppState) {
             return;
         }
     };
-    if should_lock_now(
-        &policy,
-        std::time::Instant::now(),
-        std::time::Instant::now(),
-    ) {
-        return;
+    let last = match state.last_activity.lock() {
+        Ok(g) => *g,
+        Err(_) => std::time::Instant::now(),
+    };
+    if should_lock_now(&policy, last, std::time::Instant::now()) {
+        let _ = state.close_vault();
     }
-    // LockOnQuit / Disabled / not-yet-idle: leave the vault alone. Future
-    // tasks will add the quit hook + the input activity tracker.
-    let _ = policy;
 }
 
 #[cfg(test)]
@@ -4964,12 +4982,52 @@ mod tests {
 
     #[test]
     fn apply_auto_lock_on_start_is_a_noop_for_default_policy() {
-        // Default policy is LockOnQuit, which the check function never
-        // fires; the call must therefore be a safe no-op that doesn't
-        // touch the vault.
+        // Default policy is LockOnQuit with no saved file: no-op.
         let state = AppState::default();
-        apply_auto_lock_on_start(&state);
-        // Vault is still closed (we didn't open one) and untouched.
+        let dir = TempDir::new().unwrap();
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
+        assert!(state.vault.lock().unwrap().is_none());
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "lock_on_quit"
+        );
+    }
+
+    #[test]
+    fn apply_auto_lock_on_start_loads_persisted_idle_policy() {
+        let state = AppState::default();
+        let dir = TempDir::new().unwrap();
+        // Default in-memory is LockOnQuit until disk is loaded.
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "lock_on_quit"
+        );
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:900").unwrap();
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
+        assert_eq!(
+            format_auto_lock_policy(&state.auto_lock_policy.lock().unwrap()),
+            "idle_timeout:900",
+            "startup must load auto-lock-policy file into AppState so idle lock works without Settings"
+        );
+    }
+
+    #[test]
+    fn apply_auto_lock_on_start_closes_vault_when_already_idle() {
+        let state = AppState::default();
+        let dir = TempDir::new().unwrap();
+        let vault_dir = TempDir::new().unwrap();
+        *state.vault.lock().unwrap() = Some(Vault::new(vault_dir.path()).unwrap());
+        *state.vault_path.lock().unwrap() = Some(vault_dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(vault_dir.path(), "p").unwrap()));
+        write_auto_lock_policy_file(dir.path(), "idle_timeout:1").unwrap();
+        // last_activity far in the past relative to now
+        *state.last_activity.lock().unwrap() =
+            Instant::now() - Duration::from_secs(30);
+        apply_auto_lock_on_start_with_config(dir.path(), &state);
+        assert!(
+            state.db.lock().unwrap().is_none(),
+            "idle timeout at startup must close an already-open vault"
+        );
         assert!(state.vault.lock().unwrap().is_none());
     }
 
