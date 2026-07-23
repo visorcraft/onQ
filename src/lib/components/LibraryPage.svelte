@@ -29,6 +29,8 @@
   } from '$lib/utils/folderPath';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
   import Pager from './primitives/Pager.svelte';
+  import SmartFolderVisualBuilder from './SmartFolderVisualBuilder.svelte';
+  import type { VisualPredicate } from '$lib/api/smartFolderVisual';
 
   /** Number of prompts shown per Library page. Tuned so a typical vault
    * (10-200 prompts) fits on a single screen on a 1080p monitor; vaults
@@ -75,9 +77,11 @@
   let showNewSmart = $state(false);
   let newSmartName = $state('');
   let newSmartDsl = $state('favorite:true');
+  let newSmartPredicates = $state<VisualPredicate[]>([]);
   let editingSmartId = $state<string | null>(null);
   let editSmartName = $state('');
   let editSmartDsl = $state('');
+  let editSmartPredicates = $state<VisualPredicate[]>([]);
   let renamingPath = $state<string | null>(null);
   let renameValue = $state('');
   let smartHits = $state<PromptSummary[] | null>(null);
@@ -448,6 +452,7 @@
       const sf = await createSmartFolder(newSmartName.trim(), newSmartDsl.trim());
       newSmartName = '';
       newSmartDsl = 'favorite:true';
+      newSmartPredicates = [];
       showNewSmart = false;
       await refresh();
       await select({ kind: 'smart', id: sf.id });
@@ -589,6 +594,12 @@
     editingSmartId = sf.id;
     editSmartName = sf.name;
     editSmartDsl = sf.query_dsl;
+    editSmartPredicates = [];
+    void import('$lib/api/smartFolderVisual').then(({ dslToVisual }) =>
+      dslToVisual(sf.query_dsl).then((v) => {
+        if (v?.predicates) editSmartPredicates = v.predicates;
+      }),
+    );
   }
 
   function openNewChild(parent: string | null) {
@@ -787,6 +798,10 @@
         {#if showNewSmart}
           <div class="inline-create">
             <input type="text" placeholder="Name" bind:value={newSmartName} />
+            <SmartFolderVisualBuilder
+              bind:predicates={newSmartPredicates}
+              onDslChange={(dsl) => (newSmartDsl = dsl)}
+            />
             <input
               type="text"
               class="mono"
@@ -794,8 +809,8 @@
               bind:value={newSmartDsl}
             />
             <p class="hint">
-              Tokens: <code>folder:</code> <code>tag:</code> <code>favorite:true</code>
-              <code>text:"…"</code>
+              Build with chips or edit DSL: <code>folder:</code> <code>tag:</code>
+              <code>favorite:true</code> <code>text:"…"</code>
             </p>
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy} onclick={() => void addSmart()}
@@ -811,6 +826,10 @@
           {#if editingSmartId === sf.id}
             <div class="inline-create">
               <input type="text" bind:value={editSmartName} />
+              <SmartFolderVisualBuilder
+                bind:predicates={editSmartPredicates}
+                onDslChange={(dsl) => (editSmartDsl = dsl)}
+              />
               <input type="text" class="mono" bind:value={editSmartDsl} />
               <div class="row-actions">
                 <button type="button" class="control-btn sm" onclick={() => void saveSmartEdit()}

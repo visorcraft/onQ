@@ -5,8 +5,18 @@ use std::time::Instant;
 use onq_core::db::Db;
 use onq_core::embed::Embedder;
 use onq_core::vault::Vault;
+use serde::Serialize;
 
 use crate::auto_lock::AutoLockPolicy;
+
+/// One palette-visible command registered by a loaded plugin (or host).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCommand {
+    pub id: String,
+    pub name: String,
+    pub plugin_id: String,
+}
 
 pub struct AppState {
     pub vault: Mutex<Option<Vault>>,
@@ -25,6 +35,10 @@ pub struct AppState {
     pub auto_lock_policy: Mutex<AutoLockPolicy>,
     /// Last user interaction timestamp for idle auto-lock evaluation.
     pub last_activity: Mutex<Instant>,
+    /// Commands exposed by plugins for the palette (Wave 5.3).
+    pub plugin_commands: Mutex<Vec<PluginCommand>>,
+    /// Preferred embedder id: `"builtin"` or a plugin id with embedding cap.
+    pub embedder_preference: Mutex<String>,
 }
 
 impl Default for AppState {
@@ -36,6 +50,8 @@ impl Default for AppState {
             embedder: Mutex::new(None),
             auto_lock_policy: Mutex::new(AutoLockPolicy::LockOnQuit),
             last_activity: Mutex::new(Instant::now()),
+            plugin_commands: Mutex::new(Vec::new()),
+            embedder_preference: Mutex::new("builtin".into()),
         }
     }
 }
@@ -71,5 +87,20 @@ impl AppState {
         if let Ok(mut guard) = self.last_activity.lock() {
             *guard = Instant::now();
         }
+    }
+
+    /// Register or replace a plugin palette command by `id`.
+    pub fn register_plugin_command(&self, cmd: PluginCommand) -> Result<(), String> {
+        let mut guard = self.plugin_commands.lock().map_err(|e| e.to_string())?;
+        guard.retain(|c| c.id != cmd.id);
+        guard.push(cmd);
+        Ok(())
+    }
+
+    /// Drop all commands for a plugin id (on uninstall/disable).
+    pub fn clear_plugin_commands(&self, plugin_id: &str) -> Result<(), String> {
+        let mut guard = self.plugin_commands.lock().map_err(|e| e.to_string())?;
+        guard.retain(|c| c.plugin_id != plugin_id);
+        Ok(())
     }
 }

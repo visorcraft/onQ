@@ -35,6 +35,7 @@
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import BackupsSection from '$lib/components/settings/BackupsSection.svelte';
   import PluginsSection from '$lib/components/settings/PluginsSection.svelte';
+  import AuditSection from '$lib/components/settings/AuditSection.svelte';
   import type { ImportBackupResult } from '$lib/api/backup';
   import { getAppSetting, setAppSetting } from '$lib/api/settings';
   import { getAutoLockPolicy, setAutoLockPolicy } from '$lib/api/session';
@@ -45,6 +46,12 @@
     pickImportPath,
   } from '$lib/api/importExport';
   import { backupShouldRemind } from '$lib/api/backupRemind';
+  import {
+    getEmbedderPreference,
+    listPlugins,
+    setEmbedderPreference,
+    type PluginInfo,
+  } from '$lib/api/plugins';
 
   type SectionId = 'general' | 'search' | 'vault' | 'backups' | 'plugins' | 'updates';
 
@@ -92,6 +99,8 @@
   let autoLockIdleMinutes = $state('15');
   let importStatus = $state<string | null>(null);
   let backupRemind = $state(false);
+  let embedderPref = $state('builtin');
+  let embedderPlugins = $state<PluginInfo[]>([]);
 
   function clearUpdateStatusTimer() {
     if (updateStatusTimer !== undefined) {
@@ -205,7 +214,35 @@
         backupRemind = v;
       })
       .catch(() => undefined);
+    void getEmbedderPreference()
+      .then((v) => {
+        if (v) embedderPref = v;
+      })
+      .catch(() => undefined);
+    void listPlugins()
+      .then((ps) => {
+        embedderPlugins = ps.filter((p) => {
+          const caps = Array.isArray(p.capabilities)
+            ? p.capabilities
+            : typeof p.capabilities === 'string'
+              ? [p.capabilities]
+              : [];
+          return (
+            p.enabled &&
+            caps.some(
+              (c) =>
+                typeof c === 'string' &&
+                (c === 'embedding' || c === 'embedder' || c.startsWith('embedding')),
+            )
+          );
+        });
+      })
+      .catch(() => undefined);
   });
+
+  async function saveEmbedderPref() {
+    await setEmbedderPreference(embedderPref);
+  }
 
   async function saveRecency() {
     await setAppSetting('search_recency_days', recencyDays.trim() || '30');
@@ -545,6 +582,32 @@
           </p>
         </section>
 
+        <section class="panel" aria-labelledby="embedder-heading">
+          <div class="panel-head">
+            <h3 id="embedder-heading">Embedding model</h3>
+            <p class="help">
+              Built-in MiniLM is the default. Plugins that advertise an
+              <code>embedding</code> capability can be selected as the preferred
+              embedder id (runtime swap loads when the plugin host wires the
+              session; preference is stored now).
+            </p>
+          </div>
+          <label class="field">
+            <span class="field-label">Active embedder</span>
+            <select bind:value={embedderPref}>
+              <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
+              {#each embedderPlugins as p (p.id)}
+                <option value={p.id}>{p.name} ({p.id})</option>
+              {/each}
+            </select>
+          </label>
+          <div class="row-actions">
+            <button type="button" class="control-btn primary" onclick={() => void saveEmbedderPref()}>
+              Save embedder preference
+            </button>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="recency-heading">
           <div class="panel-head">
             <h3 id="recency-heading">Recency half-life</h3>
@@ -676,6 +739,7 @@
             <p class="hint" role="status">{importStatus}</p>
           {/if}
         </section>
+        <AuditSection />
         {#if authMode === 'keychain'}
           <section class="panel">
             <div class="panel-head">

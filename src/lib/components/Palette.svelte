@@ -28,6 +28,11 @@
   import { parseTemplateFields, renderTemplateBody } from '$lib/api/template';
   import { t } from '$lib/i18n/en';
   import { highlightSnippet } from '$lib/utils/highlightSnippet';
+  import {
+    listPluginCommands,
+    runPluginCommand,
+    type PluginCommand,
+  } from '$lib/api/plugins';
 
   let query = $state('');
   /** Existing prompt id, or `null` for an unsaved draft. */
@@ -43,6 +48,7 @@
   /** Bumped when local recent history changes so the list re-derives. */
   let recentEpoch = $state(0);
   let open = $derived(paletteStore.open);
+  let pluginCommands = $state<PluginCommand[]>([]);
 
   function clearQuery() {
     query = '';
@@ -74,6 +80,13 @@
       statusMessage = null;
       recentEpoch += 1;
       loadPrompts();
+      void listPluginCommands()
+        .then((cmds) => {
+          pluginCommands = cmds;
+        })
+        .catch(() => {
+          pluginCommands = [];
+        });
       void tick().then(() => commandInput?.focus());
     } else if (!isOpen && prevOpen) {
       prevOpen = false;
@@ -367,6 +380,29 @@
         <button class="palette-item" type="button" onclick={() => void onLockVault()}>
           {t('palette.lockVault')}
         </button>
+      {/if}
+
+      {#if pluginCommands.length > 0 && (!hasQuery || query.toLowerCase().includes('plugin') || pluginCommands.some((c) => c.name.toLowerCase().includes(query.toLowerCase())))}
+        <div class="palette-group-heading">Plugin commands</div>
+        {#each pluginCommands as cmd (cmd.id)}
+          {#if !hasQuery || cmd.name.toLowerCase().includes(query.toLowerCase()) || query.toLowerCase().includes('plugin')}
+            <button
+              class="palette-item"
+              type="button"
+              onclick={() =>
+                void runPluginCommand(cmd.id)
+                  .then((msg) => {
+                    statusMessage = msg;
+                  })
+                  .catch((e) => {
+                    statusMessage = e instanceof Error ? e.message : String(e);
+                  })}
+            >
+              {cmd.name}
+              <span class="palette-hint">{cmd.pluginId}</span>
+            </button>
+          {/if}
+        {/each}
       {/if}
 
       {#if editorId != null && selectedTitle !== null}

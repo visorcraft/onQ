@@ -185,6 +185,11 @@ fn set_open_vault(vault_path: PathBuf, db: Db, state: &State<'_, AppState>) -> R
     let vault = Vault::new(vault_path.clone()).map_err(|error| error.to_string())?;
     let db = Arc::new(db);
     backfill_sparse_vectors(&vault, &db)?;
+    let _ = onq_core::audit::append(
+        &vault,
+        "vault_unlock",
+        Some(vault_path.to_string_lossy().as_ref()),
+    );
     *state.vault.lock().map_err(|error| error.to_string())? = Some(vault);
     *state.vault_path.lock().map_err(|error| error.to_string())? = Some(vault_path);
     *state.db.lock().map_err(|error| error.to_string())? = Some(db);
@@ -2740,6 +2745,12 @@ pub fn get_auto_lock_policy(app: AppHandle, state: State<'_, AppState>) -> Resul
 /// when nothing was open.
 #[tauri::command]
 pub fn lock_vault_now(state: State<'_, AppState>) -> Result<String, String> {
+    // Audit while vault path is still known.
+    if let Ok(Some(vp)) = state.open_vault_path() {
+        if let Ok(v) = onq_core::vault::Vault::new(&vp) {
+            let _ = onq_core::audit::append(&v, "vault_lock", Some(vp.to_string_lossy().as_ref()));
+        }
+    }
     let path = state.close_vault()?;
     Ok(path
         .map(|p| p.to_string_lossy().into_owned())
@@ -3332,6 +3343,9 @@ fn toml_to_json(v: toml::Value) -> Result<serde_json::Value, toml::Value> {
 /// vector when no plugins are installed (fresh vault). Order follows the
 /// underlying table — the frontend sorts by `installed_at` if it needs
 /// recency ordering.
+///
+/// Also refreshes the in-memory plugin command registry from enabled plugins
+/// that advertise a `command:<id>:<name>` capability entry.
 #[tauri::command]
 pub async fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginInfo>, String> {
     let db = require_db(&state)?;
@@ -3342,7 +3356,127 @@ pub async fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginInfo>,
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
-    Ok(rows.iter().map(PluginInfo::from_row).collect())
+    let plugins: Vec<PluginInfo> = rows.iter().map(PluginInfo::from_row).collect();
+    sync_plugin_commands_from_list(&state, &plugins)?;
+    Ok(plugins)
+}
+
+fn sync_plugin_commands_from_list(
+    state: &State<'_, AppState>,
+    plugins: &[PluginInfo],
+) -> Result<(), String> {
+    let mut cmds = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    // Drop commands for plugins that are missing or disabled; keep host-registered ones.
+    let enabled_ids: std::collections::HashSet<&str> = plugins
+        .iter()
+        .filter(|p| p.enabled)
+        .map(|p| p.id.as_str())
+        .collect();
+    cmds.retain(|c| enabled_ids.contains(c.plugin_id.as_str()) || c.plugin_id == "host");
+    for p in plugins.iter().filter(|p| p.enabled) {
+        let caps = capabilities_as_strings(&p.capabilities);
+        for cap in caps {
+            // Format: "command:<id>:<display name>" or just "command" → use plugin name
+            if let Some(rest) = cap.strip_prefix("command:") {
+                let (cid, name) = match rest.split_once(':') {
+                    Some((a, b)) => (a.to_string(), b.to_string()),
+                    None => (format!("{}.run", p.id), rest.to_string()),
+                };
+                let id = if cid.contains('.') {
+                    cid
+                } else {
+                    format!("{}.{}", p.id, cid)
+                };
+                cmds.retain(|c| c.id != id);
+                cmds.push(crate::state::PluginCommand {
+                    id,
+                    name: if name.is_empty() {
+                        p.name.clone()
+                    } else {
+                        name
+                    },
+                    plugin_id: p.id.clone(),
+                });
+            } else if cap == "command" || cap == "commands" {
+                let id = format!("{}.run", p.id);
+                cmds.retain(|c| c.id != id);
+                cmds.push(crate::state::PluginCommand {
+                    id,
+                    name: p.name.clone(),
+                    plugin_id: p.id.clone(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn capabilities_as_strings(caps: &serde_json::Value) -> Vec<String> {
+    match caps {
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
+        serde_json::Value::String(s) => vec![s.clone()],
+        _ => Vec::new(),
+    }
+}
+
+/// Palette-visible commands registered by plugins / host.
+#[tauri::command]
+pub fn list_plugin_commands(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::state::PluginCommand>, String> {
+    let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    Ok(guard.clone())
+}
+
+/// Host-side registration (tests / future FFI bridge).
+#[tauri::command]
+pub fn register_plugin_command(
+    id: String,
+    name: String,
+    plugin_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    state.register_plugin_command(crate::state::PluginCommand {
+        id,
+        name,
+        plugin_id,
+    })
+}
+
+/// Run a registered plugin command by id (best-effort no-op body for now).
+#[tauri::command]
+pub fn run_plugin_command(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let guard = state.plugin_commands.lock().map_err(|e| e.to_string())?;
+    let cmd = guard
+        .iter()
+        .find(|c| c.id == id)
+        .ok_or_else(|| format!("unknown plugin command: {id}"))?;
+    Ok(format!("ran {} ({})", cmd.name, cmd.plugin_id))
+}
+
+#[tauri::command]
+pub fn get_embedder_preference(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state
+        .embedder_preference
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone())
+}
+
+#[tauri::command]
+pub fn set_embedder_preference(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let trimmed = id.trim();
+    if trimmed.is_empty() {
+        return Err("embedder preference must be non-empty".into());
+    }
+    *state
+        .embedder_preference
+        .lock()
+        .map_err(|e| e.to_string())? = trimmed.to_string();
+    Ok(())
 }
 
 /// Toggle the `enabled` flag for a single plugin. Refuses silently when
@@ -3355,6 +3489,9 @@ pub async fn set_plugin_enabled(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let db = require_db(&state)?;
+    if !enabled {
+        let _ = state.clear_plugin_commands(&id);
+    }
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         // Read existing row so we preserve name/version/path/etc.
         let existing = db
@@ -3454,6 +3591,7 @@ pub async fn uninstall_plugin(id: String, state: State<'_, AppState>) -> Result<
         .clone()
         .ok_or_else(|| "vault not open".to_string())?;
     let db = require_db(&state)?;
+    let _ = state.clear_plugin_commands(&id);
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         // 1. Look up the row so we know its row_id for the delete.
         let row = db
@@ -5110,5 +5248,41 @@ mod tests {
         push_recent_vault_path(dir.path(), Path::new("/a")).unwrap();
         let list = read_recent_vault_paths(dir.path()).unwrap();
         assert_eq!(list, vec!["/a".to_string(), "/b".to_string()]);
+    }
+
+    #[test]
+    fn register_and_list_plugin_commands() {
+        let state = AppState::default();
+        state
+            .register_plugin_command(crate::state::PluginCommand {
+                id: "demo.hello".into(),
+                name: "Hello".into(),
+                plugin_id: "demo".into(),
+            })
+            .unwrap();
+        let cmds = state.plugin_commands.lock().unwrap().clone();
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(cmds[0].name, "Hello");
+        state.clear_plugin_commands("demo").unwrap();
+        assert!(state.plugin_commands.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn embedder_preference_roundtrip() {
+        let state = AppState::default();
+        assert_eq!(
+            state.embedder_preference.lock().unwrap().as_str(),
+            "builtin"
+        );
+        *state.embedder_preference.lock().unwrap() = "plugin.x".into();
+        assert_eq!(state.embedder_preference.lock().unwrap().as_str(), "plugin.x");
+    }
+
+    #[test]
+    fn capabilities_as_strings_parses_array() {
+        let caps = serde_json::json!(["read", "command:run:Do Thing", "embedding"]);
+        let s = capabilities_as_strings(&caps);
+        assert!(s.contains(&"embedding".to_string()));
+        assert!(s.iter().any(|c| c.starts_with("command:")));
     }
 }
