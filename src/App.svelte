@@ -115,7 +115,7 @@
         else if (status.needsPassword && status.path) passwordPath = status.path;
         else if (status.needsRecovery && status.path) {
           recoveryPath = status.path;
-          vaultError = 'Encryption key missing from system keychain.';
+          vaultError = t('unlock.keyMissing');
         }
       } catch (error) {
         vaultError = `Could not open last vault: ${String(error)}`;
@@ -194,7 +194,7 @@
           else if (status.needsPassword && status.path) passwordPath = status.path;
           else if (status.needsRecovery && status.path) {
             recoveryPath = status.path;
-            vaultError = 'Encryption key missing from system keychain.';
+            vaultError = t('unlock.keyMissing');
           } else {
             passwordPath = result.path;
           }
@@ -386,7 +386,9 @@
     >
       <img class="hero-logo" src={onqIcon} alt="onQ" width="96" height="96" draggable="false" />
       <span class="hero-sub"
-        >Press <kbd>{$globalShortcut || shortcut}</kbd> to begin</span
+        >{t('app.pressPrefix', undefined, $locale)}
+        <kbd>{$globalShortcut || shortcut}</kbd>
+        {t('app.pressSuffix', undefined, $locale)}</span
       >
     </button>
     <Palette />

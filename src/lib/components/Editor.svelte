@@ -371,13 +371,13 @@
 
     <div class="meta-row">
       <label class="field">
-        <span class="field-label">Project</span>
+        <span class="field-label">{t('editor.project', undefined, $locale)}</span>
         <input
           class="field-input"
           list="project-paths"
           bind:value={folderInput}
-          placeholder="Unfiled — or Writing/Blog Posts"
-          aria-label="Project path"
+          placeholder={t('editor.projectPlaceholder', undefined, $locale)}
+          aria-label={t('editor.project', undefined, $locale)}
           disabled={locked}
         />
         <datalist id="project-paths">
@@ -387,12 +387,12 @@
         </datalist>
       </label>
       <label class="field">
-        <span class="field-label">Tags</span>
+        <span class="field-label">{t('editor.tags', undefined, $locale)}</span>
         <input
           class="field-input"
           bind:value={tagsInput}
-          placeholder="comma, separated, tags"
-          aria-label="Tags"
+          placeholder={t('editor.tagsPlaceholder', undefined, $locale)}
+          aria-label={t('editor.tags', undefined, $locale)}
           disabled={locked}
           onkeydown={(e) => {
             if (e.key === 'Tab' && tagSuggestions.length > 0) {
@@ -524,19 +524,25 @@
         <span class="draft-hint">Not saved yet — cancel discards this draft.</span>
       {:else}
         <button type="button" class="btn ghost danger-text" onclick={requestDelete} disabled={busy}>
-          Delete
+          {t('editor.delete', undefined, $locale)}
         </button>
       {/if}
       <div class="actions-right">
-        <button type="button" class="btn ghost" onclick={onClose}>Cancel</button>
+        <button type="button" class="btn ghost" onclick={onClose}
+          >{t('common.cancel', undefined, $locale)}</button
+        >
         <button
           type="button"
           class="btn ghost"
           onclick={() => void copyBody()}
           disabled={locked || busy}
-          aria-label={copied ? 'Copied to clipboard' : 'Copy prompt body to clipboard'}
+          aria-label={copied
+            ? t('editor.copied', undefined, $locale)
+            : t('editor.copy', undefined, $locale)}
         >
-          {copied ? 'Copied!' : 'Copy'}
+          {copied
+            ? t('editor.copiedAction', undefined, $locale)
+            : t('editor.copyAction', undefined, $locale)}
         </button>
         <button
           type="button"
@@ -544,7 +550,9 @@
           onclick={() => void save()}
           disabled={locked || busy}
         >
-          {busy && !confirmDeleteOpen ? 'Saving…' : 'Save'}
+          {busy && !confirmDeleteOpen
+            ? t('editor.saving', undefined, $locale)
+            : t('editor.save', undefined, $locale)}
         </button>
       </div>
     </footer>

@@ -689,13 +689,15 @@
             {/if}
             <input
               type="text"
-              placeholder={newProjectParent ? 'Sub-project name' : 'Project name'}
+              placeholder={newProjectParent
+                ? t('library.subProjectName', undefined, $locale)
+                : t('library.projectName', undefined, $locale)}
               bind:value={newProjectName}
               onkeydown={(e) => e.key === 'Enter' && void addProject()}
             />
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy || !newProjectName.trim()} onclick={() => void addProject()}
-                >Create</button
+                >{t('library.create', undefined, $locale)}</button
               >
               <button
                 type="button"
@@ -703,7 +705,7 @@
                 onclick={() => {
                   showNewProject = false;
                   newProjectParent = null;
-                }}>Cancel</button
+                }}>{t('library.cancel', undefined, $locale)}</button
               >
             </div>
           </div>
@@ -778,7 +780,7 @@
         {/snippet}
 
         {#if projectTree.length === 0}
-          <p class="empty-side">No projects yet. Create one to organize prompts.</p>
+          <p class="empty-side">{t('library.noProjects', undefined, $locale)}</p>
         {:else}
           {#each projectTree as node (node.path)}
             {@render projectNode(node, 0)}
@@ -799,7 +801,11 @@
         </div>
         {#if showNewSmart}
           <div class="inline-create">
-            <input type="text" placeholder="Name" bind:value={newSmartName} />
+            <input
+              type="text"
+              placeholder={t('library.name', undefined, $locale)}
+              bind:value={newSmartName}
+            />
             <SmartFolderVisualBuilder
               bind:predicates={newSmartPredicates}
               onDslChange={(dsl) => (newSmartDsl = dsl)}
@@ -816,10 +822,10 @@
             </p>
             <div class="row-actions">
               <button type="button" class="control-btn sm" disabled={busy} onclick={() => void addSmart()}
-                >Create</button
+                >{t('library.create', undefined, $locale)}</button
               >
               <button type="button" class="btn-ghost sm" onclick={() => (showNewSmart = false)}
-                >Cancel</button
+                >{t('library.cancel', undefined, $locale)}</button
               >
             </div>
           </div>
@@ -835,10 +841,10 @@
               <input type="text" class="mono" bind:value={editSmartDsl} />
               <div class="row-actions">
                 <button type="button" class="control-btn sm" onclick={() => void saveSmartEdit()}
-                  >Save</button
+                  >{t('library.save', undefined, $locale)}</button
                 >
                 <button type="button" class="btn-ghost sm" onclick={() => (editingSmartId = null)}
-                  >Cancel</button
+                  >{t('library.cancel', undefined, $locale)}</button
                 >
               </div>
             </div>
@@ -879,17 +885,17 @@
 
       {#if allTags.length > 0}
         <div class="nav-group">
-          <div class="nav-label">Tags</div>
+          <div class="nav-label">{t('library.tags', undefined, $locale)}</div>
           <div class="tag-cloud">
-            {#each allTags as t (t.tag)}
+            {#each allTags as tagEntry (tagEntry.tag)}
               <button
                 type="button"
                 class="tag-chip"
-                class:active={selection.kind === 'tag' && selection.tag === t.tag}
-                onclick={() => void select({ kind: 'tag', tag: t.tag })}
+                class:active={selection.kind === 'tag' && selection.tag === tagEntry.tag}
+                onclick={() => void select({ kind: 'tag', tag: tagEntry.tag })}
               >
-                #{t.tag}
-                <span class="count">{t.count}</span>
+                #{tagEntry.tag}
+                <span class="count">{tagEntry.count}</span>
               </button>
             {/each}
           </div>

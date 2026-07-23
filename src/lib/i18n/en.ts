@@ -9,6 +9,8 @@ export const en = {
   'app.versionCheck': 'App version, check for updates',
   'app.checkUpdates': 'Check for updates',
   'app.openPalette': 'Open onQ palette',
+  'app.pressPrefix': 'Press',
+  'app.pressSuffix': 'to begin',
 
   // Palette
   'palette.placeholder': 'Search prompts, or type to create…',
@@ -146,7 +148,10 @@ export const en = {
   'editor.deleteDesc': 'It will be permanently removed from your vault.',
   'editor.deleteConfirm': 'Delete prompt',
   'editor.save': 'Save',
+  'editor.saving': 'Saving…',
   'editor.delete': 'Delete',
+  'editor.copyAction': 'Copy',
+  'editor.copiedAction': 'Copied!',
 
   // Common
   'common.locked': 'locked',

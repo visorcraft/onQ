@@ -489,7 +489,7 @@
 
         <section class="panel">
           <div class="panel-head">
-            <h3>Appearance</h3>
+            <h3>{t('settings.theme', undefined, $locale)}</h3>
             <p class="help">Theme applies immediately across the shell.</p>
           </div>
           <div class="theme-row">
@@ -500,7 +500,7 @@
               onclick={() => $theme !== 'dark' && toggleTheme()}
             >
               <span class="theme-swatch dark" aria-hidden="true"></span>
-              <span class="theme-label">Dark</span>
+              <span class="theme-label">{t('settings.themeDark', undefined, $locale)}</span>
             </button>
             <button
               type="button"
@@ -509,7 +509,7 @@
               onclick={() => $theme !== 'light' && toggleTheme()}
             >
               <span class="theme-swatch light" aria-hidden="true"></span>
-              <span class="theme-label">Light</span>
+              <span class="theme-label">{t('settings.themeLight', undefined, $locale)}</span>
             </button>
           </div>
         </section>
@@ -646,18 +646,16 @@
 
         <section class="panel" aria-labelledby="recency-heading">
           <div class="panel-head">
-            <h3 id="recency-heading">Recency half-life</h3>
-            <p class="help">
-              Days until a prompt’s recency boost falls to ~37%. Default 30.
-            </p>
+            <h3 id="recency-heading">{t('settings.recency', undefined, $locale)}</h3>
+            <p class="help">{t('settings.recencyHelp', undefined, $locale)}</p>
           </div>
           <label class="field">
-            <span class="field-label">Days</span>
+            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
             <input type="number" min="1" max="3650" bind:value={recencyDays} />
           </label>
           <div class="row-actions">
             <button type="button" class="control-btn primary" onclick={() => void saveRecency()}>
-              Save recency
+              {t('settings.recencySave', undefined, $locale)}
             </button>
           </div>
         </section>
@@ -716,36 +714,36 @@
       {:else if active === 'vault'}
         <section class="panel" aria-labelledby="autolock-heading">
           <div class="panel-head">
-            <h3 id="autolock-heading">Auto-lock</h3>
-            <p class="help">Clear the vault session after idle time, on quit, or never.</p>
+            <h3 id="autolock-heading">{t('settings.autoLock', undefined, $locale)}</h3>
+            <p class="help">{t('settings.autoLockHelp', undefined, $locale)}</p>
           </div>
           <label class="field">
-            <span class="field-label">Policy</span>
+            <span class="field-label">{t('settings.autoLockPolicy', undefined, $locale)}</span>
             <select bind:value={autoLockPolicy}>
-              <option value="lock_on_quit">Lock on quit only</option>
-              <option value="idle">Idle timeout</option>
-              <option value="disabled">Disabled</option>
+              <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
+              <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
+              <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
             </select>
           </label>
           {#if autoLockPolicy === 'idle'}
             <label class="field">
-              <span class="field-label">Idle minutes</span>
+              <span class="field-label">{t('settings.autoLockMinutes', undefined, $locale)}</span>
               <input type="number" min="1" max="1440" bind:value={autoLockIdleMinutes} />
             </label>
           {/if}
           <div class="row-actions">
             <button type="button" class="control-btn primary" onclick={() => void saveAutoLock()}>
-              Save auto-lock
+              {t('settings.autoLockSave', undefined, $locale)}
             </button>
           </div>
         </section>
         <section class="panel" aria-labelledby="history-heading">
           <div class="panel-head">
-            <h3 id="history-heading">History retention</h3>
-            <p class="help">Days of per-prompt snapshots kept under <code>.onq/history</code>.</p>
+            <h3 id="history-heading">{t('settings.historyRetention', undefined, $locale)}</h3>
+            <p class="help">{t('settings.historyHelp', undefined, $locale)}</p>
           </div>
           <label class="field">
-            <span class="field-label">Days</span>
+            <span class="field-label">{t('settings.recencyDays', undefined, $locale)}</span>
             <input type="number" min="0" max="3650" bind:value={historyDays} />
           </label>
           <div class="row-actions">
@@ -754,21 +752,21 @@
               class="control-btn primary"
               onclick={() => void saveHistoryRetention()}
             >
-              Save retention
+              {t('settings.historySave', undefined, $locale)}
             </button>
           </div>
         </section>
         <section class="panel">
           <div class="panel-head">
-            <h3>Import / export prompts</h3>
-            <p class="help">Bulk import Markdown/JSON/ChatGPT export, or export the vault as .md files.</p>
+            <h3>{t('settings.importExport', undefined, $locale)}</h3>
+            <p class="help">{t('settings.importExportHelp', undefined, $locale)}</p>
           </div>
           <div class="row-actions">
             <button type="button" class="control-btn primary" onclick={() => void runImport()}>
-              Import…
+              {t('settings.import', undefined, $locale)}
             </button>
             <button type="button" class="control-btn" onclick={() => void runExport()}>
-              Export…
+              {t('settings.export', undefined, $locale)}
             </button>
           </div>
           {#if importStatus}

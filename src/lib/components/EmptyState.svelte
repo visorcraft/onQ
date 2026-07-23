@@ -56,7 +56,7 @@
         unlockMode = 'password';
       } else if (status.needsRecovery) {
         recoverablePath = path;
-        error = 'Encryption key missing from system keychain.';
+        error = t('unlock.keyMissing');
       }
     } catch (e) {
       error = String(e);
@@ -116,7 +116,7 @@
         unlockMode = 'password';
       } else if (status.needsRecovery) {
         recoverablePath = path;
-        error = 'Encryption key missing from system keychain.';
+        error = t('unlock.keyMissing');
       }
     } catch (e) {
       error = String(e);
@@ -185,7 +185,7 @@
                 type="button"
                 class="recent-forget"
                 disabled={busy}
-                aria-label="Remove {path} from recent"
+                aria-label={t('empty.removeRecent', { path }, $locale)}
                 onclick={() => void forgetRecent(path)}
               >
                 ×
@@ -222,7 +222,9 @@
         >{t('empty.openExisting', undefined, $locale)}</button
       >
       {#if recoverablePath}
-        <button disabled={busy} onclick={recover}>Recover with recovery phrase</button>
+        <button disabled={busy} onclick={recover}
+          >{t('unlock.recovery', undefined, $locale)}</button
+        >
       {/if}
     {/if}
   </div>
