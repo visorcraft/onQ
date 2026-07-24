@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { createPrompt, readPrompt, savePrompt, deletePrompt } from '$lib/api/prompts';
+  import { createPrompt, readPrompt, savePrompt, deletePrompt, listPrompts } from '$lib/api/prompts';
   import { listFolders } from '$lib/api/folders';
   import { lockPrompt, unlockPrompt } from '$lib/api/lock';
   import { listPromptHistory, restorePromptHistory, type HistoryEntry } from '$lib/api/history';
@@ -8,6 +8,10 @@
   import { fly, fade } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
+  import EditorHeader from './editor/EditorHeader.svelte';
+  import TagInput from './editor/TagInput.svelte';
+  import BodyEditor from './editor/BodyEditor.svelte';
+  import EditorFooter from './editor/EditorFooter.svelte';
   import { t, locale } from '$lib/i18n';
 
   let {
@@ -28,7 +32,7 @@
   let body = $state('');
   let folderInput = $state('');
   let tags = $state<string[]>([]);
-  let tagsInput = $state('');
+  let knownTags = $state<string[]>([]);
   let favorite = $state(false);
   let locked = $state(false);
   let charCount = $state(0);
@@ -50,6 +54,12 @@
   let tagSuggestions = $state<string[]>([]);
   let previewMode = $state<'edit' | 'preview'>('edit');
 
+  const visibleSuggestions = $derived(
+    tagSuggestions.filter(
+      (s) => !tags.some((tag) => tag.toLowerCase() === s.toLowerCase()),
+    ),
+  );
+
   onMount(() => {
     // Suppress page/sidebar scrollbars while open. Native OS scrollbars can
     // composite above backdrop-filter layers (common on Linux/WebKit), so the
@@ -60,6 +70,16 @@
       try {
         const folders = await listFolders().catch(() => []);
         projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
+
+        const summaries = await listPrompts().catch(() => []);
+        const tagSet = new Set<string>();
+        for (const p of summaries) {
+          for (const tag of p.tags ?? []) {
+            const trimmed = tag.trim();
+            if (trimmed) tagSet.add(trimmed);
+          }
+        }
+        knownTags = [...tagSet].sort((a, b) => a.localeCompare(b));
 
         if (id == null) {
           // Unsaved draft — nothing hits the vault until Save.
@@ -76,7 +96,6 @@
         title = p.title;
         folderInput = p.folder ?? '';
         tags = p.tags ?? [];
-        tagsInput = tags.join(', ');
         favorite = p.favorite;
         locked = p.locked;
         charCount = p.char_count;
@@ -91,7 +110,7 @@
           .catch(() => undefined);
         void suggestTagsForBody(body)
           .then((s) => {
-            tagSuggestions = s.filter((t) => !tags.includes(t));
+            tagSuggestions = s;
           })
           .catch(() => undefined);
       } catch (e) {
@@ -113,10 +132,15 @@
   }
 
   function parseTags(): string[] {
-    return tagsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    return tags;
+  }
+
+  function acceptSuggestion() {
+    tagSuggestions = tagSuggestions.slice(1);
+  }
+
+  function dismissSuggestions() {
+    tagSuggestions = [];
   }
 
   async function save() {
@@ -251,311 +275,119 @@
       <p>Loading prompt…</p>
     </div>
   {:else}
-    <header class="editor-head">
-      <p class="eyebrow">{isDraft ? 'New prompt' : 'Prompt'}</p>
-      <div class="title-row">
-        <label class="title-field">
-          <span class="field-label">Title</span>
-          <input
-            class="title field-input"
-            bind:value={title}
-            placeholder={t('editor.titlePlaceholder', undefined, $locale)}
-            aria-label={t('editor.titleAria', undefined, $locale)}
-            disabled={locked}
-          />
-        </label>
-        <div class="head-actions">
-          <button
-            type="button"
-            class="icon-chip"
-            class:on={favorite}
-            title={favorite
-              ? t('editor.unfavorite', undefined, $locale)
-              : t('editor.favorite', undefined, $locale)}
-            aria-label={favorite
-              ? t('editor.unfavorite', undefined, $locale)
-              : t('editor.favorite', undefined, $locale)}
-            aria-pressed={favorite}
-            disabled={locked || busy}
-            onclick={toggleFavorite}
-          >
-            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-              {#if favorite}
-                <path
-                  d="M8 1.8l1.7 3.5 3.9.6-2.8 2.7.7 3.8L8 10.6 4.5 12.4l.7-3.8L2.4 5.9l3.9-.6L8 1.8z"
-                  fill="currentColor"
-                />
-              {:else}
-                <path
-                  d="M8 2.4l1.4 2.9 3.2.5-2.3 2.2.5 3.2L8 9.6 5.2 11.2l.5-3.2L3.4 5.8l3.2-.5L8 2.4z"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linejoin="round"
-                />
-              {/if}
-            </svg>
-          </button>
-          {#if !isDraft}
-            <button
-              type="button"
-              class="icon-chip"
-              class:locked
-              title={locked ? 'Unlock' : 'Lock'}
-              aria-label={locked
-                ? t('editor.unlock', undefined, $locale)
-                : t('editor.lock', undefined, $locale)}
-              aria-pressed={locked}
-              disabled={busy}
-              onclick={() => void toggleLock()}
-            >
-              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-                {#if locked}
-                  <path
-                    d="M5 7V5.2a3 3 0 0 1 6 0V7"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                    stroke-linecap="round"
-                  />
-                  <rect
-                    x="3.5"
-                    y="7"
-                    width="9"
-                    height="6.5"
-                    rx="1.5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                  />
-                {:else}
-                  <path
-                    d="M5 7V5.2a3 3 0 0 1 5.7-1.3"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                    stroke-linecap="round"
-                  />
-                  <rect
-                    x="3.5"
-                    y="7"
-                    width="9"
-                    height="6.5"
-                    rx="1.5"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                  />
-                {/if}
-              </svg>
-            </button>
-          {/if}
-          <button
-            type="button"
-            class="icon-chip close"
-            aria-label={t('common.close', undefined, $locale)}
-            onclick={onClose}
-          >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <path
-                d="M3.5 3.5l9 9M12.5 3.5l-9 9"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
+    <EditorHeader
+      bind:title
+      {isDraft}
+      {favorite}
+      {locked}
+      {busy}
+      onToggleFavorite={toggleFavorite}
+      onToggleLock={() => void toggleLock()}
+      {onClose}
+    />
 
     <div class="meta-row">
       <label class="field">
         <span class="field-label">{t('editor.project', undefined, $locale)}</span>
-        <input
-          class="field-input"
-          list="project-paths"
-          bind:value={folderInput}
-          placeholder={t('editor.projectPlaceholder', undefined, $locale)}
-          aria-label={t('editor.project', undefined, $locale)}
-          disabled={locked}
-        />
+        <span class="input-icon-wrap">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" class="input-icon">
+            <path
+              d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6a1.5 1.5 0 0 1 1.1.5l.9 1h4.4A1.5 1.5 0 0 1 14 6v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11v-6.5z"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <input
+            class="field-input has-icon"
+            list="project-paths"
+            bind:value={folderInput}
+            placeholder={t('editor.projectPlaceholder', undefined, $locale)}
+            aria-label={t('editor.project', undefined, $locale)}
+            disabled={locked}
+          />
+        </span>
+        <p class="help">{t('editor.projectHelp', undefined, $locale)}</p>
         <datalist id="project-paths">
           {#each projectOptions as opt (opt)}
             <option value={opt}></option>
           {/each}
         </datalist>
       </label>
-      <label class="field">
+      <div class="field">
         <span class="field-label">{t('editor.tags', undefined, $locale)}</span>
-        <input
-          class="field-input"
-          bind:value={tagsInput}
-          placeholder={t('editor.tagsPlaceholder', undefined, $locale)}
-          aria-label={t('editor.tags', undefined, $locale)}
+        <TagInput
+          {tags}
+          {knownTags}
+          suggestions={visibleSuggestions}
           disabled={locked}
-          onkeydown={(e) => {
-            if (e.key === 'Tab' && tagSuggestions.length > 0) {
-              e.preventDefault();
-              const next = tagSuggestions[0];
-              const current = parseTags();
-              if (!current.includes(next)) {
-                tagsInput = [...current, next].join(', ');
-              }
-              tagSuggestions = tagSuggestions.slice(1);
-            } else if (e.key === 'Escape') {
-              tagSuggestions = [];
-            }
-          }}
+          onChange={(next) => (tags = next)}
+          onSuggestionAccepted={acceptSuggestion}
+          onDismissSuggestions={dismissSuggestions}
         />
-        {#if tagSuggestions.length > 0}
+        <p class="help">{t('editor.tagsHelp', undefined, $locale)}</p>
+        {#if visibleSuggestions.length > 0}
           <p class="hint" role="status">
-            {t('editor.suggestHint', { tags: tagSuggestions.join(', ') }, $locale)}
+            {t('editor.suggestHint', { tags: visibleSuggestions.join(', ') }, $locale)}
           </p>
         {/if}
-      </label>
-    </div>
-
-    {#if !isDraft && historyEntries.length > 0}
-      <div class="history-block">
-        <button type="button" class="control-btn" onclick={() => (showHistory = !showHistory)}>
-          {t('editor.history', undefined, $locale)} ({historyEntries.length})
-        </button>
-        {#if showHistory}
-          <ul class="history-list">
-            {#each historyEntries as h (h.path)}
-              <li>
-                <span class="mono">{h.timestamp}</span>
-                <button
-                  type="button"
-                  class="control-btn"
-                  disabled={locked || busy}
-                  onclick={() =>
-                    void (async () => {
-                      if (!id) return;
-                      busy = true;
-                      try {
-                        const p = await restorePromptHistory(id, h.path);
-                        body = p.body ?? '';
-                        charCount = body.length;
-                        historyEntries = await listPromptHistory(id);
-                      } catch (e) {
-                        errorMessage = e instanceof Error ? e.message : String(e);
-                      } finally {
-                        busy = false;
-                      }
-                    })()}
-                >
-                  {t('editor.restore', undefined, $locale)}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
       </div>
-    {/if}
-
-    <div class="body-shell" class:is-locked={locked}>
-      {#if locked}
-        <div class="lock-banner" role="status">
-          <span class="lock-dot" aria-hidden="true"></span>
-          {t('editor.lockedBanner', undefined, $locale)}
-        </div>
-      {/if}
-      <div class="body-toolbar">
-        <button
-          type="button"
-          class="control-btn"
-          class:on={previewMode === 'edit'}
-          onclick={() => (previewMode = 'edit')}
-        >
-          {t('editor.edit', undefined, $locale)}
-        </button>
-        <button
-          type="button"
-          class="control-btn"
-          class:on={previewMode === 'preview'}
-          onclick={() => (previewMode = 'preview')}
-        >
-          {t('editor.preview', undefined, $locale)}
-        </button>
-      </div>
-      {#if previewMode === 'preview'}
-        <div class="body preview-pane" aria-label={t('editor.previewAria', undefined, $locale)}>
-          {#each body.split('\n') as line}
-            <p>{line || '\u00a0'}</p>
-          {/each}
-        </div>
-      {:else}
-        <textarea
-          class="body"
-          bind:value={body}
-          oninput={(e) => {
-            charCount = (e.target as HTMLTextAreaElement).value.length;
-            void suggestTagsForBody((e.target as HTMLTextAreaElement).value)
-              .then((s) => {
-                tagSuggestions = s.filter((t) => !parseTags().includes(t));
-              })
-              .catch(() => undefined);
-          }}
-          placeholder={locked ? '' : t('editor.bodyPlaceholder', undefined, $locale)}
-          aria-label={t('editor.bodyAria', undefined, $locale)}
-          disabled={locked}
-        ></textarea>
-      {/if}
     </div>
 
-    <div class="meta">
-      <span class="char-count">
-        <span class="char-num">{charCount.toLocaleString()}</span>
-        {t('editor.characters', undefined, $locale)}
-      </span>
-      {#if locked}
-        <span class="lock-badge">{t('editor.encryptedBadge', undefined, $locale)}</span>
-      {/if}
-    </div>
+    <BodyEditor
+      {body}
+      mode={previewMode}
+      {locked}
+      {busy}
+      {isDraft}
+      {historyEntries}
+      {showHistory}
+      onBodyInput={(value) => {
+        body = value;
+        charCount = value.length;
+        void suggestTagsForBody(value)
+          .then((s) => {
+            tagSuggestions = s;
+          })
+          .catch(() => undefined);
+      }}
+      onModeChange={(mode) => (previewMode = mode)}
+      onToggleHistory={() => (showHistory = !showHistory)}
+      onRestoreHistory={(path) => {
+        if (!id) return;
+        busy = true;
+        void (async () => {
+          try {
+            const p = await restorePromptHistory(id, path);
+            body = p.body ?? '';
+            charCount = body.length;
+            historyEntries = await listPromptHistory(id);
+          } catch (e) {
+            errorMessage = e instanceof Error ? e.message : String(e);
+          } finally {
+            busy = false;
+          }
+        })();
+      }}
+    />
 
     {#if errorMessage}
       <p class="error" role="alert">{errorMessage}</p>
     {/if}
 
-    <footer class="actions">
-      {#if isDraft}
-        <span class="draft-hint">{t('editor.draftHint', undefined, $locale)}</span>
-      {:else}
-        <button type="button" class="btn ghost danger-text" onclick={requestDelete} disabled={busy}>
-          {t('editor.delete', undefined, $locale)}
-        </button>
-      {/if}
-      <div class="actions-right">
-        <button type="button" class="btn ghost" onclick={onClose}
-          >{t('common.cancel', undefined, $locale)}</button
-        >
-        <button
-          type="button"
-          class="btn ghost"
-          onclick={() => void copyBody()}
-          disabled={locked || busy}
-          aria-label={copied
-            ? t('editor.copied', undefined, $locale)
-            : t('editor.copy', undefined, $locale)}
-        >
-          {copied
-            ? t('editor.copiedAction', undefined, $locale)
-            : t('editor.copyAction', undefined, $locale)}
-        </button>
-        <button
-          type="button"
-          class="btn primary"
-          onclick={() => void save()}
-          disabled={locked || busy}
-        >
-          {busy && !confirmDeleteOpen
-            ? t('editor.saving', undefined, $locale)
-            : t('editor.save', undefined, $locale)}
-        </button>
-      </div>
-    </footer>
+    <EditorFooter
+      {charCount}
+      {isDraft}
+      {locked}
+      {busy}
+      saving={busy && !confirmDeleteOpen}
+      {copied}
+      onDelete={requestDelete}
+      onCancel={onClose}
+      onCopy={() => void copyBody()}
+      onSave={() => void save()}
+    />
   {/if}
 </div>
 
@@ -654,94 +486,6 @@
       border-top-color: var(--glass-border-strong);
     }
   }
-  .editor-head {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 22px 24px 12px;
-  }
-  .eyebrow {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--glass-cyan);
-  }
-  .title-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-  }
-  .title-field {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .field-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--glass-text-faint);
-  }
-  .title.field-input {
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -0.02em;
-    line-height: 1.3;
-    /* Match icon-chip height so the row reads as one control strip. */
-    min-height: 42px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
-  .head-actions {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-    align-items: center;
-  }
-  .icon-chip {
-    width: 42px;
-    height: 42px;
-    display: grid;
-    place-items: center;
-    border-radius: 11px;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-control-bg);
-    color: var(--glass-text-dim);
-    cursor: pointer;
-    line-height: 1;
-    transition:
-      background var(--motion-duration) ease,
-      color var(--motion-duration) ease,
-      border-color var(--motion-duration) ease;
-  }
-  .icon-chip:hover:not(:disabled) {
-    background: var(--glass-hover-strong);
-    color: var(--glass-text);
-  }
-  .icon-chip.on {
-    color: var(--glass-gold);
-    border-color: color-mix(in srgb, var(--glass-gold) 40%, transparent);
-    background: color-mix(in srgb, var(--glass-gold) 12%, transparent);
-  }
-  .icon-chip.locked {
-    color: var(--glass-periwinkle);
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 40%, transparent);
-    background: color-mix(in srgb, var(--glass-periwinkle) 12%, transparent);
-  }
-  .icon-chip:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-  .icon-chip:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
-  }
   .meta-row {
     position: relative;
     display: grid;
@@ -758,6 +502,13 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+  .field-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--glass-text-faint);
   }
   .field-input {
     width: 100%;
@@ -784,92 +535,33 @@
     border-color: color-mix(in srgb, var(--glass-periwinkle) 60%, transparent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--glass-periwinkle) 18%, transparent);
   }
-  .body-shell {
+  .input-icon-wrap {
     position: relative;
-    flex: 1;
-    min-height: 0;
-    margin: 0 24px;
-    display: flex;
-    flex-direction: column;
-    border-radius: 14px;
-    border: 1px solid var(--glass-border);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
-      var(--glass-input);
-    overflow: hidden;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    display: block;
   }
-  .body-shell.is-locked {
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 30%, var(--glass-border));
+  .input-icon {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--glass-text-faint);
+    pointer-events: none;
   }
-  .lock-banner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
+  .field-input.has-icon {
+    padding-left: 34px;
+  }
+  .help {
+    margin: 0;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--glass-periwinkle);
-    background: color-mix(in srgb, var(--glass-periwinkle) 10%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--glass-periwinkle) 22%, transparent);
-  }
-  .lock-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--glass-periwinkle);
-    box-shadow: 0 0 10px var(--glass-periwinkle);
-  }
-  .body {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    box-sizing: border-box;
-    background: transparent;
-    border: 0;
-    padding: 14px 16px;
-    color: var(--glass-text);
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 13px;
-    line-height: 1.55;
-    resize: none;
-    outline: none;
-  }
-  .body::placeholder {
     color: var(--glass-text-faint);
   }
-  .meta {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: var(--glass-text-dim);
+  .hint {
+    margin: 0;
     font-size: 12px;
-    gap: 12px;
-    padding: 10px 28px 0;
+    color: var(--glass-text-dim);
   }
-  .char-count {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 6px;
-  }
-  .char-num {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: var(--glass-text);
-  }
-  .lock-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
+  .hint::first-letter {
     font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--glass-periwinkle);
-    border: 1px solid color-mix(in srgb, var(--glass-periwinkle) 35%, transparent);
-    background: color-mix(in srgb, var(--glass-periwinkle) 12%, transparent);
   }
   .error {
     margin: 8px 24px 0;
@@ -879,79 +571,5 @@
     background: var(--glass-danger-bg);
     color: var(--glass-danger);
     font-size: 13px;
-  }
-  .actions {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px 24px 20px;
-    margin-top: 4px;
-  }
-  .actions-right {
-    display: flex;
-    gap: 8px;
-    margin-left: auto;
-  }
-  .draft-hint {
-    font-size: 12px;
-    color: var(--glass-text-faint);
-  }
-  .btn {
-    appearance: none;
-    border-radius: 11px;
-    padding: 10px 16px;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition:
-      background var(--motion-duration) ease,
-      border-color var(--motion-duration) ease,
-      box-shadow var(--motion-duration) ease;
-  }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .btn:focus-visible {
-    outline: 2px solid var(--glass-periwinkle);
-    outline-offset: 2px;
-  }
-  .btn.ghost {
-    background: transparent;
-    border-color: var(--glass-border);
-    color: var(--glass-text-dim);
-  }
-  .btn.ghost:hover:not(:disabled) {
-    background: var(--glass-hover-strong);
-    color: var(--glass-text);
-  }
-  .btn.danger-text {
-    border-color: transparent;
-    color: var(--glass-danger);
-  }
-  .btn.danger-text:hover:not(:disabled) {
-    background: var(--glass-danger-bg);
-    border-color: var(--glass-danger-border);
-    color: var(--glass-danger);
-  }
-  .btn.primary {
-    background: color-mix(in srgb, var(--glass-accent) 22%, var(--glass-control-bg));
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 38%, var(--glass-border));
-    color: var(--glass-text);
-    min-width: 96px;
-    box-shadow: none;
-  }
-  .btn.primary:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--glass-accent) 32%, var(--glass-control-bg));
-    border-color: color-mix(in srgb, var(--glass-periwinkle) 55%, var(--glass-border));
-  }
-  input:disabled,
-  textarea:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
   }
 </style>
