@@ -18,6 +18,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Tauri + ort + webkit debug builds exhaust the default ~14 GB runner
+      # disk during cargo test (seen as "No space left on device").
+      - name: Free disk space
+        run: |
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/share/swift
+          df -h /
       - name: Install Linux build deps
         # Ubuntu 24.04: ayatana replaces libappindicator3 (they conflict).
         run: |
