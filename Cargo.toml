@@ -8,7 +8,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.10.2"
+version = "1.10.3"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/visorcraft/onQ"
@@ -35,8 +35,8 @@ notify = "6"
 # but documents at-rest encrypted open/create intent for future feature gates.
 # Kit (mongreldb-kit) is not a direct dep — onQ uses core APIs only.
 mongreldb-core = { version = "0.64.6", features = ["encryption"] }
-onq-core = { path = "crates/onq-core", version = "1.10.2" }
-onq-test-utils = { path = "crates/onq-test-utils", version = "1.10.2" }
+onq-core = { path = "crates/onq-core", version = "1.10.3" }
+onq-test-utils = { path = "crates/onq-test-utils", version = "1.10.3" }
 keyring = { version = "3", features = [] }
 argon2 = "0.5"
 rand = "0.8"
@@ -49,7 +49,7 @@ diffy = "0.5"
 sha2 = "0.10"
 aes-gcm = "0.10"
 libloading = "0.9"
-onq-plugin-sdk = { path = "crates/onq-plugin-sdk", version = "1.10.2" }
+onq-plugin-sdk = { path = "crates/onq-plugin-sdk", version = "1.10.3" }
 tar = "0.4"
 flate2 = "1"
 toml = "0.8"
