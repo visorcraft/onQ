@@ -269,6 +269,14 @@ export const en = {
   'editor.draftHint': 'Not saved yet — cancel discards this draft.',
   'editor.characters': 'characters',
   'editor.encryptedBadge': 'Encrypted',
+  'editor.promptHeading': 'Prompt',
+  'editor.editTemplateSubtitle': 'Edit prompt template',
+  'editor.newTemplateSubtitle': 'New prompt template',
+  'editor.projectHelp': 'Path within your project repository.',
+  'editor.tagsHelp': 'Comma separated. Press Enter to add.',
+  'editor.addTag': 'Add tag…',
+  'editor.markdownSupported': 'Markdown supported',
+  'editor.editorTab': 'Editor',
 
   // Common
   'common.locked': 'locked',
