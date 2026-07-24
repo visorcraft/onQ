@@ -123,6 +123,17 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
   get_app_setting: () => payload(null),
   set_app_setting: () => payload(null),
+  list_folders: () =>
+    payload(
+      MOCK_PROMPTS.map((p, i) => ({
+        id: `folder-${i + 1}`,
+        name: p.folder,
+        created: 0,
+        updated: 0,
+      })),
+    ),
+  list_prompt_history: () => payload([]),
+  suggest_tags_for_body: () => payload(['refactor', 'svelte']),
   hybrid_search: () =>
     payload({
       hits: MOCK_PROMPTS.map((p, i) => ({
