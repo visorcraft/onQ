@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { aboutInfo, type AboutInfo } from '$lib/api/about';
   import { openExternalUrl } from '$lib/openUrl';
+  import { t, locale } from '$lib/i18n';
   // Served from src/ so Vite always resolves the asset (crates/ path can 404 in webview).
   import onqIcon from '$lib/assets/onq-128.png';
 
@@ -53,8 +54,11 @@
 
 <div class="about-page">
   <header class="about-header">
-    <h1>About</h1>
-    <p class="about-header-sub">{info?.tagline ?? 'Built on Rust + Tauri 2 + Svelte 5.'}</p>
+    <p class="eyebrow">{t('about.eyebrow', undefined, $locale)}</p>
+    <h1>{t('about.title', undefined, $locale)}</h1>
+    <p class="about-header-sub">
+      {info?.tagline ?? t('about.subtitle', undefined, $locale)}
+    </p>
   </header>
 
   {#if err}
@@ -166,6 +170,14 @@
     margin: 0;
     padding: 28px 28px 56px;
     color: var(--glass-text);
+  }
+  .about-header .eyebrow {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--glass-cyan);
   }
   .about-header h1 {
     margin: 0 0 6px;

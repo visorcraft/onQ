@@ -62,7 +62,10 @@
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
-  <div class="row-actions">
+  <div class="toggle-row field-row">
+    <span class="toggle-copy">
+      <span class="toggle-label">{t('audit.heading', undefined, $locale)}</span>
+    </span>
     <button type="button" class="control-btn" disabled={loading} onclick={() => void refresh()}>
       {loading
         ? t('common.loading', undefined, $locale)

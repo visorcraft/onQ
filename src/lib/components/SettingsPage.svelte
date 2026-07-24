@@ -429,6 +429,7 @@
   <header class="settings-top">
     <p class="eyebrow">{t('settings.preferences', undefined, $locale)}</p>
     <h1>{t('settings.title', undefined, $locale)}</h1>
+    <p class="sub">{t('settings.subtitle', undefined, $locale)}</p>
   </header>
 
   <div class="settings-layout">
@@ -448,47 +449,38 @@
 
     <div class="settings-main">
       {#if active === 'general'}
-        <section class="panel" aria-labelledby="language-heading">
+        <section class="panel" aria-labelledby="palette-heading">
           <div class="panel-head">
-            <h3 id="language-heading">{t('settings.language', undefined, $locale)}</h3>
-            <p class="help">{t('settings.languageHelp', undefined, $locale)}</p>
+            <h3 id="palette-heading">{t('settings.palette', undefined, $locale)}</h3>
+            <p class="help">{t('settings.paletteHelp', undefined, $locale)}</p>
           </div>
-          <select
-            bind:value={pendingLocale}
-            aria-label={t('settings.language', undefined, $locale)}
-            onchange={() => setLocale(pendingLocale)}
-          >
-            {#each SUPPORTED_LOCALES as loc (loc)}
-              <option value={loc}
-                >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
+          <div class="toggle-row shortcut-row">
+            <span class="toggle-copy">
+              <span class="toggle-label" id="shortcut-heading"
+                >{t('settings.shortcut', undefined, $locale)}</span
               >
-            {/each}
-          </select>
-        </section>
-        <section class="panel" aria-labelledby="shortcut-heading">
-          <div class="panel-head">
-            <h3 id="shortcut-heading">{t('settings.shortcut', undefined, $locale)}</h3>
-            <p class="help">
-              Global shortcut restores onQ from the tray and opens the prompt
-              palette. Default: Win+Q / Meta+Q / ⌘+Q.
-            </p>
+              <span class="toggle-desc"
+                >{t('settings.shortcutDesc', undefined, $locale)}</span
+              >
+            </span>
+            <button
+              type="button"
+              class:recording={recordingShortcut}
+              class="control-btn shortcut-btn"
+              aria-labelledby="shortcut-heading"
+              onclick={() => void startShortcutSetup()}
+              onkeydown={recordShortcut}
+            >
+              {#if recordingShortcut}
+                <span class="rec-dot" aria-hidden="true"></span>
+                Press shortcut…
+              {:else if $globalShortcut}
+                <kbd>{$globalShortcut}</kbd>
+              {:else}
+                Record shortcut
+              {/if}
+            </button>
           </div>
-          <button
-            type="button"
-            class:recording={recordingShortcut}
-            class="control-btn shortcut-btn"
-            onclick={() => void startShortcutSetup()}
-            onkeydown={recordShortcut}
-          >
-            {#if recordingShortcut}
-              <span class="rec-dot" aria-hidden="true"></span>
-              Press shortcut…
-            {:else if $globalShortcut}
-              <kbd>{$globalShortcut}</kbd>
-            {:else}
-              Record shortcut
-            {/if}
-          </button>
           {#if recordingShortcut}
             <p class="hint"
               >{t('settings.shortcutHint', { meta: metaKeyLabel }, $locale)}</p
@@ -497,6 +489,26 @@
           {#if shortcutError}
             <p class="error" role="alert">{shortcutError}</p>
           {/if}
+          <label class="toggle-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.minimizeOnCopy', undefined, $locale)}</span
+              >
+              <span class="toggle-desc"
+                >{t('settings.minimizeOnCopyDesc', undefined, $locale)}</span
+              >
+            </span>
+            <span class="switch" class:on={pendingMinimize}>
+              <input
+                type="checkbox"
+                bind:checked={pendingMinimize}
+                onchange={(event) => flipMinimizeOnCopy(event.currentTarget.checked)}
+              />
+              <span class="switch-track" aria-hidden="true">
+                <span class="switch-thumb"></span>
+              </span>
+            </span>
+          </label>
         </section>
 
         <section class="panel">
@@ -526,145 +538,32 @@
           </div>
         </section>
 
-        <section class="panel" aria-labelledby="palette-heading">
+        <section class="panel" aria-labelledby="language-heading">
           <div class="panel-head">
-            <h3 id="palette-heading">{t('settings.palette', undefined, $locale)}</h3>
-            <p class="help">{t('settings.paletteHelp', undefined, $locale)}</p>
+            <h3 id="language-heading">{t('settings.language', undefined, $locale)}</h3>
+            <p class="help">{t('settings.languageHelp', undefined, $locale)}</p>
           </div>
-          <label class="toggle-row">
+          <label class="toggle-row field-row">
             <span class="toggle-copy">
               <span class="toggle-label"
-                >{t('settings.minimizeOnCopy', undefined, $locale)}</span
-              >
-              <span class="toggle-desc"
-                >{t('settings.minimizeOnCopyDesc', undefined, $locale)}</span
+                >{t('settings.language', undefined, $locale)}</span
               >
             </span>
-            <span class="switch" class:on={pendingMinimize}>
-              <input
-                type="checkbox"
-                bind:checked={pendingMinimize}
-                onchange={(event) => flipMinimizeOnCopy(event.currentTarget.checked)}
-              />
-              <span class="switch-track" aria-hidden="true">
-                <span class="switch-thumb"></span>
-              </span>
-            </span>
+            <select
+              bind:value={pendingLocale}
+              aria-label={t('settings.language', undefined, $locale)}
+              onchange={() => setLocale(pendingLocale)}
+            >
+              {#each SUPPORTED_LOCALES as loc (loc)}
+                <option value={loc}
+                  >{t(`locale.${loc}` as MessageKey, undefined, $locale)}</option
+                >
+              {/each}
+            </select>
           </label>
         </section>
 
       {:else if active === 'search'}
-        <section class="panel" aria-labelledby="search-status-heading">
-          <div class="panel-head">
-            <h3 id="search-status-heading"
-              >{t('settings.searchHow', undefined, $locale)}</h3
-            >
-            <p class="help">{t('settings.searchHowHelp', undefined, $locale)}</p>
-          </div>
-          <ul class="status-list">
-            <li>
-              <span class="status-k">{t('settings.keywordIndex', undefined, $locale)}</span>
-              <span class="status-v ok">{t('settings.statusOn', undefined, $locale)}</span>
-              <span class="status-note"
-                >{t('settings.keywordIndexNote', undefined, $locale)}</span
-              >
-            </li>
-            <li>
-              <span class="status-k"
-                >{t('settings.embeddingModel', undefined, $locale)}</span
-              >
-              <span class="status-v" class:ok={searchStatus?.embedderLoaded} class:warn={!searchStatus?.embedderLoaded}>
-                {#if searchStatus?.embedderLoaded}
-                  {t('settings.statusLoaded', undefined, $locale)}
-                {:else if searchStatus?.modelCached}
-                  {t('settings.statusOnDisk', undefined, $locale)}
-                {:else}
-                  {t('settings.statusNotInstalled', undefined, $locale)}
-                {/if}
-              </span>
-              <span class="status-note mono">{searchStatus?.modelId ?? 'sentence-transformers/all-MiniLM-L6-v2'}</span>
-            </li>
-            <li>
-              <span class="status-k"
-                >{t('settings.semanticPath', undefined, $locale)}</span
-              >
-              <span class="status-v" class:ok={!searchStatus?.sparseOnly} class:warn={searchStatus?.sparseOnly}>
-                {#if searchStatus?.sparseOnly}
-                  {t('settings.sparseOnly', undefined, $locale)}
-                {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'ready'}
-                  {t('settings.denseLive', undefined, $locale)}
-                {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'pending'}
-                  {t('settings.densePending', undefined, $locale)}
-                {:else}
-                  {t('settings.binaryAnn', undefined, $locale)}
-                {/if}
-              </span>
-            </li>
-          </ul>
-          {#if searchStatusError}
-            <p class="error" role="alert">{searchStatusError}</p>
-          {/if}
-          <div class="row-actions">
-            <button
-              type="button"
-              class="control-btn primary"
-              disabled={loadingModel}
-              onclick={() => void loadSearchModel()}
-            >
-              {#if loadingModel}
-                {t('settings.loadingModel', undefined, $locale)}
-              {:else if searchStatus?.embedderLoaded}
-                {t('settings.reembed', undefined, $locale)}
-              {:else}
-                {t('settings.loadMinilm', undefined, $locale)}
-              {/if}
-            </button>
-            <button
-              type="button"
-              class="control-btn"
-              disabled={loadingModel}
-              onclick={() => void refreshSearchStatus()}
-            >
-              {t('common.refresh', undefined, $locale)}
-            </button>
-          </div>
-          <p class="hint">{t('settings.searchModelHint', undefined, $locale)}</p>
-        </section>
-
-        <section class="panel" aria-labelledby="embedder-heading">
-          <div class="panel-head">
-            <h3 id="embedder-heading"
-              >{t('settings.embedderHeading', undefined, $locale)}</h3
-            >
-            <p class="help">{t('settings.embedderHelp', undefined, $locale)}</p>
-          </div>
-          <select
-            bind:value={embedderPref}
-            aria-label={t('settings.activeEmbedder', undefined, $locale)}
-            onchange={() => void saveEmbedderPref()}
-          >
-            <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
-            {#each embedderPlugins as p (p.id)}
-              <option value={p.id}>{p.name} ({p.id})</option>
-            {/each}
-          </select>
-        </section>
-
-        <section class="panel" aria-labelledby="recency-heading">
-          <div class="panel-head">
-            <h3 id="recency-heading">{t('settings.recency', undefined, $locale)}</h3>
-            <p class="help">{t('settings.recencyHelp', undefined, $locale)}</p>
-          </div>
-          <input
-            type="number"
-            min="1"
-            max="3650"
-            bind:value={recencyDays}
-            aria-label={t('settings.recencyDays', undefined, $locale)}
-            onchange={() => void saveRecency()}
-          />
-        </section>
-
         <section class="panel" aria-labelledby="embedding-heading">
           <div class="panel-head">
             <h3 id="embedding-heading"
@@ -722,29 +621,175 @@
             <p class="hint">{t('settings.loadMinilmFirst', undefined, $locale)}</p>
           {/if}
         </section>
+
+        <section class="panel" aria-labelledby="search-status-heading">
+          <div class="panel-head">
+            <h3 id="search-status-heading"
+              >{t('settings.searchHow', undefined, $locale)}</h3
+            >
+            <p class="help">{t('settings.searchHowHelp', undefined, $locale)}</p>
+          </div>
+          <ul class="status-list">
+            <li>
+              <span class="status-k">{t('settings.keywordIndex', undefined, $locale)}</span>
+              <span class="status-v ok">{t('settings.statusOn', undefined, $locale)}</span>
+              <span class="status-note"
+                >{t('settings.keywordIndexNote', undefined, $locale)}</span
+              >
+            </li>
+            <li>
+              <span class="status-k"
+                >{t('settings.embeddingModel', undefined, $locale)}</span
+              >
+              <span class="status-v" class:ok={searchStatus?.embedderLoaded} class:warn={!searchStatus?.embedderLoaded}>
+                {#if searchStatus?.embedderLoaded}
+                  {t('settings.statusLoaded', undefined, $locale)}
+                {:else if searchStatus?.modelCached}
+                  {t('settings.statusOnDisk', undefined, $locale)}
+                {:else}
+                  {t('settings.statusNotInstalled', undefined, $locale)}
+                {/if}
+              </span>
+              <span class="status-note mono">{searchStatus?.modelId ?? 'sentence-transformers/all-MiniLM-L6-v2'}</span>
+            </li>
+            <li>
+              <span class="status-k"
+                >{t('settings.semanticPath', undefined, $locale)}</span
+              >
+              <span class="status-v" class:ok={!searchStatus?.sparseOnly} class:warn={searchStatus?.sparseOnly}>
+                {#if searchStatus?.sparseOnly}
+                  {t('settings.sparseOnly', undefined, $locale)}
+                {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'ready'}
+                  {t('settings.denseLive', undefined, $locale)}
+                {:else if searchStatus?.embeddingQuant === 'dense' && searchStatus.denseReadiness === 'pending'}
+                  {t('settings.densePending', undefined, $locale)}
+                {:else}
+                  {t('settings.binaryAnn', undefined, $locale)}
+                {/if}
+              </span>
+            </li>
+          </ul>
+          {#if searchStatusError}
+            <p class="error" role="alert">{searchStatusError}</p>
+          {/if}
+          <div class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.embeddingModel', undefined, $locale)}</span
+              >
+              <span class="toggle-desc"
+                >{t('settings.searchModelHint', undefined, $locale)}</span
+              >
+            </span>
+            <div class="field-row-actions">
+              <button
+                type="button"
+                class="control-btn primary"
+                disabled={loadingModel}
+                onclick={() => void loadSearchModel()}
+              >
+                {#if loadingModel}
+                  {t('settings.loadingModel', undefined, $locale)}
+                {:else if searchStatus?.embedderLoaded}
+                  {t('settings.reembed', undefined, $locale)}
+                {:else}
+                  {t('settings.loadMinilm', undefined, $locale)}
+                {/if}
+              </button>
+              <button
+                type="button"
+                class="control-btn"
+                disabled={loadingModel}
+                onclick={() => void refreshSearchStatus()}
+              >
+                {t('common.refresh', undefined, $locale)}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="embedder-heading">
+          <div class="panel-head">
+            <h3 id="embedder-heading"
+              >{t('settings.embedderHeading', undefined, $locale)}</h3
+            >
+            <p class="help">{t('settings.embedderHelp', undefined, $locale)}</p>
+          </div>
+          <label class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.activeEmbedder', undefined, $locale)}</span
+              >
+            </span>
+            <select
+              bind:value={embedderPref}
+              aria-label={t('settings.activeEmbedder', undefined, $locale)}
+              onchange={() => void saveEmbedderPref()}
+            >
+              <option value="builtin">builtin (all-MiniLM-L6-v2)</option>
+              {#each embedderPlugins as p (p.id)}
+                <option value={p.id}>{p.name} ({p.id})</option>
+              {/each}
+            </select>
+          </label>
+        </section>
+
+        <section class="panel" aria-labelledby="recency-heading">
+          <div class="panel-head">
+            <h3 id="recency-heading">{t('settings.recency', undefined, $locale)}</h3>
+            <p class="help">{t('settings.recencyHelp', undefined, $locale)}</p>
+          </div>
+          <label class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.recencyDays', undefined, $locale)}</span
+              >
+            </span>
+            <input
+              type="number"
+              min="1"
+              max="3650"
+              bind:value={recencyDays}
+              aria-label={t('settings.recencyDays', undefined, $locale)}
+              onchange={() => void saveRecency()}
+            />
+          </label>
+        </section>
       {:else if active === 'vault'}
         <section class="panel" aria-labelledby="autolock-heading">
           <div class="panel-head">
             <h3 id="autolock-heading">{t('settings.autoLock', undefined, $locale)}</h3>
             <p class="help">{t('settings.autoLockHelp', undefined, $locale)}</p>
           </div>
-          <select
-            bind:value={autoLockPolicy}
-            aria-label={t('settings.autoLockPolicy', undefined, $locale)}
-            onchange={() => void saveAutoLock()}
-          >
-            <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
-            <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
-            <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
-          </select>
+          <label class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.autoLockPolicy', undefined, $locale)}</span
+              >
+            </span>
+            <select
+              bind:value={autoLockPolicy}
+              aria-label={t('settings.autoLockPolicy', undefined, $locale)}
+              onchange={() => void saveAutoLock()}
+            >
+              <option value="lock_on_quit">{t('settings.autoLockQuit', undefined, $locale)}</option>
+              <option value="idle">{t('settings.autoLockIdle', undefined, $locale)}</option>
+              <option value="disabled">{t('settings.autoLockDisabled', undefined, $locale)}</option>
+            </select>
+          </label>
           {#if autoLockPolicy === 'idle'}
-            <label class="field">
-              <span class="field-label">{t('settings.autoLockMinutes', undefined, $locale)}</span>
+            <label class="toggle-row field-row">
+              <span class="toggle-copy">
+                <span class="toggle-label"
+                  >{t('settings.autoLockMinutes', undefined, $locale)}</span
+                >
+              </span>
               <input
                 type="number"
                 min="1"
                 max="1440"
                 bind:value={autoLockIdleMinutes}
+                aria-label={t('settings.autoLockMinutes', undefined, $locale)}
                 onchange={() => void saveAutoLock()}
               />
             </label>
@@ -755,27 +800,41 @@
             <h3 id="history-heading">{t('settings.historyRetention', undefined, $locale)}</h3>
             <p class="help">{t('settings.historyHelp', undefined, $locale)}</p>
           </div>
-          <input
-            type="number"
-            min="0"
-            max="3650"
-            bind:value={historyDays}
-            aria-label={t('settings.recencyDays', undefined, $locale)}
-            onchange={() => void saveHistoryRetention()}
-          />
+          <label class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.recencyDays', undefined, $locale)}</span
+              >
+            </span>
+            <input
+              type="number"
+              min="0"
+              max="3650"
+              bind:value={historyDays}
+              aria-label={t('settings.recencyDays', undefined, $locale)}
+              onchange={() => void saveHistoryRetention()}
+            />
+          </label>
         </section>
         <section class="panel">
           <div class="panel-head">
             <h3>{t('settings.importExport', undefined, $locale)}</h3>
             <p class="help">{t('settings.importExportHelp', undefined, $locale)}</p>
           </div>
-          <div class="row-actions">
-            <button type="button" class="control-btn primary" onclick={() => void runImport()}>
-              {t('settings.import', undefined, $locale)}
-            </button>
-            <button type="button" class="control-btn" onclick={() => void runExport()}>
-              {t('settings.export', undefined, $locale)}
-            </button>
+          <div class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.importExport', undefined, $locale)}</span
+              >
+            </span>
+            <div class="field-row-actions">
+              <button type="button" class="control-btn primary" onclick={() => void runImport()}>
+                {t('settings.import', undefined, $locale)}
+              </button>
+              <button type="button" class="control-btn" onclick={() => void runExport()}>
+                {t('settings.export', undefined, $locale)}
+              </button>
+            </div>
           </div>
           {#if importStatus}
             <p class="hint" role="status">{importStatus}</p>
@@ -802,16 +861,23 @@
                 autocomplete="off"
                 spellcheck="false"
               ></textarea>
-              <button
-                type="button"
-                class="control-btn primary"
-                disabled={retrievingKey || !recoveryPhrase.trim()}
-                onclick={() => void showEncryptionKey()}
-              >
-                {retrievingKey
-                  ? t('settings.checkingKey', undefined, $locale)
-                  : t('settings.showKey', undefined, $locale)}
-              </button>
+              <div class="toggle-row field-row">
+                <span class="toggle-copy">
+                  <span class="toggle-label"
+                    >{t('settings.encryptionKey', undefined, $locale)}</span
+                  >
+                </span>
+                <button
+                  type="button"
+                  class="control-btn primary"
+                  disabled={retrievingKey || !recoveryPhrase.trim()}
+                  onclick={() => void showEncryptionKey()}
+                >
+                  {retrievingKey
+                    ? t('settings.checkingKey', undefined, $locale)
+                    : t('settings.showKey', undefined, $locale)}
+                </button>
+              </div>
             {/if}
             {#if keyError}<p class="error" role="alert">{keyError}</p>{/if}
           </section>
@@ -863,7 +929,12 @@
               </span>
             </span>
           </label>
-          <div class="row-actions">
+          <div class="toggle-row field-row">
+            <span class="toggle-copy">
+              <span class="toggle-label"
+                >{t('settings.updates', undefined, $locale)}</span
+              >
+            </span>
             <button
               type="button"
               class="control-btn primary"
@@ -909,7 +980,7 @@
     color: var(--glass-cyan);
   }
   h1 {
-    margin: 0;
+    margin: 0 0 6px;
     font-size: 34px;
     font-weight: 700;
     letter-spacing: -0.03em;
@@ -924,6 +995,11 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  .sub {
+    margin: 0;
+    color: var(--glass-text-dim);
+    font-size: 14px;
   }
   .settings-layout {
     position: relative;
@@ -1047,9 +1123,14 @@
     min-width: 0;
   }
 
-  /* ---- Shortcut recorder ---- */
-  .control-btn.shortcut-btn {
-    min-width: 200px;
+  /* ---- Shortcut recorder (nested in Palette panel) ---- */
+  .shortcut-row {
+    cursor: default;
+  }
+  .shortcut-row .control-btn.shortcut-btn {
+    align-self: center;
+    flex-shrink: 0;
+    min-width: 120px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 13px;
     letter-spacing: 0.02em;

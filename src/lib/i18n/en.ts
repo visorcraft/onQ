@@ -36,6 +36,8 @@ export const en = {
   'settings.nav': 'Settings sections',
   'settings.title': 'Settings',
   'settings.preferences': 'Preferences',
+  'settings.subtitle':
+    'Language, vault security, search, backups, plugins, and updates.',
   'settings.general': 'General',
   'settings.search': 'Search',
   'settings.vault': 'Vault',
@@ -66,13 +68,15 @@ export const en = {
   'settings.import': 'Import…',
   'settings.export': 'Export…',
   'settings.shortcut': 'Global shortcut',
+  'settings.shortcutDesc':
+    'Restores onQ from the tray and opens the prompt palette. Default: Win+Q / Meta+Q / ⌘+Q.',
   'settings.shortcutHint':
     'Press Ctrl, Alt, or {meta} plus another key. Escape cancels.',
   'settings.theme': 'Theme',
   'settings.themeHelp': 'Theme applies immediately across the shell.',
   'settings.themeDark': 'Dark',
   'settings.themeLight': 'Light',
-  'settings.palette': 'Palette',
+  'settings.palette': 'onQ Search',
   'settings.paletteHelp':
     'Behaviour of the global command palette when you click a search result or one of the Recent items.',
   'settings.minimizeOnCopy': 'Automatically minimize after clicking search result',
@@ -399,6 +403,9 @@ export const en = {
   'smart.valuePlaceholder': 'value',
 
   // About / licenses chrome
+  'about.eyebrow': 'App',
+  'about.title': 'About',
+  'about.subtitle': 'Built on Rust + Tauri 2 + Svelte 5.',
   'about.licenses': 'Licenses',
   'about.licensesSub':
     'Bundled license and attribution documents, available without opening a browser.',

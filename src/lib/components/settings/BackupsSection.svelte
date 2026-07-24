@@ -152,30 +152,32 @@
   {:else if paths}
     {@const vaultPath = paths.vaultPath}
     {@const databasePath = paths.databasePath}
-    <dl class="path-list">
-      <div class="path-row">
-        <dt>{t('backup.vault', undefined, $locale)}</dt>
-        <dd>
-          <code class="path mono" title={vaultPath}>{vaultPath}</code>
-          <button type="button" class="control-btn slim" onclick={() => void copyText(vaultPath)}>
-            {t('editor.copyAction', undefined, $locale)}
-          </button>
-        </dd>
+    <div class="toggle-row field-row path-field-row">
+      <span class="toggle-copy">
+        <span class="toggle-label">{t('backup.vault', undefined, $locale)}</span>
+      </span>
+      <div class="field-row-actions path-actions">
+        <code class="path mono" title={vaultPath}>{vaultPath}</code>
+        <button type="button" class="control-btn slim" onclick={() => void copyText(vaultPath)}>
+          {t('editor.copyAction', undefined, $locale)}
+        </button>
       </div>
-      <div class="path-row">
-        <dt>{t('backup.database', undefined, $locale)}</dt>
-        <dd>
-          <code class="path mono" title={databasePath}>{databasePath}</code>
-          <button
-            type="button"
-            class="control-btn slim"
-            onclick={() => void copyText(databasePath)}
-          >
-            {t('editor.copyAction', undefined, $locale)}
-          </button>
-        </dd>
+    </div>
+    <div class="toggle-row field-row path-field-row">
+      <span class="toggle-copy">
+        <span class="toggle-label">{t('backup.database', undefined, $locale)}</span>
+      </span>
+      <div class="field-row-actions path-actions">
+        <code class="path mono" title={databasePath}>{databasePath}</code>
+        <button
+          type="button"
+          class="control-btn slim"
+          onclick={() => void copyText(databasePath)}
+        >
+          {t('editor.copyAction', undefined, $locale)}
+        </button>
       </div>
-    </dl>
+    </div>
   {:else}
     <p class="hint">{t('backup.loadingPaths', undefined, $locale)}</p>
   {/if}
@@ -201,29 +203,42 @@
   </label>
 
   {#if protectExport}
-    <label class="field">
-      <span class="field-label">{t('backup.archivePassword', undefined, $locale)}</span>
+    <label class="toggle-row field-row">
+      <span class="toggle-copy">
+        <span class="toggle-label"
+          >{t('backup.archivePassword', undefined, $locale)}</span
+        >
+      </span>
       <input
         class="text-input"
         type="password"
         autocomplete="new-password"
         bind:value={exportPassword}
         disabled={busy}
+        aria-label={t('backup.archivePassword', undefined, $locale)}
       />
     </label>
-    <label class="field">
-      <span class="field-label">{t('backup.confirmPassword', undefined, $locale)}</span>
+    <label class="toggle-row field-row">
+      <span class="toggle-copy">
+        <span class="toggle-label"
+          >{t('backup.confirmPassword', undefined, $locale)}</span
+        >
+      </span>
       <input
         class="text-input"
         type="password"
         autocomplete="new-password"
         bind:value={exportConfirm}
         disabled={busy}
+        aria-label={t('backup.confirmPassword', undefined, $locale)}
       />
     </label>
   {/if}
 
-  <div class="row-actions">
+  <div class="toggle-row field-row">
+    <span class="toggle-copy">
+      <span class="toggle-label">{t('backup.exportHeading', undefined, $locale)}</span>
+    </span>
     <button
       type="button"
       class="control-btn primary"
@@ -242,7 +257,10 @@
     <h3 id="backup-import-heading">{t('backup.importHeading', undefined, $locale)}</h3>
     <p class="help">{t('backup.importHelp', undefined, $locale)}</p>
   </div>
-  <div class="row-actions">
+  <div class="toggle-row field-row">
+    <span class="toggle-copy">
+      <span class="toggle-label">{t('backup.importHeading', undefined, $locale)}</span>
+    </span>
     <button
       type="button"
       class="control-btn danger"
@@ -291,33 +309,17 @@
 <style>
   /* Panel/button/toggle chrome comes from the shared settings-chrome.css
    * (scoped under .settings-page); only backup-specific styles live here. */
-  .path-list {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .path-field-row {
+    align-items: flex-start;
   }
-  .path-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .path-row dt {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--glass-text-faint);
-  }
-  .path-row dd {
-    margin: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
+  .path-actions {
+    flex: 1 1 12rem;
+    min-width: 0;
+    max-width: min(420px, 58vw);
+    justify-content: flex-end;
   }
   .path {
-    flex: 1 1 12rem;
+    flex: 1 1 auto;
     min-width: 0;
     display: block;
     padding: 10px 12px;

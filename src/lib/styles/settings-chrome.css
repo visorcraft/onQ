@@ -226,6 +226,45 @@
 .settings-page .toggle-row:hover {
   border-color: var(--glass-border-strong);
 }
+/* Row with a select/number/button control instead of a switch — same chrome, no pointer. */
+.settings-page .toggle-row.field-row {
+  cursor: default;
+}
+.settings-page .toggle-row.field-row select,
+.settings-page .toggle-row.field-row input[type='number'],
+.settings-page .toggle-row.field-row input[type='password'],
+.settings-page .toggle-row.field-row input[type='text'],
+.settings-page .toggle-row.field-row .text-input {
+  width: auto;
+  max-width: min(280px, 48vw);
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0;
+}
+.settings-page .toggle-row.field-row input[type='number'] {
+  max-width: 120px;
+  text-align: right;
+}
+.settings-page .toggle-row.field-row input[type='password'],
+.settings-page .toggle-row.field-row input[type='text'],
+.settings-page .toggle-row.field-row .text-input {
+  max-width: min(260px, 46vw);
+}
+.settings-page .toggle-row.field-row .control-btn {
+  align-self: center;
+  flex-shrink: 0;
+}
+.settings-page .field-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.settings-page .field-row-actions .control-btn {
+  align-self: center;
+}
 .settings-page .toggle-copy {
   display: flex;
   flex-direction: column;

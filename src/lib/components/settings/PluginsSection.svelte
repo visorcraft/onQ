@@ -78,27 +78,32 @@
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
-  <div class="row-actions">
-    <button type="button" class="control-btn primary" disabled={busy} onclick={() => void onInstall()}>
-      {busy
-        ? t('common.installing', undefined, $locale)
-        : t('common.install', undefined, $locale)}
-    </button>
-    <button type="button" class="control-btn" onclick={() => void refresh()}
-      >{t('common.refresh', undefined, $locale)}</button
-    >
+  <div class="toggle-row field-row">
+    <span class="toggle-copy">
+      <span class="toggle-label">{t('plugins.heading', undefined, $locale)}</span>
+    </span>
+    <div class="field-row-actions">
+      <button type="button" class="control-btn primary" disabled={busy} onclick={() => void onInstall()}>
+        {busy
+          ? t('common.installing', undefined, $locale)
+          : t('common.install', undefined, $locale)}
+      </button>
+      <button type="button" class="control-btn" onclick={() => void refresh()}
+        >{t('common.refresh', undefined, $locale)}</button
+      >
+    </div>
   </div>
   {#if plugins.length === 0}
     <p class="hint">{t('plugins.none', undefined, $locale)}</p>
   {:else}
     <ul class="plugin-list">
       {#each plugins as p (p.id)}
-        <li class="plugin-row">
-          <div class="plugin-copy">
-            <strong>{p.name}</strong>
-            <span class="meta">{p.id} · v{p.version}</span>
+        <li class="toggle-row field-row">
+          <div class="toggle-copy">
+            <span class="toggle-label">{p.name}</span>
+            <span class="meta toggle-desc">{p.id} · v{p.version}</span>
           </div>
-          <div class="actions">
+          <div class="field-row-actions">
             <button type="button" class="control-btn slim" onclick={() => void toggle(p)}>
               {p.enabled
                 ? t('common.disable', undefined, $locale)
@@ -115,8 +120,7 @@
 </section>
 
 <style>
-  /* Panel/button chrome comes from the shared settings-chrome.css (scoped
-   * under .settings-page); only plugin-list styles live here. */
+  /* Panel/button/row chrome comes from settings-chrome.css; list + mono meta only. */
   .plugin-list {
     list-style: none;
     margin: 0;
@@ -125,35 +129,7 @@
     flex-direction: column;
     gap: 8px;
   }
-  .plugin-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
-    align-items: center;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--glass-border);
-    background: var(--glass-control-bg);
-    transition: border-color var(--motion-duration) ease;
-  }
-  .plugin-row:hover {
-    border-color: var(--glass-border-strong);
-  }
-  .plugin-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    font-size: 13px;
-  }
   .meta {
-    font-size: 11px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--glass-text-faint);
-  }
-  .actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
   }
 </style>
