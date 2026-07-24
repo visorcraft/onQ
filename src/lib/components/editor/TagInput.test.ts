@@ -108,6 +108,23 @@ it('Tab accepts the first suggestion and notifies the parent', async () => {
   await unmount(component);
 });
 
+it('lets Escape bubble when the dropdown is closed and there are no suggestions', async () => {
+  const component = setup({ tags: ['mongrel'], onChange: () => {} });
+  await tick();
+
+  let bubbleHits = 0;
+  const onBodyKeydown = () => (bubbleHits += 1);
+  document.body.addEventListener('keydown', onBodyKeydown);
+
+  const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+  draftInput().dispatchEvent(event);
+
+  document.body.removeEventListener('keydown', onBodyKeydown);
+  expect(event.defaultPrevented).toBe(false);
+  expect(bubbleHits).toBe(1);
+  await unmount(component);
+});
+
 it('dropdown lists known tags filtered by the draft and excluding added tags', async () => {
   const changes: string[][] = [];
   const component = setup({

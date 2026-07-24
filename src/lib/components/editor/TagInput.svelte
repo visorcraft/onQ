@@ -63,11 +63,13 @@
       commit(suggestions[0]);
       onSuggestionAccepted?.();
     } else if (event.key === 'Escape') {
-      // Never bubble Escape — the editor dialog closes on Escape.
-      event.stopPropagation();
+      // Bubble Escape when nothing was dismissed so the editor dialog
+      // still closes via its own keydown handler.
       if (dropdownOpen) {
+        event.stopPropagation();
         dropdownOpen = false;
       } else if (suggestions.length > 0) {
+        event.stopPropagation();
         onDismissSuggestions?.();
       }
     }
