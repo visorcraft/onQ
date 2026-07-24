@@ -531,10 +531,10 @@ Regenerate with `scripts/regen-credits.sh`.
 - `markup5ever` 0.38.0 — https://github.com/servo/html5ever
 - `memmap2` 0.9.11 — https://github.com/RazrFalcon/memmap2-rs
 - `mime` 0.3.17 — https://github.com/hyperium/mime
-- `mongreldb-core` 0.64.6 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-fault` 0.64.6 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-log` 0.64.6 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-types` 0.64.6 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-core` 0.64.8 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-fault` 0.64.8 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-log` 0.64.8 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-types` 0.64.8 — https://github.com/visorcraft/MongrelDB
 - `monostate` 0.1.18 — https://github.com/dtolnay/monostate
 - `monostate-impl` 0.1.18 — https://github.com/dtolnay/monostate
 - `native-tls` 0.2.18 — https://github.com/rust-native-tls/rust-native-tls

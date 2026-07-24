@@ -34,7 +34,7 @@ notify = "6"
 # `encryption` matches sibling apps (mongrel); currently a no-op flag in 0.64.x
 # but documents at-rest encrypted open/create intent for future feature gates.
 # Kit (mongreldb-kit) is not a direct dep — onQ uses core APIs only.
-mongreldb-core = { version = "0.64.6", features = ["encryption"] }
+mongreldb-core = { version = "0.64.8", features = ["encryption"] }
 onq-core = { path = "crates/onq-core", version = "1.10.4" }
 onq-test-utils = { path = "crates/onq-test-utils", version = "1.10.4" }
 keyring = { version = "3", features = [] }
