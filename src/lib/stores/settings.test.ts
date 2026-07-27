@@ -9,15 +9,21 @@ import {
   embeddingQuant,
   loadBetaChannel,
   loadEmbeddingQuant,
+  loadMinimizeOnCopy,
+  loadVaultPreferences,
+  minimizeOnCopy,
   setBetaChannel,
   setEmbeddingQuant,
 } from './settings';
+import { theme } from './theme';
 
 describe('settings store', () => {
   beforeEach(() => {
     invokeMock.mockReset();
     betaChannel.set(false);
     embeddingQuant.set('binary');
+    minimizeOnCopy.set(false);
+    theme.set('dark');
   });
 
   // ---------------------------------------------------------------------
@@ -98,5 +104,65 @@ describe('settings store', () => {
     await loadEmbeddingQuant();
 
     expect(get(embeddingQuant)).toBe('binary');
+  });
+
+  // ---------------------------------------------------------------------
+  // minimize_on_copy — palette hide-to-tray preference
+  // ---------------------------------------------------------------------
+
+  it('loads minimize_on_copy true from app_state', async () => {
+    invokeMock.mockResolvedValueOnce('true');
+
+    await loadMinimizeOnCopy();
+
+    expect(invokeMock).toHaveBeenCalledWith('get_app_setting', {
+      key: 'minimize_on_copy',
+    });
+    expect(get(minimizeOnCopy)).toBe(true);
+  });
+
+  it('treats non-true minimize_on_copy values as false', async () => {
+    minimizeOnCopy.set(true);
+    invokeMock.mockResolvedValueOnce('');
+
+    await loadMinimizeOnCopy();
+
+    expect(get(minimizeOnCopy)).toBe(false);
+  });
+
+  it('keeps minimize_on_copy default when the vault is locked', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('vault not unlocked'));
+
+    await loadMinimizeOnCopy();
+
+    expect(get(minimizeOnCopy)).toBe(false);
+  });
+
+  // ---------------------------------------------------------------------
+  // Post-unlock hydration bundle
+  // ---------------------------------------------------------------------
+
+  it('loadVaultPreferences hydrates minimize, beta, quant, and theme', async () => {
+    invokeMock.mockImplementation((command: string, args?: { key?: string }) => {
+      if (command === 'get_app_setting' && args?.key === 'minimize_on_copy') {
+        return Promise.resolve('true');
+      }
+      if (command === 'get_app_setting' && args?.key === 'embedding_quant') {
+        return Promise.resolve('dense');
+      }
+      if (command === 'get_app_setting' && args?.key === 'theme') {
+        return Promise.resolve('light');
+      }
+      if (command === 'get_beta_channel') return Promise.resolve(true);
+      if (command === 'set_app_setting') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    await loadVaultPreferences();
+
+    expect(get(minimizeOnCopy)).toBe(true);
+    expect(get(betaChannel)).toBe(true);
+    expect(get(embeddingQuant)).toBe('dense');
+    expect(get(theme)).toBe('light');
   });
 });

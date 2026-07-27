@@ -13,6 +13,7 @@ export const th: Record<MessageKey, string> = {
   'app.pressPrefix': 'กด',
   'app.pressSuffix': 'เพื่อเริ่ม',
   'app.openingVault': 'กำลังเปิดห้องนิรภัยล่าสุด…',
+  'app.loadingPreferences': 'กำลังโหลดการตั้งค่า…',
   'app.checkingUpdates': 'กำลังตรวจหาอัปเดต…',
   'palette.dialogAria': 'พาเลทคำสั่ง',
   'palette.placeholder': 'ค้นหาพรอมต์ หรือพิมพ์เพื่อสร้าง…',

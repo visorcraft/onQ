@@ -13,6 +13,7 @@ export const zh: Record<MessageKey, string> = {
   'app.pressPrefix': '按',
   'app.pressSuffix': '开始',
   'app.openingVault': '正在打开上次的保险库…',
+  'app.loadingPreferences': '正在加载偏好设置…',
   'app.checkingUpdates': '正在检查更新…',
   'palette.dialogAria': '命令面板',
   'palette.placeholder': '搜索提示词，或输入以创建…',

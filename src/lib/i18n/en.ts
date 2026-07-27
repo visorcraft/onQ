@@ -12,6 +12,7 @@ export const en = {
   'app.pressPrefix': 'Press',
   'app.pressSuffix': 'to begin',
   'app.openingVault': 'Opening last vault…',
+  'app.loadingPreferences': 'Loading preferences…',
   'app.checkingUpdates': 'Checking for updates…',
 
   // Palette

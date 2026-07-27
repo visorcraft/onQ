@@ -13,6 +13,7 @@ export const es: Record<MessageKey, string> = {
   'app.pressPrefix': 'Pulsa',
   'app.pressSuffix': 'para empezar',
   'app.openingVault': 'Abriendo la última bóveda…',
+  'app.loadingPreferences': 'Cargando preferencias…',
   'app.checkingUpdates': 'Buscando actualizaciones…',
   'palette.dialogAria': 'Paleta de comandos',
   'palette.placeholder': 'Buscar prompts, o escribe para crear…',

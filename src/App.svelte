@@ -12,6 +12,7 @@
   import TutorialOverlay from '$lib/components/TutorialOverlay.svelte';
   import VaultUnlock from '$lib/components/VaultUnlock.svelte';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
+  import { loadVaultPreferences } from '$lib/stores/settings';
   import {
     checkAndStart,
     tutorialVisible,
@@ -34,6 +35,8 @@
   let libraryEpoch = $state(0);
   let hasVault = $state(false);
   let checkingVault = $state(true);
+  /** True while vault-backed prefs hydrate after unlock / auto-open. */
+  let loadingPreferences = $state(false);
   let vaultError = $state<string | null>(null);
   let passwordPath = $state<string | null>(null);
   let recoveryPath = $state<string | null>(null);
@@ -82,6 +85,7 @@
 
   function onSessionLocked(path: string | null | undefined) {
     hasVault = false;
+    loadingPreferences = false;
     editorSession = null;
     navigate('home');
     if (path) {
@@ -157,15 +161,29 @@
     void checkAndStart(hasVault).catch(() => undefined);
   });
 
+  /**
+   * After unlock / auto-open / new vault: hydrate vault-backed preferences
+   * before the home shell (palette minimize-on-copy, theme, …) is usable.
+   */
   function onVaultReady() {
     passwordPath = null;
     recoveryPath = null;
-    hasVault = true;
+    loadingPreferences = true;
+    hasVault = false;
+    void (async () => {
+      try {
+        await loadVaultPreferences();
+      } finally {
+        loadingPreferences = false;
+        hasVault = true;
+      }
+    })();
   }
 
   /** After Settings → Backups import: session closed, force unlock flow. */
   function onVaultClosedFromBackup(result: { path: string; needsPassword: boolean }) {
     hasVault = false;
+    loadingPreferences = false;
     editorSession = null;
     navigate('home');
     if (result.needsPassword) {
@@ -364,6 +382,11 @@
       {onVaultReady}
       onCancel={() => (passwordPath = null)}
     />
+  {:else if loadingPreferences}
+    <div class="prefs-loading" role="status" aria-live="polite">
+      <div class="prefs-spinner" aria-hidden="true"></div>
+      <p>{t('app.loadingPreferences', undefined, $locale)}</p>
+    </div>
   {:else if hasVault}
     <button
       type="button"
@@ -551,5 +574,36 @@
   .icon-button:focus-visible {
     outline: 2px solid var(--glass-periwinkle);
     outline-offset: 2px;
+  }
+  .prefs-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: var(--glass-text-dim);
+    font-size: 15px;
+  }
+  .prefs-loading p {
+    margin: 0;
+  }
+  .prefs-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--glass-border-strong);
+    border-top-color: var(--glass-periwinkle);
+    animation: prefs-spin 0.8s linear infinite;
+  }
+  @keyframes prefs-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prefs-spinner {
+      animation: none;
+      border-top-color: var(--glass-border-strong);
+    }
   }
 </style>

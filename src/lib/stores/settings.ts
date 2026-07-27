@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { invoke } from '@tauri-apps/api/core';
 import { getAppSetting, setAppSetting } from '$lib/api/settings';
+import { loadTheme } from '$lib/stores/theme';
 
 /**
  * Serialise async writes through a single shared chain so two rapid
@@ -73,6 +74,25 @@ export async function loadMinimizeOnCopy(): Promise<void> {
   } catch {
     // Vault locked or backend unavailable — keep the default.
   }
+}
+
+/**
+ * Hydrate vault-backed UI preferences after unlock (or auto-open).
+ *
+ * Palette behaviour (`minimize_on_copy`), theme, beta channel, and embedding
+ * quant all live in the encrypted index and are unavailable while locked.
+ * Call this before exposing the home shell so the first search honours
+ * saved prefs without requiring a detour through Settings.
+ *
+ * Individual loaders swallow lock/backend errors and keep defaults.
+ */
+export async function loadVaultPreferences(): Promise<void> {
+  await Promise.all([
+    loadMinimizeOnCopy(),
+    loadBetaChannel(),
+    loadEmbeddingQuant(),
+    loadTheme(),
+  ]);
 }
 
 /**

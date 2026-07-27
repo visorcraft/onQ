@@ -372,3 +372,121 @@ it('asks for the master password when the remembered vault uses one', async () =
 
   await unmount(component);
 });
+
+it('hydrates vault preferences before showing home after unlock', async () => {
+  resetUi();
+  const target = document.createElement('div');
+  document.body.append(target);
+  tutorialVisible.set(false);
+
+  let resolveMinimize: ((value: string) => void) | undefined;
+  const minimizeDeferred = new Promise<string>((resolve) => {
+    resolveMinimize = resolve;
+  });
+
+  invokeMock.mockReset();
+  invokeMock.mockImplementation((command: string, args?: { key?: string }) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
+    if (command === 'open_last_vault') {
+      return Promise.resolve({
+        path: '/tmp/prefs-vault',
+        opened: false,
+        needsPassword: true,
+        needsRecovery: false,
+      });
+    }
+    if (command === 'unlock_vault') {
+      return Promise.resolve({
+        path: '/tmp/prefs-vault',
+        opened: true,
+        needsPassword: false,
+        needsRecovery: false,
+      });
+    }
+    if (command === 'get_app_setting' && args?.key === 'minimize_on_copy') {
+      return minimizeDeferred;
+    }
+    if (command === 'get_app_setting') return Promise.resolve('');
+    if (command === 'get_beta_channel') return Promise.resolve(false);
+    return Promise.resolve(undefined);
+  });
+
+  const component = mount(App, { target });
+  await vi.waitFor(() => {
+    expect(document.body.textContent).toContain('Unlock vault');
+  });
+
+  const password = document.querySelector('#vault-credential');
+  if (!(password instanceof HTMLInputElement)) throw new Error('Password input missing');
+  password.value = 'correct horse battery staple';
+  password.dispatchEvent(new Event('input', { bubbles: true }));
+  await tick();
+
+  const unlockForm = password.closest('form');
+  if (!(unlockForm instanceof HTMLFormElement)) throw new Error('Unlock form missing');
+  unlockForm.requestSubmit();
+
+  await vi.waitFor(() => {
+    expect(document.body.textContent).toContain('Loading preferences…');
+  });
+  expect(document.querySelector('.hero .hero-logo')).toBeNull();
+  expect(invokeMock).toHaveBeenCalledWith('get_app_setting', {
+    key: 'minimize_on_copy',
+  });
+
+  resolveMinimize?.('true');
+
+  await vi.waitFor(() => {
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
+  });
+  expect(document.body.textContent).not.toContain('Loading preferences…');
+
+  await unmount(component);
+});
+
+it('hydrates vault preferences when the last vault auto-opens', async () => {
+  resetUi();
+  const target = document.createElement('div');
+  document.body.append(target);
+  tutorialVisible.set(false);
+  globalShortcut.set('Meta+Space');
+
+  let resolveMinimize: ((value: string) => void) | undefined;
+  const minimizeDeferred = new Promise<string>((resolve) => {
+    resolveMinimize = resolve;
+  });
+
+  invokeMock.mockReset();
+  invokeMock.mockImplementation((command: string, args?: { key?: string }) => {
+    if (command === 'list_recent_vaults') return Promise.resolve([]);
+    if (command === 'open_last_vault') {
+      return Promise.resolve({
+        path: '/tmp/remembered-vault',
+        opened: true,
+        needsPassword: false,
+        needsRecovery: false,
+      });
+    }
+    if (command === 'get_app_setting' && args?.key === 'minimize_on_copy') {
+      return minimizeDeferred;
+    }
+    if (command === 'get_app_setting') return Promise.resolve('');
+    if (command === 'get_beta_channel') return Promise.resolve(false);
+    return Promise.resolve(undefined);
+  });
+
+  const component = mount(App, { target });
+  await vi.waitFor(() => {
+    expect(document.body.textContent).toContain('Loading preferences…');
+  });
+  expect(document.querySelector('.hero .hero-logo')).toBeNull();
+
+  resolveMinimize?.('true');
+
+  await vi.waitFor(() => {
+    expect(document.querySelector('.hero .hero-logo')?.getAttribute('alt')).toBe('onQ');
+  });
+
+  await unmount(component);
+  globalShortcut.set('');
+});
