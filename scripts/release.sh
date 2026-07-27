@@ -5,9 +5,21 @@ set -euo pipefail
 VERSION="${1:?usage: $0 VERSION}"
 test -z "$(git status --porcelain)" || { echo "working tree dirty"; exit 1; }
 git rev-parse --abbrev-ref HEAD | grep -q '^master$' || { echo "not on master"; exit 1; }
-sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
-sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
-sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" crates/onq-app/tauri.conf.json
+
+OLD_VERSION=$(grep -m1 '^version = "' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+if [[ -z "$OLD_VERSION" ]]; then
+  echo "could not read current workspace version from Cargo.toml" >&2
+  exit 1
+fi
+
+# Workspace package version + path-dep version pins (must stay in lockstep).
+sed -i "s/version = \"$OLD_VERSION\"/version = \"$VERSION\"/g" \
+  Cargo.toml \
+  crates/onq-app/Cargo.toml
+sed -i "s/\"version\": \"$OLD_VERSION\"/\"version\": \"$VERSION\"/" \
+  package.json \
+  crates/onq-app/tauri.conf.json
+
 cargo update -w
 git add -A
 git commit -m "chore: bump version to $VERSION"
