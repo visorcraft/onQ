@@ -1,9 +1,9 @@
 //! Test fixture plugin for onQ.
 //!
-//! Registers a single `sample:say-hello` command that logs a greeting when
-//! invoked. The host loads this cdylib via `onq_core::plugin::load`
-//! (see `crates/onq-core/tests/integration/plugin_load.rs`) to prove
-//! the C ABI round-trips end-to-end.
+//! Registers a single `sample:say-hello` command. The current host records
+//! its handler pointer but does not invoke it. The host loads this cdylib via
+//! `onq_core::plugin::load` (see
+//! `crates/onq-core/tests/integration/plugin_load.rs`) to test the C ABI.
 //!
 //! `API` is set during `onq_plugin_init` and read by `say_hello_handler`.
 //! Both sites use `unsafe { ... }` because the host hands us a raw `*const`
@@ -17,9 +17,11 @@ use std::os::raw::c_char;
 
 static mut API: *const HostApi = std::ptr::null();
 
-/// Handler invoked when the user runs "Say Hello (sample)" from the palette.
-/// Reads the global `API` pointer and calls back into the host's `log` fn.
-/// The `ctx` parameter is reserved for future per-invocation state.
+/// Example handler for the future command-invocation ABI.
+///
+/// Reads the global `API` pointer and calls the host's `log` callback. The
+/// current host records this pointer but does not call it. The `ctx` parameter
+/// is reserved for future per-invocation state.
 extern "C" fn say_hello_handler(
     _id: *const c_char,
     _args: *const c_char,

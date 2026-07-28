@@ -1,97 +1,107 @@
 ---
 title: Installation
+description: Supported release targets, runtime requirements, source builds, and first-launch verification.
 ---
 
 # Installation
 
-onQ is a desktop application built with [Tauri 2](https://tauri.app). The recommended
-path for most users is to download a pre-built installer from the
-[releases page](https://github.com/visorcraft/onQ/releases).
+Download a release artifact or build onQ from source. The current release
+workflow publishes one CPU target per desktop operating system.
 
-## System requirements
+## Published targets
 
-| Platform | Minimum version | Notes                                       |
-|----------|-----------------|---------------------------------------------|
-| Windows  | Windows 10 64-bit | WebView2 runtime required (preinstalled on Win11) |
-| macOS    | macOS 11 Big Sur | Apple Silicon and Intel supported           |
-| Linux    | glibc 2.31+     | Tested on Ubuntu 22.04, Fedora 39, Arch     |
+| Platform | Release target | Typical bundles |
+|---|---|---|
+| Windows | `x86_64-pc-windows-msvc` | `.exe` (NSIS), `.msi` |
+| macOS | `aarch64-apple-darwin` | `.dmg`, `.app.tar.gz` or `.app.zip` |
+| Linux | `x86_64-unknown-linux-gnu` | `.AppImage`, `.deb`, `.rpm` |
 
-## Install a pre-built release
+The automated release does not currently publish Intel macOS or ARM Linux
+artifacts. Those platforms may still build from source when all Rust and native
+dependencies support the target.
 
-1. Go to [github.com/visorcraft/onQ/releases](https://github.com/visorcraft/onQ/releases).
-2. Download the installer for your platform:
-   - **Windows:** `onQ_<version>_x64-setup.exe` (NSIS) or `.msi`
-   - **macOS:** `onQ_<version>_universal.dmg`
-   - **Linux:** `onQ_<version>_amd64.AppImage` or `.deb`
-3. Run the installer. On first launch, follow the 4-step tutorial to create your vault and
-   generate (or supply) a master passphrase.
+## Runtime requirements
 
-### Auto-update
+- **Windows:** WebView2. It is included with current Windows releases. Install
+  Microsoft's Evergreen WebView2 Runtime if onQ reports that it is missing.
+- **macOS:** the system WebKit runtime.
+- **Linux:** WebKitGTK 4.1, a system tray implementation, and the usual GTK
+  runtime libraries. Exact package names differ by distribution.
 
-Once installed, onQ checks for new releases on launch. To opt into beta releases,
-open **Settings → Updates → Beta channel**.
+The [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) are the
+authoritative native dependency list.
 
-## Building from source
+## Install a release
 
-Building from source requires Node 24+, Rust stable, and platform-specific dependencies
-(see the [Tauri prerequisites](https://tauri.app/start/prerequisites/)).
+1. Open the [GitHub releases page](https://github.com/visorcraft/onQ/releases).
+2. Select the newest stable `v1.x` release.
+3. Download the artifact matching the target table above.
+4. Install or extract it using the normal platform workflow.
+5. Launch onQ and choose **Create new vault** or **Open existing vault**.
 
-### 1. Clone the repo
+Release bundles and updater metadata are produced by
+`.github/workflows/release.yml`. Do not install assets from the special
+`updater` release. That release only hosts the stable `latest.json` feed.
+
+## Build from source
+
+You need:
+
+- Node.js 24 or newer
+- Rust stable, using `rust-toolchain.toml`
+- Git
+- the native Tauri dependencies for your platform
+
+Clone and install:
 
 ```bash
 git clone https://github.com/visorcraft/onQ
 cd onQ
+npm install
 ```
 
 The encrypted search index depends on
 [`mongreldb-core`](https://crates.io/crates/mongreldb-core) from crates.io
-(declared in the workspace `Cargo.toml`).
+(declared in the workspace `Cargo.toml`). No sibling checkout is needed.
 
-### 2. Install Node and Rust
-
-```bash
-# Node 24 via nvm (or use your distro's package manager)
-nvm install 24 && nvm use 24
-
-# Rust via rustup
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-### 3. Install dependencies
-
-```bash
-npm install
-```
-
-### 4. Run in development mode
+Run the desktop app:
 
 ```bash
 npm run dev:app
 ```
 
-This starts Vite for the Svelte frontend and launches the Tauri shell pointing at the dev server.
-The first launch downloads the embedding model (`all-MiniLM-L6-v2`) into the user's cache directory.
+This starts Vite and the Tauri shell. It does not download the optional
+embedding model.
 
-### 5. Build a production bundle
+Build a production bundle:
 
 ```bash
 npm run build:app
 ```
 
-The produced installer lands in `target/release/bundle/` (or
-`target/<triple>/release/bundle/` when building with an explicit target).
+Bundles land under `target/release/bundle/`, or under
+`target/<triple>/release/bundle/` when an explicit target is used.
 
-## Verifying your install
+For frontend-only work:
 
-After launching, the command palette opens with **Win+Q** (Windows),
-**Meta+Q** (Linux), or **⌘+Q** (macOS). Type any
-phrase to search the bundled tutorial prompts. If you see ranked results with snippet
-highlights, your search index and embeddings are working correctly.
+```bash
+npm run dev
+```
 
-## Troubleshooting
+The browser build can render the Svelte UI, but Tauri IPC actions require the
+desktop shell.
 
-- **"WebView2 not found" on Windows 10:** install the [Evergreen runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
-- **Model download fails behind a corporate proxy:** set `HTTPS_PROXY` in your shell before
-  launching, or pre-place the ONNX file in `~/.cache/onQ/models/`.
-- **`vault/` is empty after install:** the tutorial vault is created on first run; if you
-  skipped the tutorial, run it again from **Help → Replay tutorial**.
+## First-launch verification
+
+1. Create a temporary vault.
+2. Save the recovery phrase if you choose the no-password path.
+3. Create and save one prompt.
+4. Return home and press **Win+Q**, **Meta+Q**, or **⌘+Q**.
+5. Type part of the title and select the result to copy its body.
+
+That verifies the vault, sparse keyword index, palette, and clipboard path.
+Semantic search is separate. Enable it from **Settings > Search > Load MiniLM
+model**, then use **Refresh status** to confirm that the model is loaded.
+
+See [Troubleshooting](/troubleshooting) for WebView, Linux shortcut, model,
+unlock, updater, and build failures.

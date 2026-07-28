@@ -1,19 +1,19 @@
 //! Plugin archive installation pipeline.
 //!
 //! An installable plugin ships as a `.tar.gz` archive containing:
-//!   * `manifest.toml` — `[plugin]` table with at least `id`, `name`,
+//!   * `manifest.toml`: `[plugin]` table with at least `id`, `name`,
 //!     `version`, `license` (must be `GPL-3.0-only`), and an optional
 //!     `capabilities` array.
-//!   * `signature.sig` — 64-byte ed25519 signature over the raw bytes
-//!     of the archive itself, verified against the compiled trust anchor
+//!   * `signature.sig`: 64-byte ed25519 signature over the exact
+//!     `manifest.toml` bytes, verified against the compiled trust anchor
 //!     from [`crate::signature`].
 //!   * The plugin's `.so` / `.dylib` / `.dll` plus any ancillary files.
 //!
 //! `install` runs the four-step pipeline:
 //!   1. extract to a scratch `tempdir`,
 //!   2. read + license-check the manifest,
-//!   3. verify the ed25519 signature against the archive bytes,
-//!   4. move the scratch tree under `plugins_dir/installed/<id>/`.
+//!   3. verify the ed25519 signature against the manifest bytes,
+//!   4. copy the scratch tree under `plugins_dir/installed/<id>/`.
 //!
 //! On any failure the scratch tree is dropped (RAII via `TempDir`), so a
 //! half-installed plugin never leaks onto disk.
@@ -40,7 +40,7 @@ const INSTALLED_SUBDIR: &str = "installed";
 /// Install a `.tar.gz` plugin archive into `<plugins_dir>/installed/<id>/`.
 ///
 /// See module docs for the on-disk layout. Returns the destination path on
-/// success. Any error leaves no partial install behind — the temp
+/// success. Any error leaves no partial install behind. The temp
 /// extraction is dropped before the function returns.
 pub fn install(archive: &Path, plugins_dir: &Path) -> CoreResult<PathBuf> {
     install_with_trust_anchor(archive, plugins_dir, None)
@@ -94,8 +94,8 @@ pub fn install_with_trust_anchor(
         .unwrap_or(toml::Value::Array(Vec::new()));
 
     // 3. Verify the archive signature against the trust anchor.
-    //    The signed payload is the canonical manifest text — not the
-    //    raw archive bytes — so the signer can produce a deterministic
+    //    The signed payload is the canonical manifest text, not the
+    //    raw archive bytes, so the signer can produce a deterministic
     //    signature without a chicken-and-egg between the signed bytes
     //    and the signature file embedded inside the same archive. The
     //    plugin author signs `manifest.toml`; the on-disk `signature.sig`
@@ -161,10 +161,9 @@ fn copy_dir_all(src: &Path, dst: &Path) -> CoreResult<()> {
     path_util::copy_path(src, dst)
 }
 
-/// Build a `.tar.gz` plugin archive in memory given the on-disk manifest
-/// contents and signature bytes. The archive's byte-for-byte contents
-/// are returned so the caller can persist the archive AND pre-compute
-/// the payload that needs to be signed.
+/// Build a `.tar.gz` plugin archive in memory from manifest bytes that
+/// have already been signed, the matching signature, and extra files.
+/// The returned bytes can be persisted as the install package.
 ///
 /// Layout: a single `manifest.toml`, a single `signature.sig`, plus an
 /// optional list of arbitrary files (typically the plugin `.so`).

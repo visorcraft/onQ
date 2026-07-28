@@ -1,97 +1,114 @@
 ---
-title: Usage
+title: Feature guide
+description: A map of onQ user-facing features and where to learn each workflow.
 ---
 
-# Usage
+# Feature guide
 
-A quick tour of onQ's key features. Use **Win+Q** / **Meta+Q** / **⌘+Q** to open
-the command palette — that is the app.
+onQ has four main surfaces: Home, Palette, Library, and Settings. Prompt editing
+opens as a modal from the Palette or Library.
 
-## Search
+## Home and app chrome
 
-Search is the heart of onQ. Every keystroke in the command palette runs a hybrid
-query that fuses two scoring streams:
+After a vault opens, Home shows the configured global shortcut. The controls in
+the upper area open:
 
-- **Lexical** — normalized sparse term matching over prompt bodies.
-- **Semantic** — cosine similarity over `all-MiniLM-L6-v2` embeddings of each prompt.
+- **Home**
+- **Library**
+- **Settings**
+- **Theme**
+- **About**, Licenses, and Credits
 
-Results from both streams are merged via **Reciprocal Rank Fusion** with a recency-decay
-boost so newer prompts surface higher when relevance is otherwise tied. Half-life is
-tunable under **Settings → Search** (default 30 days).
+Closing or minimizing the desktop window hides onQ to the system tray. Use the
+tray icon, tray menu, or global shortcut to show it again. Choose **Quit** from
+the tray menu to exit the process.
 
-### Search syntax
+The version button at the bottom of Home performs a manual update check.
 
-| Prefix  | Meaning                                                      |
-|---------|--------------------------------------------------------------|
-| (none)  | Full-text query, hybrid mode                                 |
-| `tag:`  | Restrict to a single tag (e.g. `tag:writing`)                |
-| `folder:` | Restrict to a folder (e.g. `folder:projects/acme`)         |
-| `recent:` | Limit to prompts modified within N days (e.g. `recent:7`)  |
-| `lock:` | Filter locked/unlocked (e.g. `lock:locked`, `lock:unlocked`) |
+## Palette
 
-Combine freely: `tag:writing recent:30 alpha launch`.
+Press **Win+Q**, **Meta+Q**, or **⌘+Q** from anywhere, or click the Home card.
+The Palette:
 
-## Folders, tags, and smart folders
+- searches title, tags, project path, and body;
+- shows up to five recently copied or edited prompts when the query is empty;
+- copies a result's body as its primary action;
+- opens the editor from the pencil action;
+- creates a draft with **New prompt**;
+- locks the current vault with **Lock vault**;
+- shows commands registered by enabled plugins.
 
-- **Folders** mirror your filesystem. Drag a prompt onto a folder in the sidebar to move
-  its `.md` file.
-- **Tags** are free-form strings in the YAML frontmatter. Multi-tag queries are AND-joined.
-- **Smart folders** are saved searches. Build with visual filter chips (tag/folder/favorite/locked/text)
-  or edit the DSL (`favorite:true tag:writing`).
+Typing `tag:`, `folder:`, or similar prefixes into the Palette does not create
+structured filters. Those operators belong to the smart-folder DSL. See
+[Palette and search](/search).
 
-## Templates
+## Library
 
-Prompt bodies may include <code v-pre>{{name}}</code> or
-<code v-pre>{{name|default}}</code> placeholders. Copying from
-the palette prompts for fill-in values when placeholders are present.
+Library is the browsing and organization view. It contains:
 
-## Locked prompts
+- all prompts, favorites, recent prompts, and unfiled prompts;
+- nested project paths;
+- smart folders;
+- tag views;
+- local list filtering;
+- prompt favorite, move, edit, and delete actions.
 
-Each prompt can have its body encrypted with a per-prompt key stored in the OS keychain.
-Locked prompts show title and metadata in search results, but the body stays sealed until
-you unlock it (which prompts for the master passphrase).
+Projects are logical slash-separated labels stored in frontmatter. They do not
+move prompt files into matching filesystem directories. See
+[Library and organization](/library).
 
-## Three-way merge
+## Editor
 
-onQ watches your vault directory and reconciles external edits automatically. If you
-edit a prompt in Vim, the change is picked up the next time the file is saved. If two devices
-edit the same prompt concurrently, a three-way merge runs against the last-known-good version.
-Conflicts surface in a glass diff UI; nothing is silently overwritten.
+The editor supports:
 
-## History
+- title, body, project path, tags, and favorite metadata;
+- edit and line-preserving preview modes;
+- tag completion and local tag suggestions;
+- copy, save, and delete;
+- prompt locking and unlocking;
+- body history and restore;
+- templates resolved when copied from the Palette.
 
-Each save writes a snapshot under `.onq/history/`. Open a prompt → History to browse
-and restore prior bodies. Retention is configurable (default 30 days).
+New prompts remain unsaved drafts until **Save** is selected. See
+[Editing and templates](/editing).
 
-## Plugins
+## Settings
 
-onQ supports signed Rust-native plugins via a C ABI. Install/manage them under
-**Settings → Plugins**. See the
-[plugin authoring guide](https://github.com/visorcraft/onQ/blob/master/docs/plugins/README.md)
-in the repo (`docs/plugins/README.md`).
+Settings is divided into:
 
-## Tag suggestions
+- **General:** global shortcut, minimize after copy, theme, and language.
+- **Search:** optional MiniLM model, embedding index mode, model status,
+  embedder preference, and recency half-life.
+- **Vault:** auto-lock, history retention, Markdown import/export, audit log,
+  and authentication information.
+- **Backups:** vault paths and full `.onqbak` export/import.
+- **Plugins:** install, enable, disable, refresh, and uninstall.
+- **Updates:** stable update check and the stored beta preference.
 
-When editing a prompt, onQ can suggest tags by matching body tokens against your
-existing vault vocabulary (not a remote classifier). Accept with **Tab**, dismiss with **Esc**.
+See the complete [Settings reference](/settings).
 
-## Settings worth knowing
+## Keyboard controls
 
-- **Settings → Search → Recency half-life** — how fast newer prompts outrank older ones. Default: 30 days.
-- **Settings → Vault → Auto-lock** — idle timeout, lock on quit, or disabled. Idle tracking resets on activity.
-- **Settings → Vault → History retention** — days of prompt snapshots kept.
-- **Settings → Backups** — export/import `.onqbak`; optional backup-age reminders.
-- **Settings → Updates → Beta channel** — opt into pre-release builds.
-- **Palette → Lock vault** — clear the session immediately without quitting.
+| Context | Control | Action |
+|---|---|---|
+| System-wide | **Win+Q**, **Meta+Q**, or **⌘+Q** | Show onQ and toggle the Palette |
+| App window | **Ctrl+Q** or **Cmd+Q** | Toggle the Palette |
+| Palette | **Arrow Up / Arrow Down** | Move through actions and results |
+| Palette input | **Enter** | Run the first visible action or result |
+| Palette or editor | **Escape** | Close the active surface |
+| Tag input | **Enter** or comma | Commit tags |
+| Tag input | **Backspace** on empty input | Remove the last tag |
+| Tag suggestion | **Tab** | Accept the first suggestion |
+| Tag suggestion | **Escape** | Dismiss suggestions or the tag menu |
+| Tutorial | **Arrow Left / Arrow Right** | Move between tutorial steps |
 
-## Keyboard shortcuts
+The global shortcut is user-recordable. It must include Ctrl, Alt, or the
+platform Meta key plus another supported key. Linux global capture also needs
+read access to keyboard input devices. See [Troubleshooting](/troubleshooting).
 
-| Shortcut         | Action                          |
-|------------------|---------------------------------|
-| **Ctrl/Cmd + Q** | Open command palette            |
-| **Ctrl/Cmd + N** | New prompt                      |
-| **Ctrl/Cmd + ,** | Open settings                   |
-| **Ctrl/Cmd + /** | Toggle sidebar                  |
-| **Esc**          | Close palette / cancel edit     |
-| **Tab**          | Accept tag suggestion           |
-| **?**            | Show all shortcuts              |
+## Current boundaries
+
+Live filesystem watching, automatic three-way conflict handling, beta-feed
+routing, alternate plugin embedders, and the full native plugin callback
+surface have code or UI scaffolding but are not complete end-to-end product
+paths. See [Feature status](/feature-status) before relying on them.

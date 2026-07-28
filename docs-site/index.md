@@ -3,52 +3,67 @@ layout: home
 title: onQ
 hero:
   name: onQ
-  text: Search-first prompt vault
-  tagline: Local-first. Hybrid Markdown + MongrelDB. Soft glass aesthetic.
+  text: Your prompts. Your files. Ready on cue.
+  tagline: A local-first desktop prompt vault with portable Markdown, a protected local index, and fast keyboard search.
   actions:
     - theme: brand
-      text: Get Started
+      text: Install onQ
       link: /installation
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/visorcraft/onQ
+      text: Quick start
+      link: /quick-start
 features:
-  - title: Spotlight-centric UI
-    details: Win+Q / Meta+Q / ⌘+Q is the app. Search prompts, folders, tags, smart folders, commands, and plugins from a single command palette.
-  - title: Hybrid search
-    details: Sparse keyword + semantic vector search fused via Reciprocal Rank Fusion. Six MongrelDB index kinds, recency decay.
-  - title: Markdown vault
-    details: Your prompts live in plain .md files with YAML frontmatter. Sync with Git, Dropbox, iCloud, or Syncthing.
-  - title: Two-layer encryption
-    details: Master passphrase plus per-prompt keys via the OS keychain (macOS Keychain, Windows DPAPI, Linux libsecret).
-  - title: Plugin system
-    details: Rust native plugins via C ABI, ed25519-signed manifests, GPL-3.0-only enforced. Extend without forking.
-  - title: Cross-platform
-    details: Windows, macOS, Linux. Built with Tauri 2. Auto-update via GitHub releases.
+  - title: Search first
+    details: Open the palette from anywhere with Win+Q, Meta+Q, or ⌘+Q. Keyword search works immediately; local semantic search is optional.
+    link: /search
+  - title: Portable by design
+    details: Prompt bodies and metadata live in ordinary Markdown files with YAML frontmatter. The search index is derived and disposable.
+    link: /file-format
+  - title: Local control
+    details: No cloud account and no telemetry. Choose a master password or a generated key held by the operating-system keychain.
+    link: /security
+  - title: Organized without lock-in
+    details: Use projects, tags, favorites, recent prompts, smart folders, templates, and per-prompt history.
+    link: /library
+  - title: Recoverable backups
+    details: Export the full vault as a versioned .onqbak archive, with an optional archive password independent of vault authentication.
+    link: /backups
+  - title: Open source
+    details: GPL-3.0-only. Built with Rust, Tauri 2, Svelte 5, and MongrelDB. Development and architecture documentation are public.
+    link: /development
 ---
 
 ## What is onQ?
 
-onQ is a desktop prompt manager for AI power users. Search is the heart:
-hybrid sparse keyword + vector cosine over six MongrelDB index kinds, fused with recency decay.
+onQ is a desktop prompt manager built around a global command palette. Press
+the configured shortcut, type a few words, and copy a prompt without moving
+your library into a hosted service.
 
-Your prompts live in plain `.md` files (sync with Git, Dropbox, iCloud, Syncthing — your choice)
-and the search index in encrypted local storage. Local-first means your data stays on your device;
-no remote calls by default.
+Each prompt is a Markdown file under the vault's `prompts/` directory. onQ
+stores search state, history, backups metadata, smart folders, and plugin state
+under the vault's `.onq/` directory. See the [vault layout](/vault-layout) for
+the exact paths and the [security guide](/security) for what is and is not
+encrypted.
 
-## Why onQ?
+## Design promises
 
-Most prompt managers treat prompts as opaque blobs behind a search box. onQ treats them
-as **plain text you own**, with **structured metadata** you can edit in any text editor, indexed
-with a **production-grade hybrid search engine** that combines lexical and semantic relevance.
+- **Local first:** no account, hosted database, subscription, or telemetry.
+- **Portable source files:** the prompt library remains useful without onQ.
+- **Optional network use:** keyword search is offline; the local embedding
+  model downloads only after you ask for it. The app also checks its GitHub
+  release feed for update metadata.
+- **Explicit recovery:** keychain vaults show one 24-word recovery phrase.
+  Password vaults have no recovery mechanism.
+- **Honest status:** shipped behavior and scaffolded future paths are separated
+  in the [feature status](/feature-status).
 
-- **No vendor lock-in.** Export the whole vault as a folder of `.md` files at any time.
-- **No telemetry.** Zero remote calls unless you opt in.
-- **No subscriptions.** GPL-3.0-only, free forever.
-- **WCAG 2.1 AA.** Keyboard-first, screen-reader tested, reduced-motion honored.
+## Choose a path
 
-## Where to next?
-
-- New to onQ? Start with **[Installation](/installation)** to get the app running.
-- Want to understand what you can do with it? See **[Usage](/usage)** for the feature tour.
-- Want to build it yourself? See **[Building from source](/installation#building-from-source)**.
+- New user: [install onQ](/installation), then follow the
+  [quick start](/quick-start).
+- Existing user: browse the [feature guide](/usage), [security model](/security),
+  and [backup guide](/backups).
+- Contributor: start with [build and test](/development), then read the
+  [architecture](/architecture).
+- Plugin author: read the [plugin guide](/plugins) and its current runtime
+  limitations before building.
