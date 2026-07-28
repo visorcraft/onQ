@@ -30,6 +30,7 @@ export async function installTauriMock(page: Page, opts: { vaultOpen?: boolean }
           return '';
         case 'list_prompts':
         case 'search':
+        case 'list_plugin_commands':
           return [];
         case 'ping':
           return 'onQ v1.1.1';
@@ -41,8 +42,12 @@ export async function installTauriMock(page: Page, opts: { vaultOpen?: boolean }
           };
         case 'capture_global_shortcut':
           return { backend: 'linux-input', shortcut: 'Meta+Q' };
-        default:
+        case 'plugin:event|listen':
+          return 1;
+        case 'plugin:event|unlisten':
           return null;
+        default:
+          throw new Error(`Unmocked Tauri command: ${cmd}`);
       }
     };
 

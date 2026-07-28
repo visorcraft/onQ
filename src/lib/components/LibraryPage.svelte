@@ -30,7 +30,7 @@
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
   import Pager from './primitives/Pager.svelte';
   import SmartFolderVisualBuilder from './SmartFolderVisualBuilder.svelte';
-  import type { VisualPredicate } from '$lib/api/smartFolderVisual';
+  import { dslToVisual, type VisualPredicate } from '$lib/api/smartFolderVisual';
   import { t, locale } from '$lib/i18n';
 
   /** Number of prompts shown per Library page. Tuned so a typical vault
@@ -598,11 +598,9 @@
     editSmartName = sf.name;
     editSmartDsl = sf.query_dsl;
     editSmartPredicates = [];
-    void import('$lib/api/smartFolderVisual').then(({ dslToVisual }) =>
-      dslToVisual(sf.query_dsl).then((v) => {
-        if (v?.predicates) editSmartPredicates = v.predicates;
-      }),
-    );
+    void dslToVisual(sf.query_dsl).then((v) => {
+      if (v?.predicates) editSmartPredicates = v.predicates;
+    });
   }
 
   function openNewChild(parent: string | null) {

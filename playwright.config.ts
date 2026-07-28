@@ -1,4 +1,10 @@
 import { defineConfig } from '@playwright/test';
+import process from 'node:process';
+
+if (process.env.NO_COLOR !== undefined) {
+  process.env.FORCE_COLOR ??= '0';
+  delete process.env.NO_COLOR;
+}
 
 export default defineConfig({
   testDir: './tests',

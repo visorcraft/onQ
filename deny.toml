@@ -33,18 +33,15 @@ ignore = [
 [licenses]
 allow = [
     "GPL-3.0-only",
-    "GPL-3.0-or-later",
     "MIT",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
-    "Unicode-DFS-2016",
     "Unicode-3.0",
     "CC0-1.0",
     "Zlib",
-    "OpenSSL",
     "MPL-2.0",
     "0BSD",
     "BSL-1.0",
@@ -53,5 +50,8 @@ allow = [
 confidence-threshold = 0.8
 
 [bans]
-multiple-versions = "warn"
+# Parallel versions come from the supported Tauri, WebKitGTK, Hugging Face,
+# tokenizers, and MongrelDB dependency trees. Major deduplication needs root
+# dependency upgrades, so this policy accepts them.
+multiple-versions = "allow"
 wildcards = "deny"
