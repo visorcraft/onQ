@@ -88,15 +88,15 @@ describe('docs.yml', () => {
 });
 
 describe('benches/baselines.json + check-perf-regression.sh', () => {
-  it('ships a non-empty JSON baseline file with CI-safe merge budget', () => {
+  it('ships a non-empty JSON baseline file with CI-safe budgets', () => {
     const raw = readRepo('benches', 'baselines.json');
     expect(raw.trim().length).toBeGreaterThan(0);
     const baselines = JSON.parse(raw) as Record<string, unknown>;
     expect(typeof baselines.search_warm_p95_ms).toBe('number');
     expect(typeof baselines.merge_10kb_clean_us).toBe('number');
-    // GHA ubuntu-latest measured ~36us; local 18us was too tight.
+    // GHA ubuntu-latest measured 1.174ms and ~36us; local budgets were too tight.
+    expect(baselines.search_warm_p95_ms as number).toBeGreaterThanOrEqual(1.17);
     expect(baselines.merge_10kb_clean_us as number).toBeGreaterThanOrEqual(35);
-    expect(baselines.search_warm_p95_ms as number).toBeGreaterThan(0);
   });
 
   it('passes the real regression gate on synthetic Criterion output within budget', () => {
