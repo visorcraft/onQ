@@ -162,6 +162,60 @@ fn restore_plasma_window() {
     let _ = std::fs::remove_file(path);
 }
 
+/// What to do when the main window is asked to close.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CloseAction {
+    /// The user dismissed the window. Keep the process and hide it.
+    HideToTray,
+    /// The desktop session is ending. Let the window close so the process exits.
+    Exit,
+}
+
+fn close_action(session_ending: bool) -> CloseAction {
+    if session_ending {
+        CloseAction::Exit
+    } else {
+        CloseAction::HideToTray
+    }
+}
+
+/// `qdbus6` prints `true` or `false` for ksmserver's `isShuttingDown`.
+fn session_ending_from_ksm_reply(output: &str) -> bool {
+    output.trim().eq_ignore_ascii_case("true")
+}
+
+/// KDE logout sets ksmserver `isShuttingDown` before KWin closes Wayland
+/// windows. The close event itself does not say which one it is.
+#[cfg(target_os = "linux")]
+fn session_is_ending() -> bool {
+    if !is_kde_session() {
+        return false;
+    }
+    let output = Command::new("timeout")
+        .args([
+            "1",
+            "qdbus6",
+            "org.kde.ksmserver",
+            "/KSMServer",
+            "org.kde.KSMServerInterface.isShuttingDown",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output();
+    match output {
+        Ok(output) if output.status.success() => {
+            session_ending_from_ksm_reply(&String::from_utf8_lossy(&output.stdout))
+        }
+        _ => false,
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn session_is_ending() -> bool {
+    false
+}
+
 pub(crate) fn hide_main_window(window: &tauri::Window) {
     #[cfg(target_os = "linux")]
     if is_kde_session() {
@@ -241,8 +295,10 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                hide_main_window(window);
+                if close_action(session_is_ending()) == CloseAction::HideToTray {
+                    api.prevent_close();
+                    hide_main_window(window);
+                }
             }
             WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
                 hide_main_window(window);
@@ -337,6 +393,31 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use super::{close_action, session_ending_from_ksm_reply, CloseAction};
+
+    #[test]
+    fn close_decision_hides_when_the_session_is_running() {
+        assert_eq!(close_action(false), CloseAction::HideToTray);
+    }
+
+    #[test]
+    fn close_decision_exits_when_the_session_is_ending() {
+        assert_eq!(close_action(true), CloseAction::Exit);
+    }
+
+    #[test]
+    fn session_end_reply_true_means_the_session_is_ending() {
+        assert!(session_ending_from_ksm_reply("true\n"));
+        assert!(session_ending_from_ksm_reply("TRUE"));
+    }
+
+    #[test]
+    fn session_end_reply_other_values_mean_the_session_is_running() {
+        assert!(!session_ending_from_ksm_reply("false\n"));
+        assert!(!session_ending_from_ksm_reply(""));
+        assert!(!session_ending_from_ksm_reply("error"));
+    }
+
     #[test]
     fn desktop_identity_matches_binary_name() {
         let config: serde_json::Value =
