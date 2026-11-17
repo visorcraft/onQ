@@ -5,5 +5,6 @@ fn main() {
         // Mach-O adds a leading underscore. Force the linker to pull our
         // definition of Clang's availability helper out of the rlib.
         println!("cargo:rustc-link-arg=-Wl,-u,___isPlatformVersionAtLeast");
+        println!("cargo:rustc-link-arg=-Wl,-u,___isOSVersionAtLeast");
     }
 }

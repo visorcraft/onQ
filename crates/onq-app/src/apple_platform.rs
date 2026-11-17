@@ -49,12 +49,16 @@ pub extern "C" fn __isOSVersionAtLeast(major: i32, minor: i32, subminor: i32) ->
 
 /// Keep the helpers in the object file even though no Rust caller uses them.
 /// The Mach-O objects in ONNX Runtime are what reference them.
+/// A function pointer is a real use. Casting either function to `usize` is
+/// rejected during const eval.
 #[cfg(target_os = "macos")]
 #[used]
-static KEEP_APPLE_VERSION_SYMBOLS: [usize; 2] = [
-    __isPlatformVersionAtLeast as usize,
-    __isOSVersionAtLeast as usize,
-];
+static KEEP_IS_PLATFORM_VERSION_AT_LEAST: extern "C" fn(u32, u32, u32, u32) -> i32 =
+    __isPlatformVersionAtLeast;
+
+#[cfg(target_os = "macos")]
+#[used]
+static KEEP_IS_OS_VERSION_AT_LEAST: extern "C" fn(i32, i32, i32) -> i32 = __isOSVersionAtLeast;
 
 #[cfg(test)]
 mod tests {
@@ -64,5 +68,14 @@ mod tests {
     fn packs_a_dyld_os_version() {
         assert_eq!(dyld_version(13, 4, 0), 0x000d_0400);
         assert_eq!(dyld_version(13, 4, 1), 0x000d_0401);
+    }
+
+    #[test]
+    fn keep_statics_store_function_pointers() {
+        let source = include_str!("apple_platform.rs");
+        let keep = source.split("mod tests").next().expect("tests module");
+        assert!(keep.contains("KEEP_IS_PLATFORM_VERSION_AT_LEAST"));
+        assert!(keep.contains("KEEP_IS_OS_VERSION_AT_LEAST"));
+        assert!(!keep.contains("as usize"));
     }
 }
