@@ -1,3 +1,4 @@
+mod apple_platform;
 mod auto_lock;
 mod backup;
 mod commands;
