@@ -53,6 +53,10 @@ describe('release.yml', () => {
     );
   });
 
+  it('links Apple silicon against the ONNX Runtime macOS deployment target', () => {
+    expect(yaml).toMatch(/MACOSX_DEPLOYMENT_TARGET=13\.4/);
+  });
+
   it('uploads Tauri macOS updater .app.tar.gz artifacts', () => {
     expect(yaml).toMatch(/macos\/\*\.app\.tar\.gz/);
   });

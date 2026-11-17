@@ -24,7 +24,8 @@ dependencies support the target.
 
 - **Windows:** WebView2. It is included with current Windows releases. Install
   Microsoft's Evergreen WebView2 Runtime if onQ reports that it is missing.
-- **macOS:** the system WebKit runtime.
+- **macOS:** 13.4 or newer, plus the system WebKit runtime. The bundled ONNX
+  Runtime build is compiled for macOS 13.4.
 - **Linux:** WebKitGTK 4.1, a system tray implementation, and the usual GTK
   runtime libraries. Exact package names differ by distribution.
 

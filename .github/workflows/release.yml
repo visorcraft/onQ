@@ -52,6 +52,12 @@ jobs:
       - name: Set SOURCE_DATE_EPOCH from commit time
         shell: bash
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> "$GITHUB_ENV"
+      # ONNX Runtime's Apple silicon objects are built for macOS 13.4.
+      # rustc's aarch64 default of 11.0 leaves ___isPlatformVersionAtLeast unresolved.
+      - name: Match the macOS deployment target to ONNX Runtime
+        if: runner.os == 'macOS'
+        shell: bash
+        run: echo "MACOSX_DEPLOYMENT_TARGET=13.4" >> "$GITHUB_ENV"
       - name: Build Tauri app
         env:
           # FUSE is unavailable on GHA; extract AppImages instead of mounting.

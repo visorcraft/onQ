@@ -419,6 +419,15 @@ mod tests {
     }
 
     #[test]
+    fn macos_minimum_matches_onnx_runtime() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
+        // ort's Apple silicon objects are built for 13.4. Linking at rustc's
+        // aarch64 default of 11.0 fails with ___isPlatformVersionAtLeast.
+        assert_eq!(config["bundle"]["macOS"]["minimumSystemVersion"], "13.4");
+    }
+
+    #[test]
     fn desktop_identity_matches_binary_name() {
         let config: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid Tauri config");
