@@ -7,7 +7,7 @@ export const th: Record<MessageKey, string> = {
   'app.settings': 'เปิดการตั้งค่า',
   'app.theme': 'สลับธีม',
   'app.about': 'เกี่ยวกับ onQ',
-  'app.versionCheck': 'เวอร์ชันแอป ตรวจอัปเดต',
+  'app.versionCheck': 'เวอร์ชันแอป {version} ตรวจอัปเดต',
   'app.checkUpdates': 'ตรวจหาอัปเดต',
   'app.openPalette': 'เปิดพาเลท onQ',
   'app.pressPrefix': 'กด',

@@ -6,7 +6,7 @@ export const en = {
   'app.settings': 'Open settings',
   'app.theme': 'Toggle theme',
   'app.about': 'About onQ',
-  'app.versionCheck': 'App version, check for updates',
+  'app.versionCheck': 'App version {version}, check for updates',
   'app.checkUpdates': 'Check for updates',
   'app.openPalette': 'Open onQ palette',
   'app.pressPrefix': 'Press',

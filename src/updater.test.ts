@@ -31,7 +31,7 @@ it('checks for updates on startup and from the version badge', async () => {
   ).toBeNull();
 
   const versionBadge = document.querySelector<HTMLButtonElement>(
-    'button[aria-label="App version, check for updates"]',
+    `button[aria-label="App version v${appVersion}, check for updates"]`,
   );
   if (!versionBadge) throw new Error('version badge missing');
   versionBadge.click();
@@ -68,7 +68,7 @@ it('clears the up-to-date status after five seconds', async () => {
 
   document
     .querySelector<HTMLButtonElement>(
-      'button[aria-label="App version, check for updates"]',
+      `button[aria-label="App version v${appVersion}, check for updates"]`,
     )
     ?.click();
   await vi.waitFor(() =>
@@ -105,7 +105,7 @@ it('shows the package version in the bottom-left corner', async () => {
   await vi.waitFor(() => expect(checkMock).toHaveBeenCalledTimes(1));
 
   const versionEl = document.querySelector(
-    '[aria-label="App version, check for updates"]',
+    `[aria-label="App version v${appVersion}, check for updates"]`,
   );
   expect(versionEl?.textContent).toBe(`v${appVersion}`);
 
@@ -131,7 +131,7 @@ it('only shows update errors for manual checks', async () => {
 
   document
     .querySelector<HTMLButtonElement>(
-      'button[aria-label="App version, check for updates"]',
+      `button[aria-label="App version v${appVersion}, check for updates"]`,
     )
     ?.click();
 

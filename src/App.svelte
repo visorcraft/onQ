@@ -341,7 +341,7 @@
     <button
       type="button"
       class="app-version"
-      aria-label={t('app.versionCheck', undefined, $locale)}
+      aria-label={t('app.versionCheck', { version: `v${appVersion}` }, $locale)}
       title={t('app.checkUpdates', undefined, $locale)}
       onclick={() => void checkForUpdates(true)}
       disabled={checkingForUpdates}

@@ -7,29 +7,29 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## Licenses in use
 
-- **MIT OR Apache-2.0** (360 crates)
-- **MIT** (165 crates)
-- **Apache-2.0 OR MIT** (79 crates)
-- **MIT/Apache-2.0** (33 crates)
+- **MIT OR Apache-2.0** (346 crates)
+- **MIT** (171 crates)
+- **Apache-2.0 OR MIT** (80 crates)
+- **MIT/Apache-2.0** (28 crates)
 - **Zlib OR Apache-2.0 OR MIT** (22 crates)
 - **Unicode-3.0** (18 crates)
 - **Apache-2.0** (17 crates)
 - **Unlicense OR MIT** (10 crates)
+- **MPL-2.0** (8 crates)
 - **BSD-3-Clause** (7 crates)
 - **ISC** (7 crates)
 - **Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT** (6 crates)
-- **MPL-2.0** (6 crates)
+- **MIT OR Apache-2.0 OR Zlib** (5 crates)
 - **Zlib** (5 crates)
 - **Apache-2.0/MIT** (4 crates)
 - **CC0-1.0** (4 crates)
-- **MIT OR Apache-2.0 OR Zlib** (4 crates)
 - **Apache-2.0 OR ISC OR MIT** (3 crates)
+- **CC0-1.0 OR MIT-0 OR Apache-2.0** (3 crates)
 - **Apache-2.0 OR BSL-1.0 OR MIT** (2 crates)
 - **Apache-2.0 OR MIT OR Zlib** (2 crates)
 - **BSD-2-Clause** (2 crates)
 - **BSD-2-Clause OR Apache-2.0 OR MIT** (2 crates)
 - **BSD-3-Clause OR MIT OR Apache-2.0** (2 crates)
-- **CC0-1.0 OR MIT-0 OR Apache-2.0** (2 crates)
 - **CDLA-Permissive-2.0** (2 crates)
 - **MIT OR Apache-2.0 OR LGPL-2.1-or-later** (2 crates)
 - **Unlicense/MIT** (2 crates)
@@ -77,7 +77,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `lzma-rust2` 0.15.8 — https://github.com/hasenbanck/lzma-rust2/
 - `spm_precompiled` 0.1.4 — https://github.com/huggingface/spm_precompiled
 - `sync_wrapper` 1.0.2 — https://github.com/Actyx/sync_wrapper
-- `tao` 0.35.3 — https://github.com/tauri-apps/tao
+- `tao` 0.37.2 — https://github.com/tauri-apps/tao
 - `tokenizers` 0.23.2 — https://github.com/huggingface/tokenizers
 - `xet-client` 1.8.1 — https://github.com/huggingface/xet-core
 - `xet-core-structures` 1.8.1 — https://github.com/huggingface/xet-core
@@ -125,20 +125,19 @@ Regenerate with `scripts/regen-credits.sh`.
 - `autocfg` 1.5.1 — https://github.com/cuviper/autocfg
 - `base64ct` 1.8.3 — https://github.com/RustCrypto/formats
 - `bit-set` 0.8.0 — https://github.com/contain-rs/bit-set
+- `bit-set` 0.11.1 — https://github.com/contain-rs/bit-vec
 - `bit-vec` 0.8.0 — https://github.com/contain-rs/bit-vec
+- `bit-vec` 0.10.2 — https://github.com/contain-rs/bit-vec
 - `blocking` 1.6.2 — https://github.com/smol-rs/blocking
-- `cargo_toml` 0.22.3 — https://gitlab.com/lib.rs/cargo_toml
+- `cargo_toml` 1.0.1 — https://gitlab.com/lib.rs/cargo_toml
 - `cmov` 0.5.4 — https://github.com/RustCrypto/utils
 - `concurrent-queue` 2.5.0 — https://github.com/smol-rs/concurrent-queue
 - `const-oid` 0.10.3 — https://github.com/RustCrypto/formats
 - `criterion` 0.8.2 — https://github.com/criterion-rs/criterion.rs
 - `criterion-plot` 0.8.2 — https://github.com/criterion-rs/criterion.rs
-- `ctor` 0.8.0 — https://github.com/mmastrac/rust-ctor
-- `ctor-proc-macro` 0.0.7 — https://github.com/mmastrac/rust-ctor
+- `ctor` 1.0.14 — https://github.com/mmastrac/linktime
 - `ctutils` 0.4.8 — https://github.com/RustCrypto/utils
 - `der` 0.8.3 — https://github.com/RustCrypto/formats
-- `dtor` 0.3.0 — https://github.com/mmastrac/rust-ctor
-- `dtor-proc-macro` 0.0.6 — https://github.com/mmastrac/rust-ctor
 - `ed25519` 3.0.0 — https://github.com/RustCrypto/signatures
 - `encode_unicode` 1.0.0 — https://github.com/tormol/encode_unicode
 - `equivalent` 1.0.2 — https://github.com/indexmap-rs/equivalent
@@ -155,7 +154,8 @@ Regenerate with `scripts/regen-credits.sh`.
 - `indexmap` 2.14.0 — https://github.com/indexmap-rs/indexmap
 - `libappindicator` 0.9.0
 - `libappindicator-sys` 0.9.0
-- `muda` 0.19.3 — https://github.com/tauri-apps/muda
+- `link-section` 0.19.4 — https://github.com/mmastrac/linktime
+- `muda` 0.20.0 — https://github.com/tauri-apps/muda
 - `ntapi` 0.4.3 — https://github.com/MSxDOS/ntapi
 - `parking` 2.2.1 — https://github.com/smol-rs/parking
 - `pem-rfc7468` 1.0.0 — https://github.com/RustCrypto/formats
@@ -172,26 +172,27 @@ Regenerate with `scripts/regen-credits.sh`.
 - `signature` 3.0.0 — https://github.com/RustCrypto/traits
 - `simd_cesu8` 1.2.0 — https://github.com/seancroach/simd_cesu8
 - `spki` 0.8.1 — https://github.com/RustCrypto/formats
-- `tauri` 2.11.5 — https://github.com/tauri-apps/tauri
-- `tauri-build` 2.6.3 — https://github.com/tauri-apps/tauri
-- `tauri-codegen` 2.6.3 — https://github.com/tauri-apps/tauri
-- `tauri-macros` 2.6.3 — https://github.com/tauri-apps/tauri
-- `tauri-plugin` 2.6.3 — https://github.com/tauri-apps/tauri
-- `tauri-plugin-dialog` 2.7.2 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-plugin-fs` 2.5.1 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-plugin-global-shortcut` 2.3.2 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-plugin-opener` 2.5.4 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-plugin-single-instance` 2.4.3 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-plugin-updater` 2.10.1 — https://github.com/tauri-apps/plugins-workspace
-- `tauri-runtime` 2.11.3 — https://github.com/tauri-apps/tauri
-- `tauri-runtime-wry` 2.11.4 — https://github.com/tauri-apps/tauri
-- `tauri-utils` 2.9.3 — https://github.com/tauri-apps/tauri
+- `tauri` 2.12.6 — https://github.com/tauri-apps/tauri
+- `tauri-build` 2.7.5 — https://github.com/tauri-apps/tauri
+- `tauri-codegen` 2.7.5 — https://github.com/tauri-apps/tauri
+- `tauri-macros` 2.7.5 — https://github.com/tauri-apps/tauri
+- `tauri-plugin` 2.7.3 — https://github.com/tauri-apps/tauri
+- `tauri-plugin-dialog` 2.8.4 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-fs` 2.7.1 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-global-shortcut` 2.4.1 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-opener` 2.7.3 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-single-instance` 2.5.5 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-plugin-updater` 2.14.1 — https://github.com/tauri-apps/plugins-workspace
+- `tauri-runtime` 2.12.3 — https://github.com/tauri-apps/tauri
+- `tauri-runtime-wry` 2.12.4 — https://github.com/tauri-apps/tauri
+- `tauri-utils` 2.10.3 — https://github.com/tauri-apps/tauri
 - `tinytemplate` 1.2.1 — https://github.com/bheisler/TinyTemplate
 - `utf8_iter` 1.0.4 — https://github.com/hsivonen/utf8_iter
 - `uuid` 1.24.0 — https://github.com/uuid-rs/uuid
-- `window-vibrancy` 0.6.0 — https://github.com/tauri-apps/tauri-plugin-vibrancy
-- `wry` 0.55.1 — https://github.com/tauri-apps/wry
+- `window-vibrancy` 0.8.1 — https://github.com/tauri-apps/tauri-plugin-vibrancy
+- `wry` 0.57.2 — https://github.com/tauri-apps/wry
 - `zeroize` 1.9.0 — https://github.com/RustCrypto/utils
+- `zeroize_derive` 1.5.0 — https://github.com/RustCrypto/utils
 
 ## Apache-2.0 OR MIT OR Zlib
 
@@ -230,8 +231,8 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## BSD-3-Clause
 
-- `alloc-no-stdlib` 2.0.4 — https://github.com/dropbox/rust-alloc-no-stdlib
-- `alloc-stdlib` 0.2.4 — https://github.com/dropbox/rust-alloc-no-stdlib
+- `alloc-no-stdlib` 3.0.0 — https://github.com/dropbox/rust-alloc-no-stdlib
+- `alloc-stdlib` 0.3.0 — https://github.com/dropbox/rust-alloc-no-stdlib
 - `curve25519-dalek` 5.0.0 — https://github.com/dalek-cryptography/curve25519-dalek/tree/main/curve25519-dalek
 - `ed25519-dalek` 3.0.0 — https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek
 - `subtle` 2.6.1 — https://github.com/dalek-cryptography/subtle
@@ -244,7 +245,7 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## BSD-3-Clause AND MIT
 
-- `brotli` 8.0.4 — https://github.com/dropbox/rust-brotli
+- `brotli` 9.1.3 — https://github.com/dropbox/rust-brotli
 
 ## BSD-3-Clause OR MIT OR Apache-2.0
 
@@ -253,7 +254,7 @@ Regenerate with `scripts/regen-credits.sh`.
 
 ## BSD-3-Clause/MIT
 
-- `brotli-decompressor` 5.0.3 — https://github.com/dropbox/rust-brotli-decompressor
+- `brotli-decompressor` 6.3.2 — https://github.com/dropbox/rust-brotli-decompressor
 
 ## BSL-1.0
 
@@ -273,6 +274,7 @@ Regenerate with `scripts/regen-credits.sh`.
 ## CC0-1.0 OR MIT-0 OR Apache-2.0
 
 - `constant_time_eq` 0.4.2 — https://github.com/cesarb/constant_time_eq
+- `constant_time_eq` 0.6.1 — https://codeberg.org/cesarb/constant_time_eq
 - `dunce` 1.0.5 — https://gitlab.com/kornelski/dunce
 
 ## CDLA-Permissive-2.0
@@ -310,7 +312,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `cairo-sys-rs` 0.18.2 — https://github.com/gtk-rs/gtk-rs-core
 - `cargo_metadata` 0.19.2 — https://github.com/oli-obk/cargo_metadata
 - `castaway` 0.2.4 — https://github.com/sagebind/castaway
-- `cfb` 0.7.3 — https://github.com/mdsteele/rust-cfb
+- `cfb` 0.14.0 — https://github.com/mdsteele/rust-cfb
 - `cfg_aliases` 0.2.2 — https://github.com/katharostech/cfg_aliases
 - `combine` 4.6.7 — https://github.com/Marwes/combine
 - `compact_str` 0.9.1 — https://github.com/ParkMyCar/compact_str
@@ -328,7 +330,8 @@ Regenerate with `scripts/regen-credits.sh`.
 - `derive_more-impl` 2.1.1 — https://github.com/JelteF/derive_more
 - `dlopen2` 0.8.2 — https://github.com/OpenByteDev/dlopen2
 - `dlopen2_derive` 0.4.3 — https://github.com/OpenByteDev/dlopen2
-- `dom_query` 0.27.0 — https://github.com/niklak/dom_query
+- `dom_query` 0.28.0 — https://github.com/niklak/dom_query
+- `dom_query` 0.29.0 — https://github.com/niklak/dom_query
 - `embed-resource` 3.0.11 — https://github.com/nabijaczleweli/rust-embed-resource
 - `endi` 1.1.1 — https://github.com/zeenix/endi
 - `fs_extra` 1.3.0 — https://github.com/webdesus/fs_extra
@@ -354,9 +357,9 @@ Regenerate with `scripts/regen-credits.sh`.
 - `http-body-util` 0.1.4 — https://github.com/hyperium/http-body
 - `hyper` 1.12.0 — https://github.com/hyperium/hyper
 - `hyper-util` 0.1.20 — https://github.com/hyperium/hyper-util
-- `ico` 0.5.0 — https://github.com/mdsteele/rust-ico
+- `ico` 0.6.0 — https://github.com/mdsteele/rust-ico
 - `indicatif` 0.18.6 — https://github.com/console-rs/indicatif
-- `infer` 0.19.0 — https://github.com/bojand/infer
+- `infer` 0.22.0 — https://github.com/bojand/infer
 - `is-docker` 0.2.0 — https://github.com/TheLarkInn/is-docker
 - `is-wsl` 0.4.0 — https://github.com/TheLarkInn/is-wsl
 - `javascriptcore-rs` 1.1.2 — https://github.com/tauri-apps/javascriptcore-rs
@@ -370,9 +373,10 @@ Regenerate with `scripts/regen-credits.sh`.
 - `matchers` 0.2.0 — https://github.com/hawkw/matchers
 - `memoffset` 0.9.1 — https://github.com/Gilnaa/memoffset
 - `mime_guess` 2.0.5 — https://github.com/abonander/mime_guess
-- `minisign-verify` 0.2.5 — https://github.com/jedisct1/rust-minisign-verify
+- `minisign-verify` 0.3.0 — https://github.com/jedisct1/rust-minisign-verify
 - `mio` 1.2.2 — https://github.com/tokio-rs/mio
 - `new_debug_unreachable` 1.0.6 — https://github.com/mbrubeck/rust-debug-unreachable
+- `nix` 0.32.0 — https://github.com/nix-rust/nix
 - `nom` 7.1.3 — https://github.com/Geal/nom
 - `nu-ansi-term` 0.50.3 — https://github.com/nushell/nu-ansi-term
 - `objc2` 0.6.4 — https://github.com/madsmtm/objc2
@@ -385,10 +389,15 @@ Regenerate with `scripts/regen-credits.sh`.
 - `pango` 0.18.3 — https://github.com/gtk-rs/gtk-rs-core
 - `pango-sys` 0.18.0 — https://github.com/gtk-rs/gtk-rs-core
 - `phf` 0.13.1 — https://github.com/rust-phf/rust-phf
+- `phf` 0.14.0 — https://github.com/rust-phf/rust-phf
 - `phf_codegen` 0.13.1 — https://github.com/rust-phf/rust-phf
+- `phf_codegen` 0.14.0 — https://github.com/rust-phf/rust-phf
 - `phf_generator` 0.13.1 — https://github.com/rust-phf/rust-phf
+- `phf_generator` 0.14.0 — https://github.com/rust-phf/rust-phf
 - `phf_macros` 0.13.1 — https://github.com/rust-phf/rust-phf
+- `phf_macros` 0.14.0 — https://github.com/rust-phf/rust-phf
 - `phf_shared` 0.13.1 — https://github.com/rust-phf/rust-phf
+- `phf_shared` 0.14.0 — https://github.com/rust-phf/rust-phf
 - `plist` 1.10.0 — https://github.com/ebarnard/rust-plist/
 - `plotters` 0.3.7 — https://github.com/plotters-rs/plotters
 - `plotters-backend` 0.3.7 — https://github.com/plotters-rs/plotters
@@ -398,7 +407,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `redox_syscall` 0.5.18 — https://gitlab.redox-os.org/redox-os/syscall
 - `redox_syscall` 0.9.5 — https://gitlab.redox-os.org/redox-os/kernel
 - `redox_users` 0.5.2 — https://gitlab.redox-os.org/redox-os/users
-- `rfd` 0.16.0 — https://github.com/PolyMeilex/rfd
+- `rfd` 0.17.2 — https://github.com/PolyMeilex/rfd
 - `safe-transmute` 0.11.3 — https://github.com/nabijaczleweli/safe-transmute-rs
 - `schannel` 0.1.29 — https://github.com/steffengy/schannel-rs
 - `schemars` 0.8.22 — https://github.com/GREsau/schemars
@@ -440,7 +449,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `unit-prefix` 0.5.2 — https://codeberg.org/commons-rs/unit-prefix
 - `unsafe-libyaml` 0.2.11 — https://github.com/dtolnay/unsafe-libyaml
 - `urlencoding` 2.1.3 — https://github.com/kornelski/rust_urlencoding
-- `urlpattern` 0.3.0 — https://github.com/denoland/rust-urlpattern
+- `urlpattern` 0.6.0 — https://github.com/denoland/rust-urlpattern
 - `valuable` 0.1.1 — https://github.com/tokio-rs/valuable
 - `version-compare` 0.2.1 — https://gitlab.com/timvisee/version-compare
 - `vswhom` 0.1.0 — https://github.com/nabijaczleweli/vswhom.rs
@@ -448,11 +457,10 @@ Regenerate with `scripts/regen-credits.sh`.
 - `want` 0.3.2 — https://github.com/seanmonstar/want
 - `webkit2gtk` 2.0.2 — https://github.com/tauri-apps/webkit2gtk-rs
 - `webkit2gtk-sys` 2.0.2 — https://github.com/tauri-apps/webkit2gtk-rs
-- `webview2-com` 0.38.2 — https://github.com/wravery/webview2-rs
+- `webview2-com` 0.39.1 — https://github.com/wravery/webview2-rs
 - `webview2-com-macros` 0.8.1 — https://github.com/wravery/webview2-rs
-- `webview2-com-sys` 0.38.2 — https://github.com/wravery/webview2-rs
+- `webview2-com-sys` 0.39.1 — https://github.com/wravery/webview2-rs
 - `winnow` 0.5.40 — https://github.com/winnow-rs/winnow
-- `winnow` 0.7.15 — https://github.com/winnow-rs/winnow
 - `winnow` 1.0.4 — https://github.com/winnow-rs/winnow
 - `winreg` 0.55.0 — https://github.com/gentoo90/winreg-rs
 - `x11` 2.21.0 — https://github.com/AltF02/x11-rs.git
@@ -460,7 +468,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `zbus` 5.18.0 — https://github.com/z-galaxy/zbus/
 - `zbus_macros` 5.18.0 — https://github.com/z-galaxy/zbus/
 - `zbus_names` 4.3.4 — https://github.com/z-galaxy/zbus/
-- `zip` 4.6.1 — https://github.com/zip-rs/zip2.git
+- `zip` 9.6.1 — https://github.com/zip-rs/zip2
 - `zmij` 1.0.23 — https://github.com/dtolnay/zmij
 - `zvariant` 5.13.1 — https://github.com/z-galaxy/zbus/
 - `zvariant_derive` 5.13.1 — https://github.com/z-galaxy/zbus/
@@ -475,7 +483,6 @@ Regenerate with `scripts/regen-credits.sh`.
 - `anstyle` 1.0.14 — https://github.com/rust-cli/anstyle.git
 - `anyhow` 1.0.104 — https://github.com/dtolnay/anyhow
 - `apple-native-keyring-store` 1.0.2 — https://github.com/open-source-cooperative/apple-native-keyring-store.git
-- `arbitrary` 1.4.2 — https://github.com/rust-fuzz/arbitrary/
 - `arc-swap` 1.9.2 — https://github.com/vorner/arc-swap
 - `argon2` 0.6.0 — https://github.com/RustCrypto/password-hashes
 - `arrayvec` 0.7.8 — https://github.com/bluss/arrayvec
@@ -531,7 +538,6 @@ Regenerate with `scripts/regen-credits.sh`.
 - `daachorse` 3.0.3 — https://github.com/daac-tools/daachorse
 - `dary_heap` 0.3.9 — https://github.com/hanmertens/dary_heap
 - `deranged` 0.5.8 — https://github.com/jhpratt/deranged
-- `derive_arbitrary` 1.4.2 — https://github.com/rust-fuzz/arbitrary
 - `derive_builder` 0.20.2 — https://github.com/colin-kiegel/rust-derive-builder
 - `derive_builder_core` 0.20.2 — https://github.com/colin-kiegel/rust-derive-builder
 - `derive_builder_macro` 0.20.2 — https://github.com/colin-kiegel/rust-derive-builder
@@ -539,6 +545,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `digest` 0.10.7 — https://github.com/RustCrypto/traits
 - `digest` 0.11.3 — https://github.com/RustCrypto/traits
 - `dirs` 6.0.0 — https://github.com/soc/dirs-rs
+- `dirs` 7.0.0 — https://codeberg.org/dirs/dirs-rs
 - `dirs-sys` 0.5.0 — https://github.com/dirs-dev/dirs-sys-rs
 - `displaydoc` 0.2.6 — https://github.com/yaahc/displaydoc
 - `dtoa` 1.0.11 — https://github.com/dtolnay/dtoa
@@ -578,7 +585,8 @@ Regenerate with `scripts/regen-credits.sh`.
 - `hex` 0.4.3 — https://github.com/KokaKiwi/rust-hex
 - `hkdf` 0.13.0 — https://github.com/RustCrypto/KDFs/
 - `hmac` 0.13.0 — https://github.com/RustCrypto/MACs
-- `html5ever` 0.38.0 — https://github.com/servo/html5ever
+- `html5ever` 0.39.0 — https://github.com/servo/html5ever
+- `html5ever` 0.40.1 — https://github.com/servo/html5ever
 - `http` 1.4.2 — https://github.com/hyperium/http
 - `httparse` 1.10.1 — https://github.com/seanmonstar/httparse
 - `humantime` 2.4.0 — https://github.com/chronotope/humantime
@@ -598,8 +606,9 @@ Regenerate with `scripts/regen-credits.sh`.
 - `jni-sys-macros` 0.4.1 — https://github.com/jni-rs/jni-sys
 - `jobserver` 0.1.35 — https://github.com/rust-lang/jobserver-rs
 - `js-sys` 0.3.103 — https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
-- `jsonptr` 0.6.3 — https://github.com/chanced/jsonptr
+- `jsonptr` 0.7.1 — https://github.com/chanced/jsonptr
 - `keyboard-types` 0.7.0 — https://github.com/pyfisch/keyboard-types
+- `keyboard-types` 0.8.3 — https://github.com/rust-windowing/keyboard-types
 - `keyring` 4.2.0 — https://github.com/open-source-cooperative/keyring-rs
 - `keyring-core` 1.0.1 — https://github.com/open-source-cooperative/keyring-core.git
 - `lazy_static` 1.5.0 — https://github.com/rust-lang-nursery/lazy-static.rs
@@ -607,7 +616,8 @@ Regenerate with `scripts/regen-credits.sh`.
 - `lock_api` 0.4.14 — https://github.com/Amanieu/parking_lot
 - `lock_api` 0.5.0 — https://github.com/Amanieu/parking_lot
 - `log` 0.4.33 — https://github.com/rust-lang/log
-- `markup5ever` 0.38.0 — https://github.com/servo/html5ever
+- `markup5ever` 0.39.0 — https://github.com/servo/html5ever
+- `markup5ever` 0.40.0 — https://github.com/servo/html5ever
 - `memmap2` 0.9.11 — https://github.com/RazrFalcon/memmap2-rs
 - `mime` 0.3.17 — https://github.com/hyperium/mime
 - `mongreldb-core` 0.66.1 — https://github.com/visorcraft/MongrelDB
@@ -618,6 +628,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `monostate-impl` 0.1.18 — https://github.com/dtolnay/monostate
 - `ndarray` 0.17.2 — https://github.com/rust-ndarray/ndarray
 - `ndk` 0.9.0 — https://github.com/rust-mobile/ndk
+- `ndk-context` 0.1.1 — https://github.com/rust-windowing/android-ndk-rs
 - `ndk-sys` 0.6.0+11769913 — https://github.com/rust-mobile/ndk
 - `notify-types` 2.3.1 — https://github.com/notify-rs/notify.git
 - `num` 0.4.3 — https://github.com/rust-num/num
@@ -645,7 +656,6 @@ Regenerate with `scripts/regen-credits.sh`.
 - `percent-encoding` 2.3.2 — https://github.com/servo/rust-url/
 - `piper` 0.2.5 — https://github.com/smol-rs/piper
 - `pkg-config` 0.3.33 — https://github.com/rust-lang/pkg-config-rs
-- `png` 0.17.16 — https://github.com/image-rs/image-png
 - `png` 0.18.1 — https://github.com/image-rs/image-png
 - `powerfmt` 0.2.0 — https://github.com/jhpratt/powerfmt
 - `ppv-lite86` 0.2.21 — https://github.com/cryptocorrosion/cryptocorrosion
@@ -705,6 +715,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `serialize-to-javascript` 0.1.2 — https://github.com/chippers/serialize-to-javascript
 - `serialize-to-javascript-impl` 0.1.2 — https://github.com/chippers/serialize-to-javascript
 - `servo_arc` 0.4.3 — https://github.com/servo/stylo
+- `servo_arc` 0.5.0 — https://github.com/servo/stylo
 - `sha2` 0.10.9 — https://github.com/RustCrypto/hashes
 - `sha2` 0.11.1 — https://github.com/RustCrypto/hashes
 - `shlex` 2.0.1 — https://github.com/comex/rust-shlex
@@ -716,15 +727,17 @@ Regenerate with `scripts/regen-credits.sh`.
 - `stable_deref_trait` 1.2.1 — https://github.com/storyyeller/stable_deref_trait
 - `static_assertions` 1.1.0 — https://github.com/nvzqz/static-assertions-rs
 - `string_cache` 0.9.0 — https://github.com/servo/string-cache
+- `string_cache` 0.11.0 — https://github.com/servo/string-cache
 - `string_cache_codegen` 0.6.1 — https://github.com/servo/string-cache
-- `swift-rs` 1.0.7 — https://github.com/Brendonovich/swift-rs
+- `string_cache_codegen` 0.11.2 — https://github.com/servo/string-cache
+- `swift-rs` 1.0.9 — https://github.com/Brendonovich/swift-rs
 - `syn` 1.0.109 — https://github.com/dtolnay/syn
 - `syn` 2.0.119 — https://github.com/dtolnay/syn
 - `syn` 3.0.10 — https://github.com/dtolnay/syn
 - `system-configuration` 0.7.0 — https://github.com/mullvad/system-configuration-rs
 - `system-configuration-sys` 0.6.0 — https://github.com/mullvad/system-configuration-rs
 - `system-deps` 6.2.2 — https://github.com/gdesmott/system-deps
-- `tao-macros` 0.1.3 — https://github.com/tauri-apps/tao
+- `tao-macros` 0.1.4 — https://github.com/tauri-apps/tao
 - `tar` 0.4.46 — https://github.com/composefs/tar-rs
 - `tempfile` 3.27.0 — https://github.com/Stebalien/tempfile
 - `tendril` 0.5.1 — https://github.com/servo/html5ever
@@ -738,17 +751,16 @@ Regenerate with `scripts/regen-credits.sh`.
 - `time-macros` 0.2.32 — https://github.com/time-rs/time
 - `tokio-rustls` 0.26.4 — https://github.com/rustls/tokio-rustls
 - `toml` 0.8.2 — https://github.com/toml-rs/toml
-- `toml` 0.9.12+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml` 1.1.3+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml_datetime` 0.6.3 — https://github.com/toml-rs/toml
-- `toml_datetime` 0.7.5+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml_datetime` 1.1.1+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml_edit` 0.19.15 — https://github.com/toml-rs/toml
 - `toml_edit` 0.20.2 — https://github.com/toml-rs/toml
 - `toml_edit` 0.25.13+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml_parser` 1.1.2+spec-1.1.0 — https://github.com/toml-rs/toml
 - `toml_writer` 1.1.2+spec-1.1.0 — https://github.com/toml-rs/toml
-- `tray-icon` 0.24.1 — https://github.com/tauri-apps/tray-icon
+- `tray-icon` 0.25.1 — https://github.com/tauri-apps/tray-icon
+- `typed-path` 0.13.0 — https://github.com/chipsenkbeil/typed-path
 - `typeid` 1.0.3 — https://github.com/dtolnay/typeid
 - `typenum` 1.20.1 — https://github.com/paholg/typenum
 - `unicase` 2.10.0 — https://github.com/seanmonstar/unicase
@@ -770,60 +782,42 @@ Regenerate with `scripts/regen-credits.sh`.
 - `web-sys` 0.3.103 — https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
 - `web-time` 1.1.0 — https://github.com/daxpedda/web-time
 - `web_atoms` 0.2.5 — https://github.com/servo/html5ever
-- `windows` 0.61.3 — https://github.com/microsoft/windows-rs
+- `web_atoms` 0.3.0 — https://github.com/servo/html5ever
 - `windows` 0.62.2 — https://github.com/microsoft/windows-rs
-- `windows-collections` 0.2.0 — https://github.com/microsoft/windows-rs
 - `windows-collections` 0.3.2 — https://github.com/microsoft/windows-rs
-- `windows-core` 0.61.2 — https://github.com/microsoft/windows-rs
 - `windows-core` 0.62.2 — https://github.com/microsoft/windows-rs
-- `windows-future` 0.2.1 — https://github.com/microsoft/windows-rs
 - `windows-future` 0.3.2 — https://github.com/microsoft/windows-rs
 - `windows-implement` 0.60.2 — https://github.com/microsoft/windows-rs
 - `windows-interface` 0.59.3 — https://github.com/microsoft/windows-rs
-- `windows-link` 0.1.3 — https://github.com/microsoft/windows-rs
 - `windows-link` 0.2.1 — https://github.com/microsoft/windows-rs
 - `windows-native-keyring-store` 1.1.0 — https://github.com/open-source-cooperative/windows-native-keyring-store.git
-- `windows-numerics` 0.2.0 — https://github.com/microsoft/windows-rs
 - `windows-numerics` 0.3.1 — https://github.com/microsoft/windows-rs
 - `windows-registry` 0.6.1 — https://github.com/microsoft/windows-rs
-- `windows-result` 0.3.4 — https://github.com/microsoft/windows-rs
 - `windows-result` 0.4.1 — https://github.com/microsoft/windows-rs
-- `windows-strings` 0.4.2 — https://github.com/microsoft/windows-rs
 - `windows-strings` 0.5.1 — https://github.com/microsoft/windows-rs
 - `windows-sys` 0.45.0 — https://github.com/microsoft/windows-rs
 - `windows-sys` 0.52.0 — https://github.com/microsoft/windows-rs
 - `windows-sys` 0.59.0 — https://github.com/microsoft/windows-rs
-- `windows-sys` 0.60.2 — https://github.com/microsoft/windows-rs
 - `windows-sys` 0.61.2 — https://github.com/microsoft/windows-rs
 - `windows-targets` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows-targets` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows-targets` 0.53.5 — https://github.com/microsoft/windows-rs
-- `windows-threading` 0.1.0 — https://github.com/microsoft/windows-rs
 - `windows-threading` 0.2.1 — https://github.com/microsoft/windows-rs
 - `windows-version` 0.1.7 — https://github.com/microsoft/windows-rs
 - `windows_aarch64_gnullvm` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_aarch64_gnullvm` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_aarch64_gnullvm` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_aarch64_msvc` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_aarch64_msvc` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_aarch64_msvc` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_i686_gnu` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_i686_gnu` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_i686_gnu` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_i686_gnullvm` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_i686_gnullvm` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_i686_msvc` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_i686_msvc` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_i686_msvc` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_gnu` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_gnu` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_x86_64_gnu` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_gnullvm` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_gnullvm` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_x86_64_gnullvm` 0.53.1 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_msvc` 0.42.2 — https://github.com/microsoft/windows-rs
 - `windows_x86_64_msvc` 0.52.6 — https://github.com/microsoft/windows-rs
-- `windows_x86_64_msvc` 0.53.1 — https://github.com/microsoft/windows-rs
 - `x11rb` 0.13.2 — https://github.com/psychon/x11rb
 - `x11rb-protocol` 0.13.2 — https://github.com/psychon/x11rb
 - `xattr` 1.6.1 — https://github.com/Stebalien/xattr
@@ -842,6 +836,7 @@ Regenerate with `scripts/regen-credits.sh`.
 
 - `lru-slab` 0.1.3 — https://github.com/Ralith/lru-slab
 - `raw-window-handle` 0.6.2 — https://github.com/rust-windowing/raw-window-handle
+- `static_vcruntime` 3.0.0 — https://github.com/ChrisDenton/static_vcruntime
 - `tinyvec_macros` 0.1.1 — https://github.com/Soveu/tinyvec_macros
 - `xkeysym` 0.2.1 — https://github.com/notgull/xkeysym
 
@@ -863,7 +858,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `fs2` 0.4.3 — https://github.com/danburkert/fs2-rs
 - `ident_case` 1.0.1 — https://github.com/TedDriggs/ident_case
 - `jni` 0.21.1 — https://github.com/jni-rs/jni-rs
-- `json-patch` 3.0.1 — https://github.com/idubrov/json-patch
+- `json-patch` 4.2.0 — https://github.com/idubrov/json-patch
 - `matrixmultiply` 0.3.11 — https://github.com/bluss/matrixmultiply/
 - `minimal-lexical` 0.2.1 — https://github.com/Alexhuszagh/minimal-lexical
 - `page_size` 0.6.0 — https://github.com/Elzair/page_size_rs
@@ -874,11 +869,6 @@ Regenerate with `scripts/regen-credits.sh`.
 - `siphasher` 1.0.3 — https://github.com/jedisct1/rust-siphash
 - `socks` 0.3.4 — https://github.com/sfackler/rust-socks
 - `symlink` 0.1.0 — https://gitlab.com/chris-morgan/symlink
-- `unic-char-property` 0.9.0 — https://github.com/open-i18n/rust-unic/
-- `unic-char-range` 0.9.0 — https://github.com/open-i18n/rust-unic/
-- `unic-common` 0.9.0 — https://github.com/open-i18n/rust-unic/
-- `unic-ucd-ident` 0.9.0 — https://github.com/open-i18n/rust-unic/
-- `unic-ucd-version` 0.9.0 — https://github.com/open-i18n/rust-unic/
 - `unicode-normalization-alignments` 0.1.12 — https://github.com/n1t0/unicode-normalization
 - `version_check` 0.9.5 — https://github.com/SergioBenitez/version_check
 - `winapi` 0.3.9 — https://github.com/retep998/winapi-rs
@@ -888,11 +878,13 @@ Regenerate with `scripts/regen-credits.sh`.
 ## MPL-2.0
 
 - `colored` 3.1.1 — https://github.com/mackwic/colored
-- `cssparser` 0.36.0 — https://github.com/servo/rust-cssparser
-- `cssparser-macros` 0.6.1 — https://github.com/servo/rust-cssparser
+- `cssparser` 0.37.0 — https://github.com/servo/rust-cssparser
+- `cssparser` 0.38.0 — https://github.com/servo/rust-cssparser
+- `cssparser-macros` 0.7.1 — https://github.com/servo/rust-cssparser
 - `dtoa-short` 0.3.5 — https://github.com/upsuper/dtoa-short
 - `option-ext` 0.2.0 — https://github.com/soc/option-ext.git
-- `selectors` 0.36.1 — https://github.com/servo/stylo
+- `selectors` 0.38.0 — https://github.com/servo/stylo
+- `selectors` 0.41.0 — https://github.com/servo/stylo
 
 ## Unicode-3.0
 

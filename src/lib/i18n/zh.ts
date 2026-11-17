@@ -7,7 +7,7 @@ export const zh: Record<MessageKey, string> = {
   'app.settings': '打开设置',
   'app.theme': '切换主题',
   'app.about': '关于 onQ',
-  'app.versionCheck': '应用版本，检查更新',
+  'app.versionCheck': '应用版本 {version}，检查更新',
   'app.checkUpdates': '检查更新',
   'app.openPalette': '打开 onQ 命令面板',
   'app.pressPrefix': '按',

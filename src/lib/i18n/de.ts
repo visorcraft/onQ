@@ -7,7 +7,7 @@ export const de: Record<MessageKey, string> = {
   'app.settings': 'Einstellungen öffnen',
   'app.theme': 'Design umschalten',
   'app.about': 'Über onQ',
-  'app.versionCheck': 'App-Version, nach Updates suchen',
+  'app.versionCheck': 'App-Version {version}, nach Updates suchen',
   'app.checkUpdates': 'Nach Updates suchen',
   'app.openPalette': 'onQ-Palette öffnen',
   'app.pressPrefix': 'Drücken Sie',
