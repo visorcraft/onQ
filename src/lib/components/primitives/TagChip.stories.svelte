@@ -19,7 +19,6 @@
 <Story name="Removable" args={{ label: 'drafts', removable: true }} />
 <Story name="RemovableActive" args={{ label: 'favorites', active: true, removable: true }} />
 <Story name="Multiple">
-  {#snippet children()}
     <div style="display: flex; gap: 6px; flex-wrap: wrap;">
       <TagChip label="writing" />
       <TagChip label="code-review" active />
@@ -27,5 +26,4 @@
       <TagChip label="research" removable />
       <TagChip label="brainstorm" removable />
     </div>
-  {/snippet}
 </Story>

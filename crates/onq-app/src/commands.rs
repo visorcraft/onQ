@@ -20,7 +20,7 @@ use onq_core::schema::col;
 use onq_core::search::{rrf_score, searchable_text, sparse_bytes, SearchQuery as AppSearchQuery};
 use onq_core::ulid::PromptId;
 use onq_core::vault::{Prompt, Vault};
-use rand::RngCore;
+use rand::Rng;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -438,17 +438,155 @@ fn index_prompt(
         .map_err(|error| error.to_string())
 }
 
-/// Index using the in-process MiniLM model when loaded; otherwise sparse-only
-/// (preserving any existing embedding column).
-fn index_prompt_with_state(db: &Arc<Db>, prompt: &Prompt, state: &AppState) -> Result<(), String> {
+/// True when `error` means the open search-index handle can no longer commit.
+///
+/// MongrelDB returns the short poison string only after an earlier durability
+/// failure already flagged the handle. The first failure itself is
+/// `CommitOutcomeUnknown` (`commit outcome at epoch …`) or `DurableCommit`
+/// (`commit N is durable: …`). A later write on that handle cannot succeed
+/// until the process drops it and opens again.
+fn index_error_needs_reopen(error: &str) -> bool {
+    error.contains("database poisoned")
+        || error.contains("lifecycle state: poisoned")
+        || error.contains("commit outcome at epoch")
+        || error.contains("is durable:")
+}
+
+fn log_index_reopen(error: &str) {
+    tracing::warn!(
+        target: "onQ.db",
+        error,
+        "search index durability failed; reopening and retrying once"
+    );
+}
+
+fn clone_search_index(state: &AppState) -> Result<Arc<Db>, String> {
+    state
+        .db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or_else(|| "vault not unlocked".to_string())
+}
+
+/// Drop the process-local search index and open it again with the derived
+/// passphrase stored on [`Db`]. Other live `Arc<Db>` clones keep MongrelDB's
+/// in-process lock, so this waits briefly and then restores the old handle
+/// instead of leaving `state.db` empty.
+fn reopen_search_index(state: &AppState) -> Result<Arc<Db>, String> {
+    let path = state.require_vault_path()?;
+    let mut held: Option<Arc<Db>> = None;
+    for attempt in 0u32..6 {
+        if held.is_none() {
+            let mut guard = state.db.lock().map_err(|e| e.to_string())?;
+            held = guard.take();
+        }
+        if held.is_none() {
+            if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+                return Ok(db);
+            }
+            if attempt + 1 == 6 {
+                return Err("vault not unlocked".into());
+            }
+            std::thread::sleep(Duration::from_millis(30 * u64::from(attempt + 1)));
+            continue;
+        }
+        let ready = held
+            .as_ref()
+            .is_some_and(|current| Arc::strong_count(current) == 1);
+        if ready {
+            let current = held.take().ok_or("search index handle missing")?;
+            let passphrase = current.db_passphrase().to_string();
+            drop(current);
+            return open_search_index(state, &path, &passphrase);
+        }
+        std::thread::sleep(Duration::from_millis(30 * u64::from(attempt + 1)));
+    }
+    if let Some(current) = held {
+        let mut guard = state.db.lock().map_err(|e| e.to_string())?;
+        if guard.is_none() {
+            *guard = Some(current);
+        }
+    }
+    Err("database is already open in this process; reuse the existing Arc<Database>".into())
+}
+
+fn open_search_index(state: &AppState, path: &Path, passphrase: &str) -> Result<Arc<Db>, String> {
+    let mut last_error = String::new();
+    for attempt in 0u32..6 {
+        match Db::open(path, passphrase) {
+            Ok(db) => {
+                let db = Arc::new(db);
+                *state.db.lock().map_err(|e| e.to_string())? = Some(Arc::clone(&db));
+                return Ok(db);
+            }
+            Err(error) => {
+                last_error = error.to_string();
+                if last_error.contains("already open") || last_error.contains("shared handles") {
+                    std::thread::sleep(Duration::from_millis(30 * u64::from(attempt + 1)));
+                    continue;
+                }
+                return Err(last_error);
+            }
+        }
+    }
+    Err(last_error)
+}
+
+/// Run `op` against the open search index. On a durability failure, drop this
+/// call's handle, reopen once, and run `op` again. The closure must not stash
+/// the `Arc` — a leftover clone makes reopen fail with "already open".
+fn with_search_index<T>(
+    state: &AppState,
+    op: impl Fn(&Arc<Db>) -> Result<T, String>,
+) -> Result<T, String> {
+    let first = {
+        let db = clone_search_index(state)?;
+        op(&db)
+    };
+    match first {
+        Ok(value) => Ok(value),
+        Err(error) if index_error_needs_reopen(&error) => {
+            log_index_reopen(&error);
+            let db = reopen_search_index(state)?;
+            op(&db)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn index_prompt_locked(db: &Arc<Db>, prompt: &Prompt, state: &AppState) -> Result<(), String> {
     let emb = state.embedder.lock().map_err(|e| e.to_string())?.clone();
     match emb {
         Some(arc) => {
-            let mut e = arc.lock().map_err(|e| e.to_string())?;
-            index_prompt(db, prompt, Some(&mut e))
+            let mut embedder = arc.lock().map_err(|e| e.to_string())?;
+            index_prompt(db, prompt, Some(&mut embedder))
         }
         None => index_prompt(db, prompt, None),
     }
+}
+
+/// Index using the in-process MiniLM model when loaded; otherwise sparse-only
+/// (preserving any existing embedding column). No-op when the vault has no
+/// open search index. Retries once after a poisoned or unknown commit.
+fn index_prompt_with_state(prompt: &Prompt, state: &AppState) -> Result<(), String> {
+    if state.db.lock().map_err(|e| e.to_string())?.is_none() {
+        return Ok(());
+    }
+    with_search_index(state, |db| index_prompt_locked(db, prompt, state))
+}
+
+/// Index `prompt` and register its folder path. Skips both when no search
+/// index is open.
+fn persist_prompt_index(prompt: &Prompt, state: &AppState) -> Result<(), String> {
+    if state.db.lock().map_err(|e| e.to_string())?.is_none() {
+        return Ok(());
+    }
+    index_prompt_with_state(prompt, state)?;
+    if let Some(path) = prompt.fm.folder.as_deref() {
+        with_search_index(state, |db| ensure_folder_path(db, path))?;
+    }
+    Ok(())
 }
 
 /// Re-index every vault prompt so sparse vectors include title/tags/folder
@@ -882,12 +1020,7 @@ pub fn create_prompt(
         _ => None,
     };
     v.write(&p).map_err(|e| e.to_string())?;
-    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt_with_state(&db, &p, &state)?;
-        if let Some(ref path) = p.fm.folder {
-            ensure_folder_path(&db, path)?;
-        }
-    }
+    persist_prompt_index(&p, &state)?;
     Ok(PromptSummary::from(&p))
 }
 
@@ -927,12 +1060,7 @@ pub fn save_prompt(
     p.fm.favorite = favorite;
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
-    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt_with_state(&db, &p, &state)?;
-        if let Some(ref path) = p.fm.folder {
-            ensure_folder_path(&db, path)?;
-        }
-    }
+    persist_prompt_index(&p, &state)?;
     Ok(PromptSummary::from(&p))
 }
 
@@ -955,12 +1083,7 @@ pub fn set_prompt_folder(
     };
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
-    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt_with_state(&db, &p, &state)?;
-        if let Some(ref path) = p.fm.folder {
-            ensure_folder_path(&db, path)?;
-        }
-    }
+    persist_prompt_index(&p, &state)?;
     Ok(PromptSummary::from(&p))
 }
 
@@ -978,9 +1101,7 @@ pub fn set_prompt_favorite(
     p.fm.favorite = favorite;
     p.fm.updated = chrono::Utc::now();
     v.write(&p).map_err(|e| e.to_string())?;
-    if let Some(db) = state.db.lock().map_err(|error| error.to_string())?.clone() {
-        index_prompt_with_state(&db, &p, &state)?;
-    }
+    index_prompt_with_state(&p, &state)?;
     Ok(PromptSummary::from(&p))
 }
 
@@ -2674,10 +2795,23 @@ fn run_hybrid_search(
 #[tauri::command]
 pub async fn record_search(query: String, state: State<'_, AppState>) -> Result<(), String> {
     let db = require_db(&state)?;
-    tokio::task::spawn_blocking(move || db.push_recent_search(&query))
+    let query_for_retry = query.clone();
+    let result = tokio::task::spawn_blocking(move || db.push_recent_search(&query))
         .await
         .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if index_error_needs_reopen(&error) => {
+            log_index_reopen(&error);
+            let db = reopen_search_index(&state)?;
+            tokio::task::spawn_blocking(move || db.push_recent_search(&query_for_retry))
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Record the id of the prompt the user just opened. Read back on the next
@@ -2685,10 +2819,23 @@ pub async fn record_search(query: String, state: State<'_, AppState>) -> Result<
 #[tauri::command]
 pub async fn record_open(prompt_id: String, state: State<'_, AppState>) -> Result<(), String> {
     let db = require_db(&state)?;
-    tokio::task::spawn_blocking(move || db.set_last_opened(&prompt_id))
+    let id_for_retry = prompt_id.clone();
+    let result = tokio::task::spawn_blocking(move || db.set_last_opened(&prompt_id))
         .await
         .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if index_error_needs_reopen(&error) => {
+            log_index_reopen(&error);
+            let db = reopen_search_index(&state)?;
+            tokio::task::spawn_blocking(move || db.set_last_opened(&id_for_retry))
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(|e| e.to_string())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2909,8 +3056,8 @@ pub async fn restore_prompt_history(
     }
     onq_core::history::restore_body(v, &pid, &path).map_err(|e| e.to_string())?;
     let p = v.read(&pid).map_err(|e| e.to_string())?;
-    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
-        index_prompt_with_state(&db, &p, &state)?;
+    if state.db.lock().map_err(|e| e.to_string())?.is_some() {
+        index_prompt_with_state(&p, &state)?;
         if state.is_audit_enabled() {
             let _ = onq_core::audit::append(v, "history_restore", Some(pid.as_str()));
         }
@@ -2998,11 +3145,13 @@ pub async fn import_prompts(
     };
     let report = onq_core::import::import_prompts(v, Path::new(&path), fmt, conflict)
         .map_err(|e| e.to_string())?;
-    // Best-effort reindex imported prompts
-    if let Some(db) = state.db.lock().map_err(|e| e.to_string())?.clone() {
+    // Best-effort reindex imported prompts. Reopen per prompt so one poisoned
+    // handle does not fail the rest of the import, and so this loop does not
+    // hold an `Arc` that would block that reopen.
+    if state.db.lock().map_err(|e| e.to_string())?.is_some() {
         for id in v.list().map_err(|e| e.to_string())? {
             if let Ok(p) = v.read(&id) {
-                let _ = index_prompt_with_state(&db, &p, &state);
+                let _ = index_prompt_with_state(&p, &state);
             }
         }
         if state.is_audit_enabled() {
@@ -3310,9 +3459,8 @@ pub async fn install_plugin(
         //    the row with the values the install pipeline just verified.
         let manifest_text =
             std::fs::read_to_string(dest.join("manifest.toml")).map_err(|e| e.to_string())?;
-        let manifest: toml::Value = manifest_text
-            .parse()
-            .map_err(|e: toml::de::Error| e.to_string())?;
+        let manifest: toml::Value =
+            toml::from_str(&manifest_text).map_err(|e: toml::de::Error| e.to_string())?;
         let plugin_table = manifest
             .get("plugin")
             .ok_or_else(|| "manifest missing [plugin] table".to_string())?;
@@ -3805,10 +3953,26 @@ pub async fn set_app_setting(
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "vault not unlocked".to_string())?;
-    tokio::task::spawn_blocking(move || db.set_app_setting(&key, &value))
+    let key_for_retry = key.clone();
+    let value_for_retry = value.clone();
+    let result = tokio::task::spawn_blocking(move || db.set_app_setting(&key, &value))
         .await
         .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if index_error_needs_reopen(&error) => {
+            log_index_reopen(&error);
+            let db = reopen_search_index(&state)?;
+            tokio::task::spawn_blocking(move || {
+                db.set_app_setting(&key_for_retry, &value_for_retry)
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Live search-stack health for Settings / diagnostics.
@@ -5445,5 +5609,84 @@ mod tests {
         let s = capabilities_as_strings(&caps);
         assert!(s.contains(&"embedding".to_string()));
         assert!(s.iter().any(|c| c.starts_with("command:")));
+    }
+
+    #[test]
+    fn index_error_needs_reopen_matches_durability_failures_only() {
+        assert!(index_error_needs_reopen("database poisoned by fsync error"));
+        assert!(index_error_needs_reopen(
+            "db: write app_state.theme: database poisoned by fsync error"
+        ));
+        assert!(index_error_needs_reopen(
+            "commit outcome at epoch 4 is unknown: fsync error"
+        ));
+        assert!(index_error_needs_reopen(
+            "commit 7 is durable: catalog write failed"
+        ));
+        assert!(index_error_needs_reopen(
+            "database core is not open (lifecycle state: poisoned)"
+        ));
+        assert!(!index_error_needs_reopen("vault not unlocked"));
+        assert!(!index_error_needs_reopen(
+            "cannot save body of a locked prompt; unlock first"
+        ));
+        assert!(!index_error_needs_reopen(
+            "database is already open in this process; reuse the existing Arc<Database>"
+        ));
+    }
+
+    fn open_state_db(passphrase: &str) -> (TempDir, AppState) {
+        let dir = TempDir::new().unwrap();
+        let state = AppState::default();
+        *state.vault_path.lock().unwrap() = Some(dir.path().to_path_buf());
+        *state.db.lock().unwrap() = Some(Arc::new(Db::open(dir.path(), passphrase).unwrap()));
+        (dir, state)
+    }
+
+    #[test]
+    fn with_search_index_reopens_once_after_a_durability_error() {
+        let (_dir, state) = open_state_db("test-pass");
+        let original = state.db.lock().unwrap().clone().unwrap();
+        let original_ptr = Arc::as_ptr(&original);
+        drop(original);
+
+        let attempts = std::sync::atomic::AtomicUsize::new(0);
+        let result = with_search_index(&state, |db| {
+            let n = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == 0 {
+                assert!(std::ptr::eq(Arc::as_ptr(db), original_ptr));
+                Err("database poisoned by fsync error".into())
+            } else {
+                assert!(!std::ptr::eq(Arc::as_ptr(db), original_ptr));
+                assert_eq!(db.db_passphrase(), "test-pass");
+                db.set_app_setting("theme", "light")
+                    .map_err(|error| error.to_string())
+            }
+        });
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
+        let stored = state.db.lock().unwrap().clone().unwrap();
+        assert_eq!(stored.get_app_setting("theme").unwrap(), "light");
+    }
+
+    #[test]
+    fn reopen_search_index_keeps_the_handle_when_another_clone_is_live() {
+        let (_dir, state) = open_state_db("test-pass");
+        let extra = state.db.lock().unwrap().clone().unwrap();
+        let error = match reopen_search_index(&state) {
+            Ok(_) => panic!("reopen must fail while another handle is live"),
+            Err(error) => error,
+        };
+        assert!(error.contains("already open"), "unexpected error: {error}");
+        let stored = state.db.lock().unwrap().clone().unwrap();
+        assert!(Arc::ptr_eq(&stored, &extra));
+        let stale = Arc::as_ptr(&stored);
+        drop(stored);
+        drop(extra);
+        let reopened = reopen_search_index(&state).unwrap();
+        assert!(!std::ptr::eq(Arc::as_ptr(&reopened), stale));
+        reopened
+            .set_app_setting("theme", "dark")
+            .expect("write on reopened index");
     }
 }

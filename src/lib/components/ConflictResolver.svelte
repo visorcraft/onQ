@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import DiffViewer from './DiffViewer.svelte';
   import {
     parseConflictText,
@@ -69,7 +70,7 @@
   });
 
   function renderChoice(choice: ConflictChoice): string {
-    const map = new Map<number, ConflictChoice>();
+    const map = new SvelteMap<number, ConflictChoice>();
     for (const hunk of hunks) map.set(hunk.id, choice);
     return renderConflict(segments, map);
   }

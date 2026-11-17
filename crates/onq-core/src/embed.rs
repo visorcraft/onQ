@@ -27,7 +27,12 @@ impl Embedder {
     /// Load an embedder from a local model directory containing
     /// `model.onnx` and `tokenizer.json`.
     pub fn load(model_dir: &Path) -> CoreResult<Self> {
-        let session = Session::builder()
+        let env = ort::init()
+            .with_name("onQ")
+            .with_telemetry(false)
+            .build()
+            .map_err(|e| CoreError::Other(e.to_string()))?;
+        let session = Session::builder(&env)
             .map_err(|e| CoreError::Other(e.to_string()))?
             .commit_from_file(model_dir.join("model.onnx"))
             .map_err(|e| CoreError::Other(e.to_string()))?;
@@ -125,14 +130,20 @@ fn l2_normalize(v: &mut [f32]) {
 /// [`onq_test_utils::mock_ort::MockEmbedder`] instead so they
 /// don't hit the network.
 pub async fn download_model(cache_dir: &Path) -> CoreResult<PathBuf> {
-    let api = hf_hub::api::tokio::Api::new().map_err(|e| CoreError::Other(e.to_string()))?;
-    let repo = api.model(MODEL_ID.to_string());
-    let onnx = repo
-        .get("onnx/model.onnx")
+    let client = hf_hub::HFClient::new().map_err(|e| CoreError::Other(e.to_string()))?;
+    let (owner, name) = hf_hub::split_id(MODEL_ID);
+    let onnx = client
+        .model(owner, name)
+        .download_file()
+        .filename("onnx/model.onnx")
+        .send()
         .await
         .map_err(|e| CoreError::Other(e.to_string()))?;
-    let tok = repo
-        .get("tokenizer.json")
+    let tok = client
+        .model(owner, name)
+        .download_file()
+        .filename("tokenizer.json")
+        .send()
         .await
         .map_err(|e| CoreError::Other(e.to_string()))?;
     let dst = cache_dir.join("all-MiniLM-L6-v2");

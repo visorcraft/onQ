@@ -8,8 +8,8 @@
 //! logins (m=64 MiB, t=3, p=4, output=32 B).
 
 use argon2::{Algorithm, Argon2, Params, Version};
-use rand::distributions::Alphanumeric;
-use rand::{Rng, RngCore};
+use rand::distr::Alphanumeric;
+use rand::{Rng, RngExt};
 
 use crate::error::{CoreError, CoreResult};
 
@@ -33,7 +33,7 @@ pub fn derive_kek(passphrase: &[u8], salt: &[u8; 32]) -> CoreResult<[u8; 32]> {
 /// Generate a fresh 32-byte salt from the OS CSPRNG.
 pub fn generate_salt() -> [u8; 32] {
     let mut s = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut s);
+    rand::rng().fill_bytes(&mut s);
     s
 }
 
@@ -42,7 +42,7 @@ pub fn generate_salt() -> [u8; 32] {
 /// Returned ONCE at vault setup and shown to the user as the recovery
 /// phrase UI; thereafter it is fetched from the OS keychain.
 pub fn generate_passphrase() -> String {
-    rand::thread_rng()
+    rand::rng()
         .sample_iter(&Alphanumeric)
         .take(64)
         .map(char::from)

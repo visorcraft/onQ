@@ -100,7 +100,7 @@
       >×</button>
 
       <ol class="progress" aria-label={t('tutorial.progress', undefined, $locale)}>
-        {#each steps as step, index}
+        {#each steps as step, index (index)}
           <li
             class:active={index === $tutorialStep}
             class:complete={index < $tutorialStep}

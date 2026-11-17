@@ -13,55 +13,55 @@ Packages from package.json. onQ is **GPL-3.0-only**.
 
 ## 0BSD
 
-- `tslib` 2.8.1 (dev)
+- `tslib` 2.9.1 (dev)
 
 ## Apache-2.0
 
-- `@playwright/test` 1.61.1 (dev)
-- `typescript` 5.9.3 (dev)
+- `@playwright/test` 1.65.1 (dev)
+- `typescript` 6.0.3 (dev)
 
 ## Apache-2.0 OR MIT
 
-- `@tauri-apps/api` 2.11.1 (runtime)
-- `@tauri-apps/cli` 2.11.4 (dev)
+- `@tauri-apps/api` 2.12.5 (runtime)
+- `@tauri-apps/cli` 2.12.5 (dev)
 
 ## MIT
 
-- `@eslint/js` 9.39.5 (dev)
-- `@storybook/addon-a11y` 10.5.3 (dev)
-- `@storybook/addon-docs` 10.5.3 (dev)
-- `@storybook/addon-svelte-csf` 5.1.2 (dev)
-- `@storybook/svelte-vite` 10.5.3 (dev)
-- `@sveltejs/vite-plugin-svelte` 7.2.0 (dev)
-- `@tailwindcss/postcss` 4.3.3 (dev)
-- `@tsconfig/svelte` 5.0.8 (dev)
-- `@typescript-eslint/eslint-plugin` 8.65.0 (dev)
-- `@typescript-eslint/parser` 8.65.0 (dev)
-- `@vitest/ui` 4.1.10 (dev)
-- `autoprefixer` 10.5.4 (dev)
-- `bits-ui` 1.8.0 (runtime)
-- `eslint` 9.39.5 (dev)
-- `eslint-plugin-storybook` 10.5.3 (dev)
-- `eslint-plugin-svelte` 2.46.1 (dev)
-- `globals` 17.7.0 (dev)
-- `jsdom` 29.1.1 (dev)
-- `postcss` 8.5.22 (dev)
-- `storybook` 10.5.3 (dev)
-- `svelte` 5.56.7 (dev)
-- `svelte-check` 4.7.3 (dev)
-- `svelte-eslint-parser` 0.43.0 (dev)
-- `tailwindcss` 4.3.3 (dev)
-- `vite` 8.1.5 (dev)
-- `vitepress` 2.0.0-alpha.18 (dev)
-- `vitest` 4.1.10 (dev)
+- `@eslint/js` 10.0.1 (dev)
+- `@storybook/addon-a11y` 10.6.7 (dev)
+- `@storybook/addon-docs` 10.6.7 (dev)
+- `@storybook/addon-svelte-csf` 5.1.6 (dev)
+- `@storybook/svelte-vite` 10.6.7 (dev)
+- `@sveltejs/vite-plugin-svelte` 7.3.1 (dev)
+- `@tailwindcss/postcss` 4.3.5 (dev)
+- `@tsconfig/svelte` 5.0.9 (dev)
+- `@typescript-eslint/eslint-plugin` 8.73.0 (dev)
+- `@typescript-eslint/parser` 8.73.0 (dev)
+- `@vitest/ui` 5.1.0 (dev)
+- `autoprefixer` 10.6.2 (dev)
+- `bits-ui` 2.21.0 (runtime)
+- `eslint` 10.15.0 (dev)
+- `eslint-plugin-storybook` 10.6.7 (dev)
+- `eslint-plugin-svelte` 3.24.1 (dev)
+- `globals` 17.14.0 (dev)
+- `jsdom` 31.0.1 (dev)
+- `postcss` 8.5.33 (dev)
+- `storybook` 10.6.7 (dev)
+- `svelte` 5.57.3 (dev)
+- `svelte-check` 4.7.8 (dev)
+- `svelte-eslint-parser` 1.10.1 (dev)
+- `tailwindcss` 4.3.5 (dev)
+- `vite` 8.3.8 (dev)
+- `vitepress` 2.0.0-alpha.21 (dev)
+- `vitest` 5.1.0 (dev)
 
 ## MIT OR Apache-2.0
 
-- `@tauri-apps/plugin-dialog` 2.7.2 (runtime)
-- `@tauri-apps/plugin-opener` 2.5.4 (runtime)
-- `@tauri-apps/plugin-updater` 2.10.1 (runtime)
+- `@tauri-apps/plugin-dialog` 2.8.4 (runtime)
+- `@tauri-apps/plugin-opener` 2.7.3 (runtime)
+- `@tauri-apps/plugin-updater` 2.14.1 (runtime)
 
 ## MPL-2.0
 
-- `@axe-core/playwright` 4.12.1 (dev)
+- `@axe-core/playwright` 4.14.0 (dev)
 

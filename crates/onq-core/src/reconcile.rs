@@ -128,7 +128,12 @@ fn read_db_body(db: &Db, id: &PromptId) -> CoreResult<Option<String>> {
 }
 
 fn sha256(value: &str) -> String {
-    format!("{:x}", Sha256::digest(value.as_bytes()))
+    let digest = Sha256::digest(value.as_bytes());
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    hex
 }
 
 #[cfg(test)]

@@ -21,9 +21,9 @@
 //!   calls (the crate appends the 16-byte GHASH authentication tag to the plaintext
 //!   length and bakes it onto the ciphertext).
 
-use aes_gcm::aead::{Aead, KeyInit};
-use aes_gcm::{Aes256Gcm, Key, Nonce};
-use rand::RngCore;
+use aes_gcm::aead::{Aead, KeyInit, Nonce};
+use aes_gcm::{Aes256Gcm, Key};
+use rand::Rng;
 
 use crate::error::{CoreError, CoreResult};
 
@@ -33,18 +33,18 @@ const NONCE_LEN: usize = 12;
 
 /// Encrypt `plaintext` under `key` and return the framed envelope.
 ///
-/// A fresh 96-bit nonce is drawn from the OS CSPRNG (`rand::thread_rng`)
+/// A fresh 96-bit nonce is drawn from the OS CSPRNG (`rand::rng`)
 /// for every call. The same `(key, nonce)` pair must never be reused.
 pub fn encrypt_body(key: &[u8; 32], plaintext: &[u8]) -> CoreResult<Vec<u8>> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let cipher = Aes256Gcm::new(&Key::<Aes256Gcm>::from(*key));
 
     let mut nonce_bytes = [0u8; NONCE_LEN];
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::<Aes256Gcm>::from(nonce_bytes);
 
     // aes-gcm appends the 16-byte auth tag to the ciphertext itself.
     let ct = cipher
-        .encrypt(nonce, plaintext)
+        .encrypt(&nonce, plaintext)
         .map_err(|e| CoreError::Encryption(format!("aes-gcm encrypt: {e}")))?;
 
     let mut out = Vec::with_capacity(1 + NONCE_LEN + ct.len());
@@ -71,12 +71,14 @@ pub fn decrypt_body(key: &[u8; 32], envelope: &[u8]) -> CoreResult<Vec<u8>> {
         return Err(CoreError::Encryption("envelope too short for nonce".into()));
     }
 
-    let nonce = Nonce::from_slice(&envelope[1..1 + NONCE_LEN]);
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    nonce_bytes.copy_from_slice(&envelope[1..1 + NONCE_LEN]);
+    let nonce = Nonce::<Aes256Gcm>::from(nonce_bytes);
     let ct = &envelope[1 + NONCE_LEN..];
 
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let cipher = Aes256Gcm::new(&Key::<Aes256Gcm>::from(*key));
     cipher
-        .decrypt(nonce, ct)
+        .decrypt(&nonce, ct)
         .map_err(|e| CoreError::Encryption(format!("aes-gcm decrypt: {e}")))
 }
 

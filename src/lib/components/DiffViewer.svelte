@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import { t, locale } from '$lib/i18n';
 
   type DiffSide = 'base' | 'ours' | 'theirs';
@@ -94,8 +95,8 @@
       }
     }
 
-    const matches = new Map<number, number>();
-    const insertions = new Map<number, number[]>();
+    const matches = new SvelteMap<number, number>();
+    const insertions = new SvelteMap<number, number[]>();
     let operationIndex = 0;
     while (operationIndex < operations.length) {
       const operation = operations[operationIndex];
@@ -237,7 +238,7 @@
           <span class="line-count">{column.count} lines</span>
         </header>
         <div class="code-panel" role="region" aria-label={`${column.label} content`}>
-          {#each rows as row}
+          {#each rows as row, index (index)}
             {@const line = row[column.key as DiffSide]}
             <div
               class="code-line"

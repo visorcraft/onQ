@@ -154,7 +154,7 @@
   {/if}
   {#if mode === 'preview'}
     <div class="body preview-pane" aria-label={t('editor.previewAria', undefined, $locale)}>
-      {#each body.split('\n') as line}
+      {#each body.split('\n') as line, index (index)}
         <p>{line || '\u00a0'}</p>
       {/each}
     </div>

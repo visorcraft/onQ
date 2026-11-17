@@ -14,15 +14,11 @@
 </script>
 
 <Story name="Default" args={{ open: true, title: 'Confirm deletion' }}>
-  {#snippet children()}
-    <p>Are you sure you want to delete this prompt? This cannot be undone.</p>
-  {/snippet}
+  <p>Are you sure you want to delete this prompt? This cannot be undone.</p>
 </Story>
 
 <Story name="NoTitle" args={{ open: true, title: '' }}>
-  {#snippet children()}
-    <p>Modal without a title — just body content.</p>
-  {/snippet}
+  <p>Modal without a title — just body content.</p>
 </Story>
 
 <Story name="Closed" args={{ open: false, title: 'Hidden modal' }} />

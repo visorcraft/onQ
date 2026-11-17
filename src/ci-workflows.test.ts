@@ -139,7 +139,7 @@ describe('benches/baselines.json + check-perf-regression.sh', () => {
     const script = join(repoRoot, 'scripts', 'check-perf-regression.sh');
     const baselines = join(repoRoot, 'benches', 'baselines.json');
     let status = 0;
-    let combined = '';
+    let combined: string;
     try {
       combined = execFileSync(script, [baselines, benchOut], {
         encoding: 'utf8',

@@ -28,21 +28,17 @@
   mount so the canvas appears with mock data.
 -->
 <Story name="Closed">
-  {#snippet children()}
-    <Palette />
-    <p style="color: var(--glass-text-dim); font-family: 'JetBrains Mono', monospace; padding: 24px;">
-      Palette is closed by default. Press <kbd>⌘+Q</kbd> (or Meta+Q / Win+Q) to open.
-    </p>
-  {/snippet}
+  <Palette />
+  <p style="color: var(--glass-text-dim); font-family: 'JetBrains Mono', monospace; padding: 24px;">
+    Palette is closed by default. Press <kbd>⌘+Q</kbd> (or Meta+Q / Win+Q) to open.
+  </p>
 </Story>
 
 <Story name="Opened">
-  {#snippet children()}
-    <div use:openPaletteOnMount>
-      <Palette />
-    </div>
-    <p style="color: var(--glass-text-dim); padding: 24px;">
-      Palette opened via simulated ⌘+Q. Mock data hydrated via the Tauri mock.
-    </p>
-  {/snippet}
+  <div use:openPaletteOnMount>
+    <Palette />
+  </div>
+  <p style="color: var(--glass-text-dim); padding: 24px;">
+    Palette opened via simulated ⌘+Q. Mock data hydrated via the Tauri mock.
+  </p>
 </Story>

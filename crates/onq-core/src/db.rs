@@ -20,6 +20,10 @@ use crate::schema::col;
 /// Wraps an open, encrypted MongrelDB instance bound to a onQ vault.
 pub struct Db {
     inner: Database,
+    /// Derived search-index passphrase. Retained so a poisoned handle can
+    /// be dropped and reopened without the master password. Not the master
+    /// password itself.
+    db_passphrase: String,
 }
 
 impl Db {
@@ -43,7 +47,10 @@ impl Db {
         crate::migrate::Migrator::new(&inner)
             .run()
             .map_err(|e| CoreError::Db(format!("migrate: {e}")))?;
-        let db = Self { inner };
+        let db = Self {
+            inner,
+            db_passphrase: passphrase.to_string(),
+        };
         // Align published ANN quantization with app_state.embedding_quant
         // (authoritative preference). No-op when already matched. Best-effort:
         // a failed replace-index must never block vault open — search falls
@@ -61,6 +68,12 @@ impl Db {
     /// Access the underlying [`mongreldb_core::Database`].
     pub fn handle(&self) -> &Database {
         &self.inner
+    }
+
+    /// Derived passphrase last passed to [`Db::open`]. Used to reopen the
+    /// search index after a durability failure. Callers must not log it.
+    pub fn db_passphrase(&self) -> &str {
+        &self.db_passphrase
     }
 
     /// Look up the singleton `app_state` row's cell for `key` and return it

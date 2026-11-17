@@ -63,7 +63,8 @@ pub fn install_with_trust_anchor(
     // 2. Read + license-check the manifest.
     let manifest_path = tmp.path().join(MANIFEST_FILE);
     let manifest_text = std::fs::read_to_string(&manifest_path)?;
-    let manifest: toml::Value = manifest_text.parse().map_err(CoreError::from)?;
+    // toml 1 parses `FromStr` as a single value. Manifests are documents.
+    let manifest: toml::Value = toml::from_str(&manifest_text).map_err(CoreError::from)?;
     let plugin_table = manifest
         .get("plugin")
         .ok_or_else(|| CoreError::Plugin("manifest missing [plugin] table".into()))?;
@@ -227,7 +228,6 @@ pub fn tar_archive_bytes(archive: &Path) -> CoreResult<Vec<u8>> {
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use rand::rngs::OsRng;
     use tempfile::TempDir;
 
     /// Build a self-signed plugin archive under `tmp` and return
@@ -239,7 +239,7 @@ mod tests {
     /// pass the pubkey to `install_with_trust_anchor` and verify
     /// against the matching fixture key.
     fn build_signed_fixture(tmp: &Path, license: &str) -> (PathBuf, SigningKey, String, [u8; 32]) {
-        let mut csprng = OsRng;
+        let mut csprng = rand::rng();
         let key = SigningKey::generate(&mut csprng);
         let pubkey = key.verifying_key().to_bytes();
         let manifest = format!(
@@ -292,7 +292,7 @@ mod tests {
         // manifest.toml at all. The install pipeline must fail before
         // it ever reaches the signature check.
         let tmp = TempDir::new().unwrap();
-        let key = SigningKey::generate(&mut OsRng);
+        let key = SigningKey::generate(&mut rand::rng());
         let pubkey = key.verifying_key().to_bytes();
         let sig = vec![0u8; 64];
         let bytes = build_archive("", &sig, &[("plugin.so", b"BINARY")]).expect("build");

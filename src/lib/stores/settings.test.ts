@@ -164,5 +164,9 @@ describe('settings store', () => {
     expect(get(betaChannel)).toBe(true);
     expect(get(embeddingQuant)).toBe('dense');
     expect(get(theme)).toBe('light');
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'set_app_setting',
+      expect.anything(),
+    );
   });
 });

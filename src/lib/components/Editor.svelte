@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { createPrompt, readPrompt, savePrompt, deletePrompt, listPrompts } from '$lib/api/prompts';
   import { listFolders } from '$lib/api/folders';
   import { lockPrompt, unlockPrompt } from '$lib/api/lock';
@@ -72,7 +73,7 @@
         projectOptions = folders.map((f) => f.name).sort((a, b) => a.localeCompare(b));
 
         const summaries = await listPrompts().catch(() => []);
-        const tagSet = new Set<string>();
+        const tagSet = new SvelteSet<string>();
         for (const p of summaries) {
           for (const tag of p.tags ?? []) {
             const trimmed = tag.trim();

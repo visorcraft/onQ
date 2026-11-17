@@ -3,6 +3,7 @@ name = "onq-test-utils"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 onq-core = { workspace = true }

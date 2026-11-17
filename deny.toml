@@ -25,9 +25,21 @@ ignore = [
     "RUSTSEC-2025-0100",  # unic-ucd-ident
     # --- transitive via hf-hub / tokenizers / mongreldb (no safe root upgrade) ---
     "RUSTSEC-2024-0436",  # paste — unmaintained; via tokenizers
-    "RUSTSEC-2025-0119",  # number_prefix — unmaintained; via indicatif → hf-hub/tokenizers
-    "RUSTSEC-2025-0134",  # rustls-pemfile — unmaintained; via reqwest 0.11 → hf-hub
     "RUSTSEC-2025-0141",  # bincode — unmaintained; via mongreldb-core
+    # --- no patched release; recorded so `cargo deny` stays green ---
+    "RUSTSEC-2026-0543",  # chrono — unmaintained; direct dep, no successor on crates.io
+    "RUSTSEC-2026-0542",  # humantime — unmaintained; via hf-hub → xet-runtime
+    "RUSTSEC-2024-0449",  # unsafe-libyaml — unmaintained; via serde_yaml 0.9 (last release)
+    "RUSTSEC-2026-0371",  # zbus_names — unmaintained; via keyring 4 → zbus 5
+    "RUSTSEC-2026-0370",  # zvariant — unmaintained; via keyring 4 → zbus 5
+    "RUSTSEC-2026-0372",  # zvariant_derive — unmaintained; via keyring 4 → zbus 5
+    # tauri-plugin-updater 2.10.1 (Windows) requires zip 4. The fixes are in zip 9.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+    "RUSTSEC-2026-0429",
+    "RUSTSEC-2026-0545",
+    "RUSTSEC-2026-0548",
 ]
 
 [licenses]

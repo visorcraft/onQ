@@ -12,11 +12,11 @@ version = "1.13.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/visorcraft/onQ"
-rust-version = "1.75"
+rust-version = "1.95"
 
 [workspace.dependencies]
 bip39 = { version = "2", features = ["rand"] }
-ed25519-dalek = { version = "2", features = ["pkcs8", "pem", "rand_core"] }
+ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
@@ -25,35 +25,34 @@ anyhow = "1"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-ulid = "1"
+ulid = "3"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
-notify = "6"
-# Dense ANN + replace_index (0.61+); swappable ANN backends / PQ (0.63+).
-# Keep aligned with MongrelDB releases on crates.io.
-# `encryption` matches sibling apps (mongrel); currently a no-op flag in 0.64.x
-# but documents at-rest encrypted open/create intent for future feature gates.
-# Kit (mongreldb-kit) is not a direct dep — onQ uses core APIs only.
-mongreldb-core = { version = "0.64.13", features = ["encryption"] }
+# 9.0.0 is still a release candidate. 8.2 is the latest stable.
+notify = "8"
+# Dense ANN + replace_index. Keep aligned with MongrelDB releases on crates.io.
+# `encryption` documents at-rest encrypted open/create. Kit is not a direct dep.
+mongreldb-core = { version = "0.66.1", features = ["encryption"] }
 onq-core = { path = "crates/onq-core", version = "1.13.0" }
 onq-test-utils = { path = "crates/onq-test-utils", version = "1.13.0" }
-keyring = { version = "3", features = [] }
-argon2 = "0.5"
-rand = "0.8"
-base64 = "0.22"
-ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "api-24", "download-binaries", "tls-rustls"] }
-hf-hub = { version = "0.3", features = ["tokio"] }
-tokenizers = "0.20"
-ndarray = "0.15"
+keyring = { version = "4", features = [] }
+argon2 = "0.6"
+rand = "0.10"
+base64 = "0.23"
+ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "ndarray", "api-24", "download-binaries", "tls-rustls"] }
+hf-hub = { version = "1", features = ["rustls-tls"] }
+# 1.0.0 is still a release candidate. 0.23 is the latest stable.
+tokenizers = "0.23"
+ndarray = "0.17"
 diffy = "0.5"
-sha2 = "0.10"
-aes-gcm = "0.10"
+sha2 = "0.11"
+aes-gcm = "0.11"
 libloading = "0.9"
 onq-plugin-sdk = { path = "crates/onq-plugin-sdk", version = "1.13.0" }
 tar = "0.4"
 flate2 = "1"
-toml = "0.8"
-criterion = { version = "0.5", features = ["html_reports"] }
+toml = "1"
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [profile.release]
 lto = true

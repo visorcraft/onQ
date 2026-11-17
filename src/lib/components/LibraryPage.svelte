@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { listPrompts, setPromptFavorite, setPromptFolder, deletePrompt } from '$lib/api/prompts';
   import type { PromptSummary } from '$lib/types/prompt';
   import {
@@ -137,7 +138,7 @@
   });
 
   const registeredPaths = $derived.by(() => {
-    const set = new Set<string>();
+    const set = new SvelteSet<string>();
     for (const f of folders) set.add(f.name);
     for (const p of prompts) {
       const folder = (p.folder ?? '').trim();
@@ -168,7 +169,7 @@
   );
 
   const allTags = $derived.by(() => {
-    const counts = new Map<string, number>();
+    const counts = new SvelteMap<string, number>();
     for (const p of prompts) {
       for (const t of p.tags ?? []) {
         const tag = t.trim();
