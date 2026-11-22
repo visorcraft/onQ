@@ -4,7 +4,22 @@ import { get } from 'svelte/store';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 
-import { results, runSearch } from './search';
+import { results, runSearch, runMoreLikeThis } from './search';
+
+
+function makeHit(id: string, title: string) {
+  return {
+    id,
+    title,
+    folder: null,
+    tags: ['tag'],
+    favorite: false,
+    locked: false,
+    char_count: 10,
+    updated_at: 0,
+    rrf_score: 0.5,
+  };
+}
 
 describe('search store', () => {
   beforeEach(() => {
@@ -125,5 +140,51 @@ describe('search store', () => {
     // Previous results remain visible rather than crashing the palette.
     expect(get(results)).toHaveLength(1);
     expect(get(results)[0].title).toBe('Keep');
+  });
+  it('in-flight search does not clobber MLT results', async () => {
+    let resolveStale!: (hits: unknown[]) => void;
+    const stalePromise = new Promise<unknown[]>((resolve) => {
+      resolveStale = resolve;
+    });
+
+    // First (stale) search: manually deferred promise.
+    invokeMock.mockImplementationOnce(() => stalePromise);
+    runSearch({ text: 'a', limit: 10 });
+    await vi.advanceTimersByTimeAsync(200);
+    // First search is in flight, waiting on the deferred promise.
+
+    invokeMock.mockResolvedValueOnce([makeHit('m1', 'MLT')]);
+    await runMoreLikeThis('p1', 10);
+    expect(get(results)[0].title).toBe('MLT');
+
+    // The stale search resolves late — it must not overwrite the MLT result.
+    resolveStale([makeHit('s1', 'Stale')]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(results)[0].title).toBe('MLT');
+  });
+
+  it('a newer search after MLT still wins', async () => {
+    invokeMock.mockResolvedValueOnce([makeHit('m1', 'MLT')]);
+    await runMoreLikeThis('p1', 10);
+    expect(get(results)[0].title).toBe('MLT');
+
+    invokeMock.mockResolvedValueOnce([makeHit('n1', 'Newer')]);
+    runSearch({ text: 'b', limit: 10 });
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(get(results)[0].title).toBe('Newer');
+  });
+
+  it('MLT error is swallowed and previous results remain', async () => {
+    invokeMock.mockResolvedValueOnce([makeHit('seed', 'Seed')]);
+    runSearch({ text: 'seed', limit: 10 });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(get(results)[0].title).toBe('Seed');
+
+    invokeMock.mockRejectedValueOnce(new Error('boom'));
+    await expect(runMoreLikeThis('p1', 10)).resolves.toBeUndefined();
+
+    expect(get(results)[0].title).toBe('Seed');
   });
 });

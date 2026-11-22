@@ -46,12 +46,22 @@ export const runSearch = debounce(async (query: SearchQuery) => {
  * returned hits. Used by the palette's `More like this: <title>` trigger
  * when an editor-bound prompt is selected.
  *
+ * Bumps the sequence counter, so any in-flight `runSearch` is discarded
+ * when it resolves.
+ *
  * Errors are swallowed (same policy as `runSearch`); the user-visible
  * behaviour is "the palette continues to show whatever was there before".
  */
 export async function runMoreLikeThis(promptId: string, k = 10): Promise<void> {
+  // Stale-response guard: this lookup is fresher than any in-flight search,
+  // so bump the sequence and let the late search discard itself.
+  const seq = ++searchSeq;
   try {
-    results.set(await moreLikeThisApi(promptId, k));
+    const hits = await moreLikeThisApi(promptId, k);
+    if (seq !== searchSeq) {
+      return;
+    }
+    results.set(hits);
   } catch {
     // MinHash errors should never crash the palette.
   }
