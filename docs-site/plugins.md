@@ -17,13 +17,13 @@ An installable package must:
 - be a gzip-compressed tar archive;
 - contain `manifest.toml`;
 - contain a raw 64-byte ed25519 `signature.sig`;
-- sign the exact `manifest.toml` bytes;
+- sign the signed payload (the exact `manifest.toml` bytes plus a newline and one sorted sha256 digest line per regular archive file, excluding `signature.sig`);
 - verify against the public trust anchor compiled into onQ;
 - declare `GPL-3.0-only`;
 - contain a compatible `.so`, `.dylib`, or `.dll`.
 
 Native plugins share onQ's process privileges. Signature verification proves
-that a trusted key signed the manifest. It does not sandbox code.
+that a trusted key signed the full archive contents. It does not sandbox code.
 
 ## Archive layout
 
@@ -153,13 +153,37 @@ implementation and command-handler ABI are complete.
 
 ## Sign and package
 
-Generate an ed25519 key and sign exact manifest bytes:
+Generate an ed25519 key:
 
 ```bash
 openssl genpkey -algorithm ed25519 -out signing-key.pem
+```
+
+Build the signed payload. It is the exact `manifest.toml` bytes, a newline,
+then one line per regular file in the archive (excluding `signature.sig`):
+`<lowercase-hex sha256>  <relative posix path>\n`, sorted by relative path
+bytes — the same bytes the installer hashes before verifying:
+
+```bash
+{
+  cat manifest.toml
+  printf '\n'
+  files=("manifest.toml" "plugin.so")
+  IFS=$'\n' sorted=($(printf '%s\n' "${files[@]}" | LC_ALL=C sort))
+  unset IFS
+  for f in "${sorted[@]}"; do
+    hex=$(sha256sum "$f" | cut -d' ' -f1)
+    printf '%s  %s\n' "$hex" "$f"
+  done
+} > payload.bin
+```
+
+Sign the payload:
+
+```bash
 openssl pkeyutl -sign \
   -inkey signing-key.pem \
-  -in manifest.toml \
+  -in payload.bin \
   -out signature.sig
 ```
 
@@ -168,7 +192,7 @@ Verify locally:
 ```bash
 openssl pkeyutl -verify \
   -inkey signing-key.pem \
-  -in manifest.toml \
+  -in payload.bin \
   -sigfile signature.sig
 ```
 
@@ -179,10 +203,13 @@ tar czf hello.onqplugin manifest.toml signature.sig plugin.so
 ```
 
 ::: warning
-A self-signed package does not install in a stock onQ build unless its public
-key matches the compiled trust anchor. The sample fixture uses a test-only
-trust-anchor override. Production distribution requires coordination with
-the onQ maintainers. There is no user-managed trust store.
+Manifest-only signatures — the procedure this page used to document — now
+fail verification, so an archive signed by signing `manifest.toml` alone
+will not install. A self-signed package also does not install in a stock
+onQ build unless its public key matches the compiled trust anchor. The
+sample fixture uses a test-only trust-anchor override. Production
+distribution requires coordination with the onQ maintainers. There is no
+user-managed trust store.
 :::
 
 Never commit a production signing private key. The repository fixture key is

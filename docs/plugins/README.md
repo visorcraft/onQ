@@ -14,12 +14,12 @@ building against the current 1.x API.
 - `GPL-3.0-only` manifest license
 - gzip-compressed tar package
 - exact root files `manifest.toml` and `signature.sig`
-- raw 64-byte ed25519 signature over the exact `manifest.toml` bytes
+- raw 64-byte ed25519 signature over the signed payload (the exact `manifest.toml` bytes plus a newline and one sorted sha256 digest line per regular archive file, excluding `signature.sig`)
 - signing key matching the trust anchor compiled into onQ
 - platform-specific `.so`, `.dylib`, or `.dll`
 
 Plugins run with the onQ process privileges. The signature verifies the
-signer and manifest. It does not sandbox native code.
+signer and the full archive contents. It does not sandbox native code.
 
 ## Package layout
 
@@ -126,12 +126,31 @@ Generate a development key:
 openssl genpkey -algorithm ed25519 -out signing-key.pem
 ```
 
-Sign the unmodified manifest:
+Build the signed payload. It is the exact `manifest.toml` bytes, a newline,
+then one line per regular file in the archive (excluding `signature.sig`):
+`<lowercase-hex sha256>  <relative posix path>\n`, sorted by relative path
+bytes — the same bytes the installer hashes before verifying:
+
+```bash
+{
+  cat manifest.toml
+  printf '\n'
+  files=("manifest.toml" "plugin.so")
+  IFS=$'\n' sorted=($(printf '%s\n' "${files[@]}" | LC_ALL=C sort))
+  unset IFS
+  for f in "${sorted[@]}"; do
+    hex=$(sha256sum "$f" | cut -d' ' -f1)
+    printf '%s  %s\n' "$hex" "$f"
+  done
+} > payload.bin
+```
+
+Sign the payload:
 
 ```bash
 openssl pkeyutl -sign \
   -inkey signing-key.pem \
-  -in manifest.toml \
+  -in payload.bin \
   -out signature.sig
 ```
 
@@ -140,7 +159,7 @@ Verify it:
 ```bash
 openssl pkeyutl -verify \
   -inkey signing-key.pem \
-  -in manifest.toml \
+  -in payload.bin \
   -sigfile signature.sig
 ```
 
@@ -149,6 +168,11 @@ Create the package:
 ```bash
 tar czf hello.onqplugin manifest.toml signature.sig plugin.so
 ```
+
+**Note:** the signature must cover the full payload, not just the manifest.
+Manifest-only signatures — the procedure this page used to document — now
+fail verification, so an archive signed by signing `manifest.toml` alone
+will not install.
 
 A self-signed package does not install in a stock onQ build unless its public
 key matches the compiled trust anchor. Production signing requires
@@ -194,5 +218,5 @@ cargo test -p onq-plugin-sdk
 - Native libraries are platform- and architecture-specific.
 - Manifest license must be exactly `GPL-3.0-only`.
 - Existing IDs must be uninstalled before reinstall.
-- Any change to `manifest.toml` invalidates its signature.
+- Any change to the archive contents — the manifest or any other file — invalidates its signature.
 - ABI version `1` is still incomplete and may evolve with the 1.x line.

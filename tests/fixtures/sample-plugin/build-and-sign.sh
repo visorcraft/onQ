@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Build the sample plugin, sign its manifest, and produce the install archive.
+# Build the sample plugin, sign its archive contents, and produce the
+# install archive.
 #
 # Steps:
 #   1. Generate a fresh ed25519 keypair at `signing-key.pem` (no-op if it
 #      already exists so re-runs don't churn the fixture signature).
-#   2. `cargo build --release` — produces `target/release/libsample_plugin.so`.
-#   3. Sign the canonical `manifest.toml` bytes with the ed25519 key. The
-#      install pipeline (`onq_core::plugin_install`) signs the
-#      manifest text — not the raw archive — so the signer and verifier
-#      agree on a deterministic payload.
+#   2. `cargo build --release` — produces `target/release/libonq_sample_plugin.so`.
+#   3. Build the deterministic signed payload and sign it with the ed25519
+#      key: the exact `manifest.toml` bytes, a newline, then one line per
+#      regular file in the archive (excluding `signature.sig`):
+#      `<lowercase-hex sha256>  <relative path>\n`, sorted by relative
+#      path bytes. The install pipeline (`onq_core::plugin_install`)
+#      verifies the signature over this same payload.
 #   4. Emit the 64-byte raw signature to `signature.sig`.
 #   5. Bundle `manifest.toml` + `signature.sig` + the `.so` into a
 #      `.tar.gz` archive consumable by `plugin_install::install`.
@@ -41,22 +44,39 @@ if [[ ! -f "$SO" ]]; then
     exit 1
 fi
 
-# 3. Sign the canonical manifest text.
+# 3. Build the signed payload. Files are hashed in byte-sorted order of
+#    their relative path; `signature.sig` is excluded because it carries
+#    the signature itself.
+echo "==> building the signed payload"
+PAYLOAD="$(mktemp)"
+trap 'rm -f "$PAYLOAD"' EXIT
+{
+    cat manifest.toml
+    printf '\n'
+    files=("manifest.toml" "$SO")
+    IFS=$'\n' sorted=($(printf '%s\n' "${files[@]}" | LC_ALL=C sort))
+    unset IFS
+    for f in "${sorted[@]}"; do
+        hex=$(sha256sum "$f" | cut -d' ' -f1)
+        printf '%s  %s\n' "$hex" "$f"
+    done
+} > "$PAYLOAD"
+
 #    openssl pkeyutl -sign on ed25519 emits a raw 64-byte signature (R || S)
 #    which matches what `onq_core::signature::verify` expects
 #    (ed25519_dalek's `Signature::from_slice`).
-echo "==> signing manifest.toml with ed25519"
+echo "==> signing the payload with ed25519"
 openssl pkeyutl -sign \
     -inkey "$KEY" \
-    -in manifest.toml \
+    -in "$PAYLOAD" \
     -out signature.sig
 
 # 4. Sanity-check the signature locally before bundling, so a botched key
 #    fails fast in the build script rather than at install time.
-echo "==> verifying signature.sig against manifest.toml"
+echo "==> verifying signature.sig against the signed payload"
 openssl pkeyutl -verify \
     -inkey "$KEY" \
-    -in manifest.toml \
+    -in "$PAYLOAD" \
     -sigfile signature.sig
 
 # 5. Bundle for plugin_install::install. Layout mirrors what the
