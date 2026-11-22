@@ -18,9 +18,15 @@ pub fn three_way(base: &str, ours: &str, theirs: &str) -> CoreResult<MergeOutcom
     }
 }
 
-/// Count the number of conflict hunks in a diffy conflict-marker string.
+/// Count conflict-hunk marker lines in a diffy conflict-marker string.
+///
+/// Counts only column-0 `<<<<<<<` marker lines (`<<<<<<<` or `<<<<<<< {label}`,
+/// mirroring diffy's output format). `<<<<<<<` appearing mid-line in prompt
+/// content is ignored.
 pub fn count_conflicts(text: &str) -> usize {
-    text.matches("<<<<<<<").count()
+    text.lines()
+        .filter(|line| *line == "<<<<<<<" || line.starts_with("<<<<<<< "))
+        .count()
 }
 
 #[cfg(test)]
@@ -52,6 +58,66 @@ mod tests {
                 assert!(text.contains("======="));
                 assert!(text.contains(">>>>>>>"));
                 assert_eq!(count_conflicts(&text), 1);
+            }
+            _ => panic!("expected conflict"),
+        }
+    }
+
+    #[test]
+    fn count_conflicts_ignores_mid_line_markers() {
+        assert_eq!(
+            count_conflicts("explain <<<<<<< HEAD in git merges\nplain line\n"),
+            0
+        );
+    }
+
+    #[test]
+    fn count_conflicts_counts_labeled_marker_lines() {
+        let text = "<<<<<<< ours\nx\n=======\ny\n>>>>>>> theirs\n";
+        assert_eq!(count_conflicts(text), 1);
+        let with_noise = format!("{}content line with ... >>>>>>> tail\n", text);
+        assert_eq!(count_conflicts(&with_noise), 1);
+    }
+
+    #[test]
+    fn count_conflicts_unlabeled_marker_line() {
+        assert_eq!(count_conflicts("<<<<<<<\n"), 1);
+    }
+
+    #[test]
+    fn count_conflicts_empty_is_zero() {
+        assert_eq!(count_conflicts(""), 0);
+    }
+
+    #[test]
+    fn multi_hunk_conflict_counts_two() {
+        let base: String = (1..=12).map(|i| format!("line {}\n", i)).collect();
+        let ours = base
+            .lines()
+            .map(|l| match l {
+                "line 2" => "OUR line 2".to_string(),
+                "line 12" => "OUR line 12".to_string(),
+                _ => l.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        let theirs = base
+            .lines()
+            .map(|l| match l {
+                "line 2" => "THEIRS line 2".to_string(),
+                "line 12" => "THEIRS line 12".to_string(),
+                _ => l.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n";
+        let result = three_way(&base, &ours, &theirs).unwrap();
+        match result {
+            MergeOutcome::Conflicted { text } => {
+                assert_eq!(count_conflicts(&text), 2);
+                let with_noise = format!("{}content line with <<<<<<< noise\n", text);
+                assert_eq!(count_conflicts(&with_noise), 2);
             }
             _ => panic!("expected conflict"),
         }
