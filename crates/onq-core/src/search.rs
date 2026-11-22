@@ -200,6 +200,7 @@ pub const DEFAULT_RECENCY_HALF_LIFE_DAYS: f64 = 30.0;
 ///
 /// `recency_half_life_days` controls how fast the recency boost decays with age.
 /// Values `<= 0` fall back to [`DEFAULT_RECENCY_HALF_LIFE_DAYS`].
+/// An `updated_at` later than `now` is treated as age zero.
 pub fn rrf_score(
     cosine_rank: Option<usize>,
     sparse_rank: Option<usize>,
@@ -214,7 +215,7 @@ pub fn rrf_score(
         .chain(sparse_rank)
         .map(|rank| 1.0 / (K + rank as f64))
         .sum::<f64>();
-    let age_days = (now - updated_at) as f64 / 86_400.0;
+    let age_days = ((now - updated_at) as f64 / 86_400.0).max(0.0);
     let half_life = if recency_half_life_days > 0.0 {
         recency_half_life_days
     } else {
@@ -284,6 +285,37 @@ mod tests {
         assert!(
             long > short,
             "longer half-life must retain more recency boost: short={short} long={long}"
+        );
+    }
+
+    #[test]
+    fn future_timestamp_is_treated_as_fresh() {
+        let now = 1_000_000_i64;
+        for half_life in [30.0, 0.0, 365.0] {
+            for favorite in [false, true] {
+                assert_eq!(
+                    rrf_score(Some(10), Some(10), now + 86_400, now, favorite, half_life),
+                    rrf_score(Some(10), Some(10), now, now, favorite, half_life)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn far_future_timestamp_stays_finite_and_small() {
+        let now = 1_000_000_i64;
+        let future = rrf_score(Some(10), Some(10), now + 86_400 * 36_500, now, false, 30.0);
+        let fresh = rrf_score(Some(10), Some(10), now, now, false, 30.0);
+        assert!(future.is_finite());
+        assert!(future <= fresh);
+    }
+
+    #[test]
+    fn future_timestamp_cannot_outrank_better_matches() {
+        let now = 1_000_000_i64;
+        assert!(
+            rrf_score(Some(1), Some(1), now, now, false, 30.0)
+                > rrf_score(Some(50), Some(50), now + 86_400 * 90, now, false, 30.0)
         );
     }
 
