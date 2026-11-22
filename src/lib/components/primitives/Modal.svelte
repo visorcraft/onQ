@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { fade, scale } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
   import { t, locale } from '$lib/i18n';
+  import { captureFocus, handleDialogTab } from './focus-utils';
 
   let {
     open = $bindable(false),
@@ -13,11 +15,28 @@
     children?: import('svelte').Snippet;
   } = $props();
 
+  let panel = $state<HTMLDivElement | undefined>();
+
+  $effect(() => {
+    if (!open) return;
+    const restore = captureFocus();
+    void tick().then(() => {
+      const closeBtn = panel?.querySelector<HTMLElement>('.close');
+      if (closeBtn) {
+        closeBtn.focus();
+      } else {
+        panel?.focus();
+      }
+    });
+    return () => restore();
+  });
+
   function close() {
     open = false;
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (panel) handleDialogTab(panel, event);
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -41,6 +60,7 @@
       aria-modal="true"
       aria-label={title || t('common.dialog', undefined, $locale)}
       tabindex="-1"
+      bind:this={panel}
       transition:scale={{ duration: 220, start: 0.96, easing: quintOut }}
       onkeydown={onKeydown}
     >
