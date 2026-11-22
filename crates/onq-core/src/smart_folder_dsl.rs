@@ -11,7 +11,7 @@
 //! - `tag:<name>`     — adds the tag to `q.tags_any`.
 //! - `-tag:<name>`    — removes the tag from `q.tags_any` (no-op if absent).
 //! - `favorite:true|false`, `locked:true|false` — pinned booleans.
-//! - `char:>N`, `char:<N` — half-open char-count bounds.
+//! - `char:>N`, `char:<N` — half-open char-count bounds. The operand must be a bare integer; a malformed operand is rejected rather than ignored.
 //!
 //! Anything that doesn't match a recognized prefix is rejected as
 //! `CoreError::Other("unknown DSL token: …")`. This deliberately refuses
@@ -48,15 +48,23 @@ pub fn parse(input: &str) -> CoreResult<SearchQuery> {
         } else if tok == "locked:false" {
             q.locked = Some(false);
         } else if let Some(rest) = tok.strip_prefix("char:>") {
-            q.char_min = rest.parse().ok();
+            q.char_min = Some(parse_char_bound(tok, rest)?);
         } else if let Some(rest) = tok.strip_prefix("char:<") {
-            q.char_max = rest.parse().ok();
+            q.char_max = Some(parse_char_bound(tok, rest)?);
         } else {
             return Err(CoreError::Other(format!("unknown DSL token: {tok}")));
         }
     }
     q.text = free_text.join(" ");
     Ok(q)
+}
+
+/// Parse a `char:` operand as a bare `i64`. Anything else — empty,
+/// non-numeric, decimal, quoted, or out of range — is rejected rather than
+/// silently dropped, so a saved smart folder cannot widen past its bound.
+fn parse_char_bound(tok: &str, rest: &str) -> CoreResult<i64> {
+    rest.parse()
+        .map_err(|_| CoreError::Other(format!("invalid DSL token: {tok}")))
 }
 
 /// Split the DSL into tokens. Whitespace is the separator, but content
@@ -179,6 +187,52 @@ mod tests {
         let q = parse("char:>100 char:<1000").unwrap();
         assert_eq!(q.char_min, Some(100));
         assert_eq!(q.char_max, Some(1000));
+    }
+
+    #[test]
+    fn rejects_non_numeric_char_bound() {
+        let err = parse("char:>abc").unwrap_err();
+        assert!(
+            matches!(err, CoreError::Other(ref m) if m.contains("invalid DSL token: char:>abc"))
+        );
+
+        let err = parse("char:<abc").unwrap_err();
+        assert!(
+            matches!(err, CoreError::Other(ref m) if m.contains("invalid DSL token: char:<abc"))
+        );
+
+        // Error propagates even when the query is partially populated.
+        let err = parse("tag:rust char:>abc").unwrap_err();
+        assert!(
+            matches!(err, CoreError::Other(ref m) if m.contains("invalid DSL token: char:>abc"))
+        );
+    }
+
+    #[test]
+    fn rejects_empty_char_operand() {
+        assert!(parse("char:>").is_err());
+        assert!(parse("char:<").is_err());
+    }
+
+    #[test]
+    fn rejects_decimal_quoted_and_overflowing_char_bounds() {
+        assert!(parse("char:>1.5").is_err());
+        assert!(parse(r#"char:<"100""#).is_err());
+        assert!(parse("char:>99999999999999999999").is_err());
+    }
+
+    #[test]
+    fn accepts_negative_char_bound_sentinel() {
+        let q = parse("char:<-1").unwrap();
+        assert_eq!(q.char_max, Some(-1));
+        assert_eq!(q.char_min, None);
+        assert_eq!(parse("char:>-5").unwrap().char_min, Some(-5));
+    }
+
+    #[test]
+    fn sentinel_round_trips_through_strip() {
+        let dsl = strip_folder_paths_under("folder:Doomed", "Doomed");
+        assert_eq!(parse(&dsl).unwrap().char_max, Some(-1));
     }
 
     #[test]
