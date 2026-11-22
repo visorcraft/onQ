@@ -321,8 +321,24 @@ fn locked_path(vault_path: &Path, id: &PromptId) -> PathBuf {
         .join(format!("{}.enc", id.as_str()))
 }
 
-/// Keychain entry name for the per-prompt DEK: `prompt:<ulid>`.
-fn prompt_keychain_key(id: &PromptId) -> String {
+/// Keychain entry name for the per-prompt DEK, scoped to the vault salt:
+/// `prompt:<base64(salt)>:<ulid>`. Two vaults on the same machine can hold
+/// a prompt with the same id (ULIDs survive import/`.onqbak` restore or a
+/// vault directory copy), so an unsalted name would let one vault's lock
+/// overwrite another vault's DEK — permanently undecrypting the other
+/// vault's `.onq/locked/<id>.enc`.
+fn prompt_keychain_key(salt: &[u8; 32], id: &PromptId) -> String {
+    format!(
+        "{PROMPT_KEY_PREFIX}{}:{}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(salt),
+        id.as_str()
+    )
+}
+
+/// Pre-migration keychain entry name: `prompt:<ulid>`. Kept only as a
+/// fallback read path so vaults locked before vault-scoping can still
+/// unlock, and as a best-effort cleanup target after a fresh lock.
+fn legacy_prompt_keychain_key(id: &PromptId) -> String {
     format!("{PROMPT_KEY_PREFIX}{}", id.as_str())
 }
 
@@ -693,7 +709,7 @@ fn reembed_all_prompts(state: &AppState) -> Result<u32, String> {
 /// 2. Generate a fresh 32-byte DEK via the OS CSPRNG.
 /// 3. Encrypt the body with `crypto::encrypt_body` (AES-256-GCM).
 /// 4. Persist the envelope at `<vault>/.onq/locked/<id>.enc`.
-/// 5. Store the DEK (base64) in the keychain under `prompt:<id>`.
+/// 5. Store the DEK (base64) in the keychain under `prompt:<salt>:<id>`.
 /// 6. Update the on-disk `.md`: clear body, set `locked=true`, refresh `updated`.
 /// 7. Update the DB row to mirror step 6 (preserve existing embedding).
 fn lock_prompt_blocking(
@@ -728,10 +744,15 @@ fn lock_prompt_blocking(
     std::fs::write(&enc_path, &envelope).map_err(|e| e.to_string())?;
 
     // 5. Keychain entry. The keyring API stores UTF-8 strings; base64-encode
-    //    the raw 32 bytes so the binary DEK round-trips losslessly.
+    //    the raw 32 bytes so the binary DEK round-trips losslessly. The entry
+    //    is scoped to the vault salt so two vaults holding the same prompt id
+    //    never overwrite each other's DEK.
+    let salt = load_or_create_salt(&vault.root)?;
     let encoded = base64::engine::general_purpose::STANDARD.encode(key);
-    kc.set(&prompt_keychain_key(id), encoded.as_bytes())
+    kc.set(&prompt_keychain_key(&salt, id), encoded.as_bytes())
         .map_err(|e| e.to_string())?;
+    // Best-effort cleanup of any pre-migration unscoped entry.
+    let _ = kc.delete(&legacy_prompt_keychain_key(id));
 
     // 6. Update the .md: clear body, mark locked, refresh timestamp.
     prompt.body = String::new();
@@ -782,7 +803,8 @@ pub async fn lock_prompt(id: String, state: State<'_, AppState>) -> Result<Promp
 ///
 /// Flow:
 /// 1. Refuse if the prompt isn't currently locked.
-/// 2. Fetch the DEK from the keychain under `prompt:<id>`.
+/// 2. Fetch the DEK from the keychain under `prompt:<salt>:<id>`, falling
+///    back to the pre-migration `prompt:<id>` entry for old vaults.
 /// 3. Read + decrypt the `.enc` envelope.
 /// 4. Restore the decrypted body to the on-disk `.md`, clear `locked`.
 /// 5. Remove the `.enc` file and the keychain entry.
@@ -801,11 +823,20 @@ fn unlock_prompt_blocking(
         return Err("prompt is not locked".into());
     }
 
-    // 2. Fetch DEK.
-    let encoded = kc
-        .get(&prompt_keychain_key(id))
+    // 2. Fetch DEK. Prefer the vault-scoped entry; fall back to the
+    //    pre-migration unscoped entry so vaults locked before scoping can
+    //    still unlock.
+    let salt = load_or_create_salt(&vault.root)?;
+    let encoded = match kc
+        .get(&prompt_keychain_key(&salt, id))
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "lock key not found in keychain".to_string())?;
+    {
+        Some(v) => v,
+        None => kc
+            .get(&legacy_prompt_keychain_key(id))
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "lock key not found in keychain".to_string())?,
+    };
 
     // 3. Decode + read + decrypt envelope.
     let key_bytes = base64::engine::general_purpose::STANDARD
@@ -837,8 +868,10 @@ fn unlock_prompt_blocking(
     //    the user would need to recover manually, but at least we don't lose
     //    the key).
     std::fs::remove_file(&enc_path).map_err(|e| e.to_string())?;
-    kc.delete(&prompt_keychain_key(id))
+    kc.delete(&prompt_keychain_key(&salt, id))
         .map_err(|e| e.to_string())?;
+    // Best-effort cleanup of the pre-migration unscoped entry.
+    let _ = kc.delete(&legacy_prompt_keychain_key(id));
 
     // 6. Mirror back into the DB.
     if let Some(db) = db {
@@ -4967,8 +5000,10 @@ mod tests {
         assert!(summary.locked);
         assert_eq!(summary.char_count, 0, "char_count must drop to 0");
 
-        // Keychain: a base64-encoded 32-byte DEK lives under `prompt:<id>`.
-        let keychain_key = prompt_keychain_key(&pid);
+        // Keychain: a base64-encoded 32-byte DEK lives under the vault-scoped
+        // `prompt:<salt>:<id>` entry.
+        let salt = load_or_create_salt(dir.path()).unwrap();
+        let keychain_key = prompt_keychain_key(&salt, &pid);
         let stored = kc
             .get(&keychain_key)
             .expect("keychain get")
@@ -4999,7 +5034,8 @@ mod tests {
         assert!(!after.fm.locked, "frontmatter must mark unlocked");
 
         // Keychain: DEK removed.
-        let keychain_key = prompt_keychain_key(&pid);
+        let salt = load_or_create_salt(dir.path()).unwrap();
+        let keychain_key = prompt_keychain_key(&salt, &pid);
         assert!(
             kc.get(&keychain_key).expect("get").is_none(),
             "keychain entry must be deleted"
@@ -5146,6 +5182,110 @@ mod tests {
             row.columns.get(&col::PROMPTS_CHAR),
             Some(&Value::Int64(original_body.chars().count() as i64)),
             "DB char_count must reflect the restored body"
+        );
+    }
+
+    #[test]
+    fn lock_prompt_stores_dek_under_vault_scoped_entry() {
+        // The per-prompt DEK must live under a salt-scoped entry, never the
+        // legacy unscoped name.
+        let dir = TempDir::new().unwrap();
+        let (vault, pid) = make_vault_with_prompt(dir.path(), "secret");
+        let kc = MockKeychain::new();
+
+        lock_prompt_blocking(&vault, &pid, None, &kc).expect("lock");
+
+        let salt = load_or_create_salt(dir.path()).unwrap();
+        assert!(
+            kc.get(&prompt_keychain_key(&salt, &pid))
+                .expect("scoped get")
+                .is_some(),
+            "DEK must be stored under the vault-scoped key"
+        );
+        assert!(
+            kc.get(&legacy_prompt_keychain_key(&pid))
+                .expect("legacy get")
+                .is_none(),
+            "legacy unscoped entry must be cleaned up"
+        );
+    }
+
+    #[test]
+    fn distinct_vaults_same_prompt_id_keep_independent_deks() {
+        // Regression test: two vaults holding a prompt with the same ULID
+        // must not overwrite each other's DEK. Vault B's lock must not
+        // clobber vault A's scoped entry (and vice versa).
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let (vault_a, pid) = make_vault_with_prompt(dir_a.path(), "body-a");
+
+        // Reuse the same PromptId in the second vault.
+        let vault_b_new = Vault::new(dir_b.path()).expect("vault B");
+        let mut prompt_b = vault_b_new.new_prompt("Test").expect("new_prompt B");
+        prompt_b.fm.id = pid.clone();
+        prompt_b.body = "body-b".into();
+        vault_b_new.write(&prompt_b).expect("write B");
+        let vault_b = Vault {
+            root: vault_b_new.root.clone(),
+        };
+
+        let kc = MockKeychain::new();
+        lock_prompt_blocking(&vault_a, &pid, None, &kc).expect("lock A");
+        lock_prompt_blocking(&vault_b, &pid, None, &kc).expect("lock B");
+
+        unlock_prompt_blocking(&vault_a, &pid, None, &kc).expect("unlock A");
+        assert_eq!(
+            vault_a.read(&pid).expect("read A").body,
+            "body-a",
+            "vault A must restore its own body"
+        );
+
+        unlock_prompt_blocking(&vault_b, &pid, None, &kc).expect("unlock B");
+        assert_eq!(
+            vault_b.read(&pid).expect("read B").body,
+            "body-b",
+            "vault B must restore its own body"
+        );
+    }
+
+    #[test]
+    fn unlock_prompt_falls_back_to_legacy_unscoped_entry() {
+        // A vault locked before vault-scoping stores the DEK under the
+        // legacy unscoped entry. Unlock must still work via the fallback,
+        // and both entries must be gone afterwards.
+        let dir = TempDir::new().unwrap();
+        let original_body = "legacy secret";
+        let (vault, pid) = make_vault_with_prompt(dir.path(), original_body);
+        let kc = MockKeychain::new();
+
+        lock_prompt_blocking(&vault, &pid, None, &kc).expect("lock");
+
+        // Simulate the pre-migration state: move the DEK from the scoped
+        // entry to the legacy entry.
+        let salt = load_or_create_salt(dir.path()).unwrap();
+        let scoped = prompt_keychain_key(&salt, &pid);
+        let legacy = legacy_prompt_keychain_key(&pid);
+        let dek = kc
+            .get(&scoped)
+            .expect("scoped get")
+            .expect("scoped present");
+        kc.delete(&scoped).expect("delete scoped");
+        kc.set(&legacy, &dek).expect("set legacy");
+
+        let summary = unlock_prompt_blocking(&vault, &pid, None, &kc).expect("unlock via fallback");
+        assert!(!summary.locked);
+        assert_eq!(
+            vault.read(&pid).expect("read after unlock").body,
+            original_body,
+            "body must roundtrip via the legacy fallback"
+        );
+        assert!(
+            kc.get(&scoped).expect("scoped get").is_none(),
+            "scoped entry must be gone after unlock"
+        );
+        assert!(
+            kc.get(&legacy).expect("legacy get").is_none(),
+            "legacy entry must be gone after unlock"
         );
     }
 
