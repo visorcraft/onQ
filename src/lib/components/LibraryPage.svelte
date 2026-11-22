@@ -28,6 +28,10 @@
     promptCountLabel,
     type ProjectTreeNode,
   } from '$lib/utils/folderPath';
+  import {
+    applyTextFilterAndSort,
+    filterVisiblePrompts,
+  } from '$lib/utils/libraryFilter';
   import ConfirmDialog from './primitives/ConfirmDialog.svelte';
   import Pager from './primitives/Pager.svelte';
   import SmartFolderVisualBuilder from './SmartFolderVisualBuilder.svelte';
@@ -211,51 +215,10 @@
 
   const visiblePrompts = $derived.by(() => {
     const sel = selection;
-    let list: PromptSummary[];
-    switch (sel.kind) {
-      case 'all':
-        list = [...prompts];
-        break;
-      case 'favorites':
-        list = prompts.filter((p) => p.favorite);
-        break;
-      case 'recent':
-        list = [...prompts].sort((a, b) => b.updated.localeCompare(a.updated)).slice(0, 30);
-        break;
-      case 'unfiled':
-        list = prompts.filter((p) => !(p.folder ?? '').trim());
-        break;
-      case 'project': {
-        const path = sel.path;
-        list = prompts.filter((p) => {
-          const f = (p.folder ?? '').trim();
-          return Boolean(f && isUnder(f, path));
-        });
-        break;
-      }
-      case 'smart':
-        list = smartHits ?? [];
-        break;
-      case 'tag': {
-        const tag = sel.tag;
-        list = prompts.filter((p) => (p.tags ?? []).includes(tag));
-        break;
-      }
+    if (sel.kind === 'smart') {
+      return applyTextFilterAndSort(smartHits ?? [], filterText, false);
     }
-    const q = filterText.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          (p.preview ?? '').toLowerCase().includes(q) ||
-          (p.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
-          (p.folder ?? '').toLowerCase().includes(q),
-      );
-    }
-    if (sel.kind !== 'recent') {
-      list = [...list].sort((a, b) => b.updated.localeCompare(a.updated));
-    }
-    return list;
+    return filterVisiblePrompts(prompts, sel, filterText);
   });
 
   // Pagination: page count off the un-paged visible list; the actual slice
