@@ -1,10 +1,16 @@
 //! History snapshots. Each prompt edit is archived as
-//! `<vault>/.onq/history/<id>/<RFC3339-timestamp>.md` so users can
+//! `<vault>/.onq/history/<id>/<timestamp>.md` so users can
 //! diff/restore prior versions.
+//!
+//! The timestamp is RFC 3339 UTC with `-` time separators, a fixed-width
+//! 9-digit fractional part, and a `Z` suffix (e.g.
+//! `2026-11-22T10-30-09.123456789Z`), chosen so the name is valid on
+//! Windows/macOS/Linux and sorts chronologically. Legacy names with `:`
+//! time separators remain readable.
 
 use std::path::{Path, PathBuf};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, SecondsFormat, Utc};
 
 use crate::error::{CoreError, CoreResult};
 use crate::ulid::PromptId;
@@ -16,12 +22,26 @@ use crate::vault::Vault;
 pub fn snapshot(vault: &Vault, id: &PromptId, body: &str) -> CoreResult<()> {
     let dir = snapshot_dir(vault, id);
     std::fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{}.md", Utc::now().to_rfc3339()));
+    let path = dir.join(snapshot_file_name(Utc::now()));
     crate::vault::atomic_write(&path, body.as_bytes())
 }
 
+/// Filesystem-portable snapshot name: RFC 3339 UTC with `-` time
+/// separators, a fixed-width 9-digit fractional part, and a `Z` suffix
+/// (no `:`, no `+`), so that lexicographic file order equals
+/// chronological order.
+fn snapshot_file_name(at: DateTime<Utc>) -> String {
+    format!(
+        "{}.md",
+        at.to_rfc3339_opts(SecondsFormat::Nanos, true)
+            .replace(':', "-")
+    )
+}
+
 /// List all snapshot files for `id`, sorted ascending by filename
-/// (RFC3339 lexicographic order matches chronological order).
+/// (RFC 3339 UTC names with `-` time separators, a fixed-width
+/// fractional part, and a `Z` suffix sort chronologically; legacy `:`
+/// names remain readable).
 pub fn list_snapshots(vault: &Vault, id: &PromptId) -> CoreResult<Vec<PathBuf>> {
     let dir = snapshot_dir(vault, id);
     if !dir.exists() {
@@ -86,7 +106,15 @@ fn snapshot_dir(vault: &Vault, id: &PromptId) -> PathBuf {
 
 fn timestamp_from_filename(path: &Path) -> Option<DateTime<Utc>> {
     let stem = path.file_stem()?.to_str()?;
-    DateTime::parse_from_rfc3339(stem)
+    if let Ok(dt) = DateTime::parse_from_rfc3339(stem) {
+        return Some(dt.with_timezone(&Utc)); // legacy ...+00:00 / ...Z
+    }
+    // Portable names use '-' as the time separator; restore ':' after 'T'.
+    let (date, time) = stem.split_once('T')?;
+    if time.contains(':') {
+        return None;
+    }
+    DateTime::parse_from_rfc3339(&format!("{}T{}", date, time.replace('-', ":")))
         .ok()
         .map(|dt| dt.with_timezone(&Utc))
 }
@@ -110,7 +138,42 @@ fn walk_history(root: &Path, visit: &mut dyn FnMut(&Path)) -> CoreResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{TimeZone, Timelike};
     use tempfile::TempDir;
+
+    #[test]
+    fn snapshot_file_name_is_filesystem_portable() {
+        let ts = Utc
+            .with_ymd_and_hms(2026, 11, 22, 10, 30, 9)
+            .unwrap()
+            .with_nanosecond(123_456_789)
+            .unwrap();
+        let name = snapshot_file_name(ts);
+        assert_eq!(name, "2026-11-22T10-30-09.123456789Z.md");
+        assert!(!name.contains(':'));
+        assert!(name.chars().all(|c| c.is_ascii_alphanumeric()
+            || c == '-'
+            || c == '.'
+            || c == 'T'
+            || c == 'Z'));
+    }
+
+    #[test]
+    fn snapshot_file_name_is_fixed_width_and_sorts_chronologically() {
+        let base = Utc.with_ymd_and_hms(2026, 11, 22, 10, 30, 9).unwrap();
+        let names: Vec<String> = [0, 1, 123_000_000, 999_999_999]
+            .iter()
+            .map(|&ns| snapshot_file_name(base.with_nanosecond(ns).unwrap()))
+            .collect();
+        let widths: Vec<usize> = names.iter().map(|n| n.len()).collect();
+        assert!(widths.iter().all(|&w| w == widths[0]));
+        let mut sorted = names.clone();
+        sorted.sort();
+        assert_eq!(sorted, names);
+        let earlier = Utc.with_ymd_and_hms(2026, 11, 22, 10, 30, 8).unwrap();
+        let later = Utc.with_ymd_and_hms(2026, 11, 22, 10, 30, 9).unwrap();
+        assert!(snapshot_file_name(earlier) < snapshot_file_name(later));
+    }
 
     #[test]
     fn snapshot_writes_file() {
@@ -122,6 +185,46 @@ mod tests {
         assert_eq!(paths.len(), 1);
         let content = std::fs::read_to_string(&paths[0]).unwrap();
         assert_eq!(content, "first body");
+        let ts = timestamp_from_filename(&paths[0]).unwrap();
+        let name = paths[0].file_name().unwrap().to_str().unwrap();
+        assert_eq!(name, snapshot_file_name(ts));
+        assert!((Utc::now() - ts).num_seconds().abs() <= 10);
+    }
+
+    #[test]
+    fn list_snapshots_orders_real_names_with_legacy_files() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        let snap_dir = snapshot_dir(&vault, &id);
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        let instants = [
+            Utc.with_ymd_and_hms(2026, 7, 18, 10, 0, 0).unwrap(),
+            Utc.with_ymd_and_hms(2026, 7, 18, 10, 0, 0)
+                .unwrap()
+                .with_nanosecond(500_000_000)
+                .unwrap(),
+            Utc.with_ymd_and_hms(2026, 7, 19, 11, 0, 0).unwrap(),
+        ];
+        for ts in instants {
+            std::fs::write(snap_dir.join(snapshot_file_name(ts)), b"x").unwrap();
+        }
+        std::fs::write(snap_dir.join("2026-07-16T08:00:00.25+00:00.md"), b"x").unwrap();
+        let paths = list_snapshots(&vault, &id).unwrap();
+        assert_eq!(paths.len(), 4);
+        let names: Vec<String> = paths
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "2026-07-16T08:00:00.25+00:00.md",
+                "2026-07-18T10-00-00.000000000Z.md",
+                "2026-07-18T10-00-00.500000000Z.md",
+                "2026-07-19T11-00-00.000000000Z.md",
+            ]
+        );
     }
 
     #[test]
