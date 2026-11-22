@@ -202,6 +202,42 @@ mod tests {
     }
 
     #[test]
+    fn reconcile_recovers_from_corrupt_sidecar() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("CorruptSidecar").unwrap();
+        prompt.body = "line 1\nline 2\n".into();
+        vault.write(&prompt).unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        assert!(matches!(outcome, ReconcileOutcome::Ingested));
+
+        // Corrupt the sidecar file bytes.
+        let path = sync_state::sidecar_path(&vault.root, &prompt.fm.id);
+        std::fs::write(&path, b"\xff\xfe{").unwrap();
+
+        // External editor mutates only the disk file.
+        prompt.body = "line 1\nline TWO\n".into();
+        vault.write(&prompt).unwrap();
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        assert!(
+            matches!(
+                outcome,
+                ReconcileOutcome::Ingested | ReconcileOutcome::Merged(_)
+            ),
+            "expected Ingested or Merged"
+        );
+
+        // A valid sidecar is rewritten for the new disk content.
+        let sidecar = sync_state::read(&vault.root, &prompt.fm.id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sidecar.theirs_sha, sha256(&prompt.body));
+    }
+
+    #[test]
     fn existing_prompt_db_unchanged_disk_changed_returns_ingested() {
         let dir = TempDir::new().unwrap();
         let vault = Vault::new(dir.path()).unwrap();

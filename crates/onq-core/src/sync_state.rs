@@ -29,13 +29,20 @@ pub fn sidecar_path(vault: &Path, id: &PromptId) -> PathBuf {
         .join(format!("{}.json", id.as_str()))
 }
 
+/// Read the sidecar for `id`.
+///
+/// A missing, corrupt, or non-UTF-8 sidecar is treated as absent so `reconcile`
+/// takes the fresh-ingest path, where the disk content re-ingests over the db
+/// row (same semantics as a missing sidecar). Genuine IO errors from the file
+/// read still propagate.
 pub fn read(vault: &Path, id: &PromptId) -> CoreResult<Option<Sidecar>> {
     let p = sidecar_path(vault, id);
     if !p.exists() {
         return Ok(None);
     }
-    let s = std::fs::read_to_string(&p)?;
-    Ok(Some(serde_json::from_str(&s)?))
+    let bytes = std::fs::read(&p)?;
+    let s = String::from_utf8_lossy(&bytes);
+    Ok(serde_json::from_str(&s).ok())
 }
 
 pub fn write(vault: &Path, s: &Sidecar) -> CoreResult<()> {
@@ -97,6 +104,45 @@ mod tests {
         write(&nested, &s).unwrap();
         assert!(!read(&nested, &id).unwrap().unwrap().tombstone);
         assert_eq!(read(&nested, &id).unwrap().unwrap(), s);
+    }
+
+    #[test]
+    fn read_tolerates_invalid_utf8() {
+        let dir = TempDir::new().unwrap();
+        let id = PromptId::new();
+        let path = sidecar_path(dir.path(), &id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"\xff\xfe{").unwrap();
+        assert!(matches!(read(dir.path(), &id), Ok(None)));
+    }
+
+    #[test]
+    fn read_tolerates_truncated_json() {
+        let dir = TempDir::new().unwrap();
+        let id = PromptId::new();
+        let s = Sidecar {
+            id: id.clone(),
+            base_sha: "b".into(),
+            ours_sha: "o".into(),
+            theirs_sha: "t".into(),
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        write(dir.path(), &s).unwrap();
+        let path = sidecar_path(dir.path(), &id);
+        std::fs::write(&path, "{\"id\": \"01A").unwrap();
+        assert!(matches!(read(dir.path(), &id), Ok(None)));
+    }
+
+    #[test]
+    fn read_tolerates_wrong_types() {
+        let dir = TempDir::new().unwrap();
+        let id = PromptId::new();
+        let path = sidecar_path(dir.path(), &id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{\"id\": 5}").unwrap();
+        assert!(matches!(read(dir.path(), &id), Ok(None)));
     }
 
     #[test]
