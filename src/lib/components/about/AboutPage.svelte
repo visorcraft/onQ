@@ -20,25 +20,25 @@
   const features = [
     {
       icon: '◎',
-      title: 'Hybrid search',
-      body: 'Keyword + vector fusion with local MiniLM embeddings and RRF ranking.',
+      titleKey: 'about.feature.hybridSearch.title',
+      bodyKey: 'about.feature.hybridSearch.body',
     },
     {
       icon: '⌘',
-      title: 'Global quick access',
-      body: 'Open the palette from anywhere with Win+Q, Meta+Q, or ⌘+Q.',
+      titleKey: 'about.feature.quickAccess.title',
+      bodyKey: 'about.feature.quickAccess.body',
     },
     {
       icon: '✦',
-      title: 'Encrypted Markdown vault',
-      body: 'Prompts stay portable .md files; the index is encrypted at rest.',
+      titleKey: 'about.feature.vault.title',
+      bodyKey: 'about.feature.vault.body',
     },
     {
       icon: '◉',
-      title: 'Plugins',
-      body: 'Signed Rust-native plugins over a versioned C ABI.',
+      titleKey: 'about.feature.plugins.title',
+      bodyKey: 'about.feature.plugins.body',
     },
-  ];
+  ] as const;
 
   onMount(() => {
     aboutInfo()
@@ -83,14 +83,14 @@
       </div>
     </section>
 
-    <div class="about-section-label">What's inside</div>
+    <div class="about-section-label">{t('about.whatsInside', undefined, $locale)}</div>
     <div class="about-features">
-      {#each features as f (f.title)}
+      {#each features as f (f.titleKey)}
         <div class="about-feature">
           <div class="about-feature-icon" aria-hidden="true">{f.icon}</div>
           <div>
-            <div class="about-feature-title">{f.title}</div>
-            <div class="about-feature-body">{f.body}</div>
+            <div class="about-feature-title">{t(f.titleKey, undefined, $locale)}</div>
+            <div class="about-feature-body">{t(f.bodyKey, undefined, $locale)}</div>
           </div>
         </div>
       {/each}
@@ -99,18 +99,16 @@
     <button type="button" class="about-link-card" onclick={openRepo}>
       <img src={onqIcon} alt="" width="40" height="40" draggable="false" />
       <div class="about-link-card-text">
-        <div class="about-link-card-title">Source, issues, and releases for onQ</div>
+        <div class="about-link-card-title">{t('about.repoCardTitle', undefined, $locale)}</div>
         <div class="about-link-card-url">github.com/visorcraft/onQ</div>
       </div>
-      <span class="about-link-card-cta">Visit repo →</span>
+      <span class="about-link-card-cta">{t('about.repoCardCta', undefined, $locale)}</span>
     </button>
 
     <section class="about-legal-card">
-      <div class="about-legal-title">Licenses &amp; Credits</div>
+      <div class="about-legal-title">{t('about.legalTitle', undefined, $locale)}</div>
       <p class="about-legal-body">
-        Every direct + transitive Rust crate and npm package, acknowledgments,
-        runtime components, and full license texts are bundled in the built-in
-        licenses and credits views.
+        {t('about.legalBody', undefined, $locale)}
       </p>
       <div class="about-legal-actions">
         <button type="button" class="btn-ghost" onclick={onLicenses}>
@@ -137,7 +135,7 @@
               stroke-linecap="round"
             />
           </svg>
-          Licenses
+          {t('about.licenses', undefined, $locale)}
         </button>
         <button type="button" class="btn-ghost" onclick={onCredits}>
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -151,13 +149,13 @@
               stroke-linecap="round"
             />
           </svg>
-          Credits
+          {t('about.credits.title', undefined, $locale)}
         </button>
       </div>
     </section>
 
     <footer class="about-footer">
-      Built by VisorCraft · Powered by Rust, Tauri, Svelte, and MongrelDB
+      {t('about.footer', undefined, $locale)}
     </footer>
   </div>
 
