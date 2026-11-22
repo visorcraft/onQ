@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
+  import { t, locale } from '$lib/i18n';
 
   let {
     open = $bindable(false),
@@ -29,7 +30,7 @@
   <button
     type="button"
     class="backdrop"
-    aria-label="Close dialog"
+    aria-label={t('common.closeDialog', undefined, $locale)}
     transition:fade={{ duration: 160 }}
     onclick={close}
   ></button>
@@ -38,7 +39,7 @@
       class="modal glass-elevated spring"
       role="dialog"
       aria-modal="true"
-      aria-label={title || 'Dialog'}
+      aria-label={title || t('common.dialog', undefined, $locale)}
       tabindex="-1"
       transition:scale={{ duration: 220, start: 0.96, easing: quintOut }}
       onkeydown={onKeydown}
@@ -47,7 +48,7 @@
       {#if title}
         <header class="head">
           <h2>{title}</h2>
-          <button type="button" class="close" onclick={close} aria-label="Close">
+          <button type="button" class="close" onclick={close} aria-label={t('common.close', undefined, $locale)}>
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
               <path
                 d="M3.5 3.5l9 9M12.5 3.5l-9 9"

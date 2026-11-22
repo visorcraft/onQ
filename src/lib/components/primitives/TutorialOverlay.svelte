@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t, locale } from '$lib/i18n';
+
   let {
     step = 1,
     totalSteps = 4,
@@ -17,16 +19,16 @@
 </script>
 
 <div class="backdrop" role="presentation">
-  <div class="card glass-elevated spring" role="dialog" aria-modal="true" aria-label="Tutorial">
+  <div class="card glass-elevated spring" role="dialog" aria-modal="true" aria-label={t('tutorial.dialogAria', undefined, $locale)}>
     <header>
-      <p class="eyebrow">Step {step} of {totalSteps}</p>
+      <p class="eyebrow">{t('tutorial.stepOf', { current: step, total: totalSteps }, $locale)}</p>
       <h2>{title}</h2>
     </header>
     <p class="body">{body}</p>
     <footer>
-      <button type="button" class="skip" onclick={onSkip}>Skip tutorial</button>
+      <button type="button" class="skip" onclick={onSkip}>{t('tutorial.skip', undefined, $locale)}</button>
       <button type="button" class="next" onclick={onNext}>
-        {step === totalSteps ? 'Finish' : 'Next'}
+        {step === totalSteps ? t('tutorial.finish', undefined, $locale) : t('common.next', undefined, $locale)}
       </button>
     </footer>
   </div>

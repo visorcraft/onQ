@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t, locale } from '$lib/i18n';
+
   /**
    * Compact pagination control used by every Library list view. Caller owns
    * the source list and the current page index — the component is stateless
@@ -7,11 +9,12 @@
    * Visual goal: feels native to the onQ glass shell (rounded pill on the
    * right of the list, glass border, prev/next that hug the indicator).
    */
+
   let {
     page,
     pageCount,
     onPage,
-    ariaLabel = 'Pagination',
+    ariaLabel,
   }: {
     /** 1-based current page index. */
     page: number;
@@ -35,11 +38,11 @@
 </script>
 
 {#if pageCount > 1}
-  <nav class="pager" aria-label={ariaLabel}>
+  <nav class="pager" aria-label={ariaLabel ?? t('pager.label', undefined, $locale)}>
     <button
       type="button"
       class="pager-step"
-      aria-label="Previous page"
+      aria-label={t('pager.previous', undefined, $locale)}
       disabled={!canPrev}
       onclick={() => goto(page - 1)}
     >
@@ -62,7 +65,7 @@
     <button
       type="button"
       class="pager-step"
-      aria-label="Next page"
+      aria-label={t('pager.next', undefined, $locale)}
       disabled={!canNext}
       onclick={() => goto(page + 1)}
     >

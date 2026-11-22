@@ -59,6 +59,40 @@ describe('catalog completeness', () => {
     expect(ALL_KEYS.length).toBeGreaterThan(50);
     expect(Object.keys(catalogs.en).length).toBe(ALL_KEYS.length);
   });
+
+  it.each(SUPPORTED_LOCALES.filter((l) => l !== 'en') as Locale[])(
+    '%s uses the same {placeholders} as English for every key',
+    (loc) => {
+      const names = (s: string) =>
+        (s.match(/\{[A-Za-z_]+\}/g) ?? []).sort().join(',');
+      for (const key of ALL_KEYS) {
+        expect(
+          names(catalogs[loc][key]),
+          `placeholder mismatch for ${key} in ${loc}`,
+        ).toBe(names(catalogs.en[key]));
+      }
+    },
+  );
+
+  it.each(SUPPORTED_LOCALES)('resolves the new chrome keys in %s', (loc) => {
+    const newKeys = [
+      'pager.label',
+      'pager.previous',
+      'pager.next',
+      'common.closeDialog',
+      'common.dialog',
+      'tutorial.dialogAria',
+      'tutorial.finish',
+    ] as const;
+    for (const key of newKeys) {
+      const got = resolve(loc, key);
+      expect(got.trim().length).toBeGreaterThan(0);
+      expect(got).not.toBe(key);
+    }
+    const stepOf = resolve(loc, 'tutorial.stepOf', { current: 2, total: 4 });
+    expect(stepOf).not.toContain('{current}');
+    expect(stepOf).not.toContain('{total}');
+  });
 });
 
 describe('matchNavigatorLanguage', () => {

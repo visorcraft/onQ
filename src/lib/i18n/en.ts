@@ -232,6 +232,11 @@ export const en = {
   'library.kindProject': 'Project',
   'library.kindSmart': 'Smart folder',
 
+  // Pager
+  'pager.label': 'Pagination',
+  'pager.previous': 'Previous page',
+  'pager.next': 'Next page',
+
   // Editor
   'editor.newPrompt': 'New prompt',
   'editor.editPrompt': 'Edit prompt',
@@ -286,6 +291,8 @@ export const en = {
   'common.ok': 'OK',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
+  'common.closeDialog': 'Close dialog',
+  'common.dialog': 'Dialog',
   'common.save': 'Save',
   'common.delete': 'Delete',
   'common.refresh': 'Refresh',
@@ -325,6 +332,8 @@ export const en = {
   'tutorial.stepOf': 'Step {current} of {total}',
   'tutorial.stepLabel': 'Step {n}: {title}',
   'tutorial.skip': 'Skip tutorial',
+  'tutorial.dialogAria': 'Tutorial',
+  'tutorial.finish': 'Finish',
   'tutorial.keyboard': 'Use ← and → to move between steps',
   'tutorial.step0title': 'Open your prompt palette',
   'tutorial.step0body':
