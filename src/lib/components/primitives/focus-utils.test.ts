@@ -99,6 +99,25 @@ describe('handleDialogTab', () => {
     expect(event.defaultPrevented).toBe(false);
     expect(document.activeElement).toBe(only);
   });
+
+  it('traps Tab and Shift+Tab when focus starts on the dialog root itself', () => {
+    const root = mountRoot(`<button class="a">A</button><button class="b">B</button>`);
+    root.tabIndex = -1;
+    const a = root.querySelector<HTMLElement>('.a')!;
+    const b = root.querySelector<HTMLElement>('.b')!;
+
+    root.focus();
+    const back = keydown('Tab', { shiftKey: true });
+    handleDialogTab(root, back);
+    expect(back.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(b);
+
+    root.focus();
+    const fwd = keydown('Tab');
+    handleDialogTab(root, fwd);
+    expect(fwd.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(a);
+  });
 });
 
 describe('captureFocus', () => {

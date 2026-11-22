@@ -43,13 +43,15 @@
 
   $effect(() => {
     if (!open) return;
-    void tick().then(() => confirmBtn?.focus());
-  });
-
-  $effect(() => {
-    if (!open) return;
+    let cancelled = false;
     const restore = captureFocus();
-    return () => restore();
+    void tick().then(() => {
+      if (!cancelled) confirmBtn?.focus();
+    });
+    return () => {
+      cancelled = true;
+      restore();
+    };
   });
 
   function cancel() {

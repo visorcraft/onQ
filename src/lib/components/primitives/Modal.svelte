@@ -19,8 +19,10 @@
 
   $effect(() => {
     if (!open) return;
+    let cancelled = false;
     const restore = captureFocus();
     void tick().then(() => {
+      if (cancelled) return;
       const closeBtn = panel?.querySelector<HTMLElement>('.close');
       if (closeBtn) {
         closeBtn.focus();
@@ -28,7 +30,10 @@
         panel?.focus();
       }
     });
-    return () => restore();
+    return () => {
+      cancelled = true;
+      restore();
+    };
   });
 
   function close() {

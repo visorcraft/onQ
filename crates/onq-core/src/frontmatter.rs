@@ -120,11 +120,18 @@ mod tests {
         assert!(err.to_string().contains("missing closing ---"));
     }
     #[test]
-    fn parse_skips_interior_partial_fence() {
+    fn split_skips_interior_partial_fence() {
         let raw = "---\ntitle: T\n---embedded\nreal: 1\n---\nbody";
-        if let Ok((_fm, body)) = parse(raw) {
-            assert_eq!(body, "body");
-        }
+        let (fm, body) = split(raw).unwrap();
+        assert!(fm.contains("---embedded"));
+        assert_eq!(body, "body");
+    }
+    #[test]
+    fn parse_skips_interior_partial_fence_in_multiline_value() {
+        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCDE\ntitle: |\n  line 1\n---embedded\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\nbody";
+        let (fm, body) = split(raw).unwrap();
+        assert!(fm.contains("---embedded"));
+        assert_eq!(body, "body");
     }
     #[test]
     fn parse_roundtrip_empty_body() {

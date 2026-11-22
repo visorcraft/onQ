@@ -11,10 +11,12 @@ export function handleDialogTab(root: HTMLElement, event: KeyboardEvent): void {
   if (focusable.length === 0) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
+  const active = document.activeElement;
+  const outsideOrRoot = active === root || !root.contains(active);
+  if (event.shiftKey && (active === first || outsideOrRoot)) {
     event.preventDefault();
     last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
+  } else if (!event.shiftKey && (active === last || outsideOrRoot)) {
     event.preventDefault();
     first.focus();
   }

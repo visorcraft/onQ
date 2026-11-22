@@ -38,10 +38,10 @@ fn snapshot_file_name(at: DateTime<Utc>) -> String {
     )
 }
 
-/// List all snapshot files for `id`, sorted ascending by filename
-/// (RFC 3339 UTC names with `-` time separators, a fixed-width
-/// fractional part, and a `Z` suffix sort chronologically; legacy `:`
-/// names remain readable).
+/// List all snapshot files for `id`, sorted ascending chronologically by
+/// parsed filename timestamp (falling back to path order for unparseable
+/// names, so legacy `:` names and portable `-` names within the same hour
+/// stay strictly chronological).
 pub fn list_snapshots(vault: &Vault, id: &PromptId) -> CoreResult<Vec<PathBuf>> {
     let dir = snapshot_dir(vault, id);
     if !dir.exists() {
@@ -55,7 +55,7 @@ pub fn list_snapshots(vault: &Vault, id: &PromptId) -> CoreResult<Vec<PathBuf>> 
             paths.push(path);
         }
     }
-    paths.sort();
+    paths.sort_by(|a, b| (timestamp_from_filename(a), a).cmp(&(timestamp_from_filename(b), b)));
     Ok(paths)
 }
 
@@ -255,5 +255,27 @@ mod tests {
                 "2026-07-19T11:00:00Z.md",
             ]
         );
+    }
+
+    #[test]
+    fn list_snapshots_orders_legacy_and_portable_within_same_hour() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        let snap_dir = snapshot_dir(&vault, &id);
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        // Legacy ':' (ASCII 58) vs portable '-' (ASCII 45) within the same hour:
+        // lexicographic sort would invert these, chronological sort must keep 10:05 before 10-10.
+        let legacy_earlier = "2026-11-22T10:05:00+00:00.md";
+        let portable_later =
+            snapshot_file_name(Utc.with_ymd_and_hms(2026, 11, 22, 10, 10, 0).unwrap());
+        std::fs::write(snap_dir.join(legacy_earlier), b"old").unwrap();
+        std::fs::write(snap_dir.join(&portable_later), b"new").unwrap();
+        let paths = list_snapshots(&vault, &id).unwrap();
+        let names: Vec<String> = paths
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec![legacy_earlier.to_string(), portable_later]);
     }
 }
