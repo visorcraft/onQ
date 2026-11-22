@@ -58,6 +58,8 @@ pub fn export_prompts(
     Ok(report)
 }
 
+/// Match prompt against the filter. Tag and folder comparisons are trimmed and
+/// case-sensitive, mirroring the library tag-chip filter.
 fn matches_filter(
     tags: &[String],
     folder: Option<&str>,
@@ -68,7 +70,7 @@ fn matches_filter(
         return false;
     }
     if let Some(want) = filter.folder.as_deref() {
-        if folder != Some(want) {
+        if folder.map(str::trim) != Some(want.trim()) {
             return false;
         }
     }
@@ -76,7 +78,7 @@ fn matches_filter(
         let has = filter
             .tags_any
             .iter()
-            .any(|t| tags.iter().any(|pt| pt == t));
+            .any(|t| tags.iter().any(|pt| pt.trim() == t.trim()));
         if !has {
             return false;
         }
@@ -114,6 +116,16 @@ mod tests {
     use tempfile::TempDir;
 
     fn seed(vault: &Vault, title: &str, tags: &[&str], favorite: bool) -> PromptId {
+        seed_with(vault, title, tags, favorite, Some("work"))
+    }
+
+    fn seed_with(
+        vault: &Vault,
+        title: &str,
+        tags: &[&str],
+        favorite: bool,
+        folder: Option<&str>,
+    ) -> PromptId {
         let id = PromptId::new();
         let now = Utc::now();
         vault
@@ -121,7 +133,7 @@ mod tests {
                 fm: Frontmatter {
                     id: id.clone(),
                     title: title.into(),
-                    folder: Some("work".into()),
+                    folder: folder.map(|f| f.to_string()),
                     tags: tags.iter().map(|s| (*s).to_string()).collect(),
                     favorite,
                     locked: false,
@@ -152,5 +164,96 @@ mod tests {
         .unwrap();
         assert_eq!(report.exported, 1);
         assert_eq!(report.skipped, 1);
+    }
+
+    #[test]
+    fn export_matches_tag_with_surrounding_whitespace() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        seed(&vault, "A", &[" writing "], false);
+        let dest = dir.path().join("out");
+        let report = export_prompts(
+            &vault,
+            &dest,
+            &ExportFilter {
+                tags_any: vec!["writing".into()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report.exported, 1);
+        assert_eq!(report.skipped, 0);
+    }
+
+    #[test]
+    fn export_filter_tag_with_whitespace_matches_stored_tag() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        seed(&vault, "A", &["code"], false);
+        let dest = dir.path().join("out");
+        let report = export_prompts(
+            &vault,
+            &dest,
+            &ExportFilter {
+                tags_any: vec!["  code ".into()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report.exported, 1);
+    }
+
+    #[test]
+    fn export_tag_match_stays_case_sensitive() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        seed(&vault, "A", &["writing"], false);
+        let dest = dir.path().join("out");
+        let report = export_prompts(
+            &vault,
+            &dest,
+            &ExportFilter {
+                tags_any: vec!["Writing".into()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report.exported, 0);
+        assert_eq!(report.skipped, 1);
+    }
+
+    #[test]
+    fn export_folder_filter_trims_both_sides() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        seed_with(&vault, "A", &["x"], false, Some(" work "));
+        seed_with(&vault, "B", &["x"], false, Some("work"));
+        seed_with(&vault, "C", &["x"], false, None);
+
+        let dest = dir.path().join("out1");
+        let report = export_prompts(
+            &vault,
+            &dest,
+            &ExportFilter {
+                folder: Some("work".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report.exported, 2);
+        assert_eq!(report.skipped, 1);
+
+        let dest2 = dir.path().join("out2");
+        let report2 = export_prompts(
+            &vault,
+            &dest2,
+            &ExportFilter {
+                folder: Some(" work ".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report2.exported, 2);
+        assert_eq!(report2.skipped, 1);
     }
 }
