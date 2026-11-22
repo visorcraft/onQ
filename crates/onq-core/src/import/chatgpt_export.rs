@@ -87,7 +87,12 @@ fn extract_body(conv: &Conversation) -> Option<String> {
     // Prefer walking current_node chain; fall back to collecting message parts.
     let mut texts = Vec::new();
     for node in mapping.values() {
-        let message = node.get("message")?;
+        let Some(message) = node.get("message") else {
+            continue;
+        };
+        if !message.is_object() {
+            continue;
+        }
         let role = message
             .get("author")
             .and_then(|a| a.get("role"))
@@ -145,5 +150,71 @@ mod tests {
         let report = import_chatgpt_export(&vault, &json, OnConflict::Skip).unwrap();
         assert_eq!(report.created, 1);
         assert!(report.errors.is_empty());
+    }
+
+    #[test]
+    fn mapping_node_without_message_key_does_not_discard_body() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json = dir.path().join("conversations.json");
+        std::fs::write(
+            &json,
+            r#"[{
+              "title": "Test chat",
+              "mapping": {
+                "root": {"children": []},
+                "n1": {
+                  "message": {
+                    "author": {"role": "user"},
+                    "content": {"parts": ["Hello model"]}
+                  }
+                },
+                "n2": {
+                  "message": {
+                    "author": {"role": "assistant"},
+                    "content": {"parts": ["Hi user"]}
+                  }
+                }
+              }
+            }]"#,
+        )
+        .unwrap();
+        let report = import_chatgpt_export(&vault, &json, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        assert!(report.errors.is_empty());
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        let prompt = vault.read(&ids[0]).unwrap();
+        assert!(prompt.body.contains("**user:** Hello model"));
+        assert!(prompt.body.contains("**assistant:** Hi user"));
+    }
+
+    #[test]
+    fn null_message_nodes_are_skipped() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json = dir.path().join("conversations.json");
+        std::fs::write(
+            &json,
+            r#"[{
+              "title": "Test chat",
+              "mapping": {
+                "n1": {"message": null},
+                "n2": {
+                  "message": {
+                    "author": {"role": "user"},
+                    "content": {"parts": ["Hello model"]}
+                  }
+                }
+              }
+            }]"#,
+        )
+        .unwrap();
+        let report = import_chatgpt_export(&vault, &json, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        let prompt = vault.read(&ids[0]).unwrap();
+        assert!(prompt.body.contains("**user:** Hello model"));
     }
 }
