@@ -20,7 +20,7 @@
 
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use flate2::read::GzDecoder;
 use tar::Archive;
@@ -36,6 +36,26 @@ const SIGNATURE_FILE: &str = "signature.sig";
 /// On-disk subdirectory of `plugins_dir` where installed plugins live.
 /// `install` writes the extracted tree here, named by `manifest.id`.
 const INSTALLED_SUBDIR: &str = "installed";
+
+/// Return `true` only when `id` is a single normal path component:
+/// non-empty and at most 64 chars, no `/`, `\` or NUL, and not `.` / `..`
+/// (equivalently, `Path::components` yields exactly one `Component::Normal`).
+/// The install pipeline joins this id into `plugins_dir/installed/<id>`, so a
+/// traversal or absolute id must be rejected before any signature or
+/// destination work happens.
+fn is_safe_plugin_id(id: &str) -> bool {
+    if id.is_empty() || id.chars().count() > 64 {
+        return false;
+    }
+    if id.contains('/') || id.contains('\\') || id.contains('\0') {
+        return false;
+    }
+    let mut components = Path::new(id).components();
+    matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    )
+}
 
 /// Install a `.tar.gz` plugin archive into `<plugins_dir>/installed/<id>/`.
 ///
@@ -81,6 +101,9 @@ pub fn install_with_trust_anchor(
         .get("id")
         .and_then(toml::Value::as_str)
         .ok_or_else(|| CoreError::Plugin("missing [plugin].id".into()))?;
+    if !is_safe_plugin_id(id) {
+        return Err(CoreError::Plugin(format!("invalid plugin id: {id:?}")));
+    }
     let name = plugin_table
         .get("name")
         .and_then(toml::Value::as_str)
@@ -344,6 +367,110 @@ mod tests {
         match err {
             CoreError::Plugin(msg) => assert!(msg.contains("already installed"), "msg = {msg}"),
             other => panic!("expected Plugin error, got {other:?}"),
+        }
+    }
+
+    /// Build a self-signed archive whose manifest carries the given id and
+    /// return (archive_path, pubkey). The signature is valid for the manifest
+    /// bytes, so a rejection must come from the id check itself, not from
+    /// signature verification.
+    fn build_signed_archive_with_id(tmp: &Path, id: &str) -> (PathBuf, [u8; 32]) {
+        let mut csprng = rand::rng();
+        let key = SigningKey::generate(&mut csprng);
+        let pubkey = key.verifying_key().to_bytes();
+        let manifest = format!(
+            "[plugin]\nid = {id:?}\nname = \"Foo\"\nversion = \"0.1.0\"\nlicense = \"GPL-3.0-only\"\ncapabilities = [\"read\"]\n",
+        );
+        let sig = crate::signature::sign_for_test(manifest.as_bytes(), &key);
+        let bytes =
+            build_archive(&manifest, &sig, &[("plugin.so", b"BINARY")]).expect("build archive");
+        let archive_path = tmp.join("plugin.tar.gz");
+        std::fs::write(&archive_path, &bytes).expect("write archive");
+        (archive_path, pubkey)
+    }
+
+    #[test]
+    fn is_safe_plugin_id_accepts_simple_ids() {
+        assert!(is_safe_plugin_id("pdf-tools"));
+        assert!(is_safe_plugin_id("acme.foo"));
+        assert!(is_safe_plugin_id("a..b"));
+    }
+
+    #[test]
+    fn is_safe_plugin_id_rejects_unsafe_ids() {
+        assert!(!is_safe_plugin_id("a/b"));
+        assert!(!is_safe_plugin_id("a\\b"));
+        assert!(!is_safe_plugin_id(".."));
+        assert!(!is_safe_plugin_id("."));
+        assert!(!is_safe_plugin_id(""));
+        assert!(!is_safe_plugin_id("/tmp/onq-evil"));
+        assert!(!is_safe_plugin_id("../escape"));
+        assert!(!is_safe_plugin_id(&"x".repeat(65)));
+    }
+
+    #[test]
+    fn install_rejects_traversal_plugin_id() {
+        let staging = TempDir::new().unwrap();
+        let (archive, pubkey) = build_signed_archive_with_id(staging.path(), "../escape");
+        let plugins_dir = TempDir::new().unwrap();
+        let err =
+            install_with_trust_anchor(&archive, plugins_dir.path(), Some(&pubkey)).unwrap_err();
+        match err {
+            CoreError::Plugin(msg) => {
+                assert!(msg.contains("invalid plugin id"), "msg = {msg}");
+            }
+            other => panic!("expected Plugin error, got {other:?}"),
+        }
+        assert!(
+            !plugins_dir.path().join("installed").exists(),
+            "installed/ must not be created for an invalid id"
+        );
+        assert_eq!(
+            std::fs::read_dir(plugins_dir.path()).unwrap().count(),
+            0,
+            "nothing may be created outside the plugins dir"
+        );
+    }
+
+    #[test]
+    fn install_rejects_absolute_plugin_id() {
+        let staging = TempDir::new().unwrap();
+        let (archive, pubkey) = build_signed_archive_with_id(staging.path(), "/tmp/onq-evil");
+        let plugins_dir = TempDir::new().unwrap();
+        let err =
+            install_with_trust_anchor(&archive, plugins_dir.path(), Some(&pubkey)).unwrap_err();
+        match err {
+            CoreError::Plugin(msg) => {
+                assert!(msg.contains("invalid plugin id"), "msg = {msg}");
+            }
+            other => panic!("expected Plugin error, got {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read_dir(plugins_dir.path()).unwrap().count(),
+            0,
+            "nothing may be created outside the plugins dir"
+        );
+    }
+
+    #[test]
+    fn install_rejects_empty_and_dot_ids() {
+        for id in ["", ".", ".."] {
+            let staging = TempDir::new().unwrap();
+            let (archive, pubkey) = build_signed_archive_with_id(staging.path(), id);
+            let plugins_dir = TempDir::new().unwrap();
+            let err =
+                install_with_trust_anchor(&archive, plugins_dir.path(), Some(&pubkey)).unwrap_err();
+            match err {
+                CoreError::Plugin(msg) => {
+                    assert!(msg.contains("invalid plugin id"), "msg = {msg}");
+                }
+                other => panic!("expected Plugin error for id {id:?}, got {other:?}"),
+            }
+            assert_eq!(
+                std::fs::read_dir(plugins_dir.path()).unwrap().count(),
+                0,
+                "nothing may be created for id {id:?}"
+            );
         }
     }
 
