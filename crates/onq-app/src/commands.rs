@@ -337,7 +337,7 @@ fn prompt_keychain_key(salt: &[u8; 32], id: &PromptId) -> String {
 
 /// Pre-migration keychain entry name: `prompt:<ulid>`. Kept only as a
 /// fallback read path so vaults locked before vault-scoping can still
-/// unlock, and as a best-effort cleanup target after a fresh lock.
+/// unlock (and deleted on unlock only when that fallback was actually used).
 fn legacy_prompt_keychain_key(id: &PromptId) -> String {
     format!("{PROMPT_KEY_PREFIX}{}", id.as_str())
 }
@@ -751,8 +751,6 @@ fn lock_prompt_blocking(
     let encoded = base64::engine::general_purpose::STANDARD.encode(key);
     kc.set(&prompt_keychain_key(&salt, id), encoded.as_bytes())
         .map_err(|e| e.to_string())?;
-    // Best-effort cleanup of any pre-migration unscoped entry.
-    let _ = kc.delete(&legacy_prompt_keychain_key(id));
 
     // 6. Update the .md: clear body, mark locked, refresh timestamp.
     prompt.body = String::new();
@@ -825,17 +823,20 @@ fn unlock_prompt_blocking(
 
     // 2. Fetch DEK. Prefer the vault-scoped entry; fall back to the
     //    pre-migration unscoped entry so vaults locked before scoping can
-    //    still unlock.
+    //    still unlock without disturbing another vault's legacy entry.
     let salt = load_or_create_salt(&vault.root)?;
-    let encoded = match kc
+    let (encoded, used_legacy) = match kc
         .get(&prompt_keychain_key(&salt, id))
         .map_err(|e| e.to_string())?
     {
-        Some(v) => v,
-        None => kc
-            .get(&legacy_prompt_keychain_key(id))
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "lock key not found in keychain".to_string())?,
+        Some(v) => (v, false),
+        None => {
+            let v = kc
+                .get(&legacy_prompt_keychain_key(id))
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "lock key not found in keychain".to_string())?;
+            (v, true)
+        }
     };
 
     // 3. Decode + read + decrypt envelope.
@@ -868,10 +869,13 @@ fn unlock_prompt_blocking(
     //    the user would need to recover manually, but at least we don't lose
     //    the key).
     std::fs::remove_file(&enc_path).map_err(|e| e.to_string())?;
-    kc.delete(&prompt_keychain_key(&salt, id))
-        .map_err(|e| e.to_string())?;
-    // Best-effort cleanup of the pre-migration unscoped entry.
-    let _ = kc.delete(&legacy_prompt_keychain_key(id));
+    if used_legacy {
+        kc.delete(&legacy_prompt_keychain_key(id))
+            .map_err(|e| e.to_string())?;
+    } else {
+        kc.delete(&prompt_keychain_key(&salt, id))
+            .map_err(|e| e.to_string())?;
+    }
 
     // 6. Mirror back into the DB.
     if let Some(db) = db {
@@ -5399,6 +5403,50 @@ mod tests {
             kc.get(&legacy).expect("legacy get").is_none(),
             "legacy entry must be gone after unlock"
         );
+    }
+
+    #[test]
+    fn vault_b_lock_and_unlock_preserves_vault_a_legacy_dek() {
+        // Vault A holds a pre-migration locked prompt whose DEK is still stored
+        // under the unscoped legacy entry. Locking and unlocking the same
+        // PromptId in Vault B must never delete Vault A's legacy DEK.
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let (vault_a, pid) = make_vault_with_prompt(dir_a.path(), "legacy-a-secret");
+        let kc = MockKeychain::new();
+
+        lock_prompt_blocking(&vault_a, &pid, None, &kc).expect("lock A");
+        let salt_a = load_or_create_salt(dir_a.path()).unwrap();
+        let scoped_a = prompt_keychain_key(&salt_a, &pid);
+        let legacy = legacy_prompt_keychain_key(&pid);
+        let dek_a = kc.get(&scoped_a).unwrap().unwrap();
+        kc.delete(&scoped_a).unwrap();
+        kc.set(&legacy, &dek_a).unwrap();
+
+        // Vault B shares the same PromptId (e.g. backup restore / copy).
+        let vault_b = Vault::new(dir_b.path()).expect("vault B");
+        let mut prompt_b = vault_b.new_prompt("Test B").expect("new_prompt B");
+        prompt_b.fm.id = pid.clone();
+        prompt_b.body = "vault-b-secret".into();
+        vault_b.write(&prompt_b).expect("write B");
+
+        lock_prompt_blocking(&vault_b, &pid, None, &kc).expect("lock B");
+        assert!(
+            kc.get(&legacy).unwrap().is_some(),
+            "locking in Vault B must not delete Vault A's legacy entry"
+        );
+
+        unlock_prompt_blocking(&vault_b, &pid, None, &kc).expect("unlock B");
+        assert_eq!(vault_b.read(&pid).unwrap().body, "vault-b-secret");
+        assert!(
+            kc.get(&legacy).unwrap().is_some(),
+            "unlocking scoped Vault B must not delete Vault A's legacy entry"
+        );
+
+        // Vault A must still unlock cleanly via the legacy fallback.
+        unlock_prompt_blocking(&vault_a, &pid, None, &kc).expect("unlock A via legacy fallback");
+        assert_eq!(vault_a.read(&pid).unwrap().body, "legacy-a-secret");
+        assert!(kc.get(&legacy).unwrap().is_none());
     }
 
     // -----------------------------------------------------------------------

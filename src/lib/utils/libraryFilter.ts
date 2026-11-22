@@ -68,7 +68,7 @@ export function filterVisiblePrompts(
       break;
     }
     case 'tag': {
-      const tag = selection.tag;
+      const tag = selection.tag.trim();
       list = prompts.filter((p) =>
         (p.tags ?? []).some((raw) => raw.trim() === tag),
       );
