@@ -35,7 +35,10 @@ impl Vault {
 
     pub fn read(&self, id: &PromptId) -> CoreResult<Prompt> {
         let path = self.prompt_path(id);
-        let raw = std::fs::read_to_string(&path).map_err(|_| CoreError::NotFound(path.clone()))?;
+        let raw = std::fs::read_to_string(&path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => CoreError::NotFound(path.clone()),
+            _ => CoreError::Io(e),
+        })?;
         let (fm, body) = frontmatter::parse(&raw)?;
         Ok(Prompt { fm, body })
     }
@@ -150,5 +153,40 @@ mod tests {
         vault.write(&p).unwrap();
         vault.delete(&p.fm.id).unwrap();
         assert!(matches!(vault.read(&p.fm.id), Err(CoreError::NotFound(_))));
+    }
+    #[test]
+    fn read_missing_prompt_is_not_found() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        assert!(matches!(vault.read(&id), Err(CoreError::NotFound(_))));
+    }
+    #[test]
+    fn read_corrupt_non_utf8_file_is_io_error_not_not_found() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        std::fs::write(vault.prompt_path(&id), b"\xff\xfe\x00bad").unwrap();
+        let err = vault.read(&id).unwrap_err();
+        assert!(!matches!(err, CoreError::NotFound(_)));
+        assert!(matches!(err, CoreError::Io(_)));
+        assert!(err.to_string().contains("io error"));
+    }
+    #[test]
+    fn read_unreadable_directory_path_is_not_not_found() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        std::fs::create_dir_all(vault.prompt_path(&id)).unwrap();
+        let err = vault.read(&id).unwrap_err();
+        assert!(!matches!(err, CoreError::NotFound(_)));
+    }
+    #[test]
+    fn read_malformed_frontmatter_still_frontmatter_error() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        std::fs::write(vault.prompt_path(&id), b"not yaml at all").unwrap();
+        assert!(matches!(vault.read(&id), Err(CoreError::Frontmatter(_))));
     }
 }
