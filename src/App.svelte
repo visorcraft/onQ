@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { checkForAppUpdates, formatUpdateStatus } from '$lib/api/updates';
+  import { checkForAppUpdates, updateStatusMessage, type UpdateStatusMessage } from '$lib/api/updates';
   import Palette from '$lib/components/Palette.svelte';
   import Editor from '$lib/components/Editor.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
@@ -42,7 +42,7 @@
   let recoveryPath = $state<string | null>(null);
   let tutorialChecked = false;
   let checkingForUpdates = $state(false);
-  let updateStatus = $state<string | null>(null);
+  let updateStatus = $state<UpdateStatusMessage | null>(null);
   let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
   function clearUpdateStatusTimer() {
@@ -52,7 +52,7 @@
     }
   }
 
-  function setUpdateStatus(message: string | null, autoClearMs?: number) {
+  function setUpdateStatus(message: UpdateStatusMessage | null, autoClearMs?: number) {
     clearUpdateStatusTimer();
     updateStatus = message;
     if (message && autoClearMs !== undefined) {
@@ -66,13 +66,13 @@
   async function checkForUpdates(manual: boolean) {
     if (checkingForUpdates) return;
     checkingForUpdates = true;
-    if (manual) setUpdateStatus(t('app.checkingUpdates'));
+    if (manual) setUpdateStatus({ key: 'app.checkingUpdates' });
     try {
       const outcome = await checkForAppUpdates(manual);
-      const formatted = formatUpdateStatus(outcome);
-      if (formatted) {
+      const status = updateStatusMessage(outcome);
+      if (status) {
         setUpdateStatus(
-          formatted,
+          status,
           outcome.kind === 'up_to_date' ? STATUS_CLEAR_MS : undefined,
         );
       } else if (!manual) {
@@ -335,7 +335,7 @@
     </button>
   </div>
   {#if $appView === 'home' && updateStatus}
-    <p class="update-status" role="status">{updateStatus}</p>
+    <p class="update-status" role="status">{t(updateStatus.key, updateStatus.vars, $locale)}</p>
   {/if}
   {#if $appView === 'home'}
     <button

@@ -29,8 +29,9 @@
   } from '$lib/api/search';
   import {
     checkForAppUpdates,
-    formatUpdateStatus,
+    updateStatusMessage,
     type UpdateCheckOutcome,
+    type UpdateStatusMessage,
   } from '$lib/api/updates';
   import { theme, setTheme, type Theme } from '$lib/stores/theme';
   import BackupsSection from '$lib/components/settings/BackupsSection.svelte';
@@ -100,7 +101,7 @@
   let loadingModel = $state(false);
   let searchStatusError = $state<string | null>(null);
   let checkingForUpdates = $state(false);
-  let updateStatus = $state<string | null>(null);
+  let updateStatus = $state<UpdateStatusMessage | null>(null);
   let updateStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let recencyDays = $state('30');
   let historyDays = $state('30');
@@ -118,7 +119,7 @@
     }
   }
 
-  function setUpdateStatus(message: string | null, autoClearMs?: number) {
+  function setUpdateStatus(message: UpdateStatusMessage | null, autoClearMs?: number) {
     clearUpdateStatusTimer();
     updateStatus = message;
     if (message && autoClearMs !== undefined) {
@@ -132,12 +133,12 @@
   async function runUpdateCheck() {
     if (checkingForUpdates) return;
     checkingForUpdates = true;
-    setUpdateStatus('Checking for updates…');
+    setUpdateStatus({ key: 'app.checkingUpdates' });
     try {
       const outcome: UpdateCheckOutcome = await checkForAppUpdates(true);
-      const formatted = formatUpdateStatus(outcome);
-      if (formatted) {
-        setUpdateStatus(formatted, outcome.kind === 'up_to_date' ? 5_000 : undefined);
+      const status = updateStatusMessage(outcome);
+      if (status) {
+        setUpdateStatus(status, outcome.kind === 'up_to_date' ? 5_000 : undefined);
       }
     } finally {
       checkingForUpdates = false;
@@ -941,11 +942,11 @@
               disabled={checkingForUpdates}
               onclick={() => void runUpdateCheck()}
             >
-              {checkingForUpdates ? 'Checking for updates…' : 'Check for Updates'}
+              {checkingForUpdates ? t('app.checkingUpdates', undefined, $locale) : t('app.checkUpdates', undefined, $locale)}
             </button>
           </div>
           {#if updateStatus}
-            <p class="hint status" role="status">{updateStatus}</p>
+            <p class="hint status" role="status">{t(updateStatus.key, updateStatus.vars, $locale)}</p>
           {/if}
         </section>
       {/if}

@@ -14,6 +14,9 @@ export const en = {
   'app.openingVault': 'Opening last vault…',
   'app.loadingPreferences': 'Loading preferences…',
   'app.checkingUpdates': 'Checking for updates…',
+  'app.updateAvailable': 'onQ {version} is available',
+  'app.upToDate': 'onQ is up to date',
+  'app.updateCheckFailed': 'Unable to check for updates: {message}',
 
   // Palette
   'palette.dialogAria': 'Command palette',
