@@ -18,12 +18,35 @@ use crate::vault::Vault;
 
 /// Write a snapshot of `body` for prompt `id` at the current time.
 ///
+/// If the timestamp-derived name already exists, the candidate is bumped by
+/// +1ns (and repeats) until a free name is found. This guards against coarse
+/// system clocks (Windows/macOS tick granularity), NTP backward steps, and
+/// rapid programmatic saves all landing on the same fixed-width timestamp;
+/// without it, `atomic_write` would silently rename over the earlier snapshot.
+///
 /// Returns silently on success; surfaces IO errors as `CoreError::Io`.
 pub fn snapshot(vault: &Vault, id: &PromptId, body: &str) -> CoreResult<()> {
     let dir = snapshot_dir(vault, id);
     std::fs::create_dir_all(&dir)?;
-    let path = dir.join(snapshot_file_name(Utc::now()));
+    let path = unique_snapshot_path(&dir, Utc::now());
     crate::vault::atomic_write(&path, body.as_bytes())
+}
+
+/// Return a path under `dir` whose name is free of existing files.
+///
+/// Candidates start at `at` and step forward one nanosecond at a time, so a
+/// colliding name is never overwritten. Caps at 10_000 iterations; on
+/// exhaustion returns the last candidate so the function stays total.
+fn unique_snapshot_path(dir: &Path, at: DateTime<Utc>) -> PathBuf {
+    let mut path = dir.join(snapshot_file_name(at));
+    for i in 0..10_000i64 {
+        let candidate = at + Duration::nanoseconds(i);
+        path = dir.join(snapshot_file_name(candidate));
+        if !path.exists() {
+            return path;
+        }
+    }
+    path
 }
 
 /// Filesystem-portable snapshot name: RFC 3339 UTC with `-` time
@@ -277,5 +300,55 @@ mod tests {
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
         assert_eq!(names, vec![legacy_earlier.to_string(), portable_later]);
+    }
+
+    #[test]
+    fn unique_snapshot_path_skips_existing_name() {
+        let dir = TempDir::new().unwrap();
+        let t = Utc
+            .with_ymd_and_hms(2026, 11, 22, 10, 30, 9)
+            .unwrap()
+            .with_nanosecond(123_456_789)
+            .unwrap();
+        let existing = dir.path().join(snapshot_file_name(t));
+        std::fs::write(&existing, b"x").unwrap();
+        let returned = unique_snapshot_path(dir.path(), t);
+        assert_ne!(returned, existing);
+        let dt = timestamp_from_filename(&returned).expect("returned path should parse");
+        assert_eq!(dt, t + Duration::nanoseconds(1));
+        assert!(existing < returned);
+    }
+
+    #[test]
+    fn unique_snapshot_path_rolls_over_nanosecond_boundary() {
+        let dir = TempDir::new().unwrap();
+        let t = Utc
+            .with_ymd_and_hms(2026, 11, 22, 10, 30, 9)
+            .unwrap()
+            .with_nanosecond(999_999_999)
+            .unwrap();
+        let existing = dir.path().join(snapshot_file_name(t));
+        std::fs::write(&existing, b"x").unwrap();
+        let returned = unique_snapshot_path(dir.path(), t);
+        let dt = timestamp_from_filename(&returned).expect("returned path should parse");
+        assert_eq!(dt, t + Duration::nanoseconds(1));
+        let stem = returned.file_stem().unwrap().to_str().unwrap();
+        assert!(stem.ends_with('Z'));
+        let frac = stem.rsplit('.').next().unwrap().strip_suffix('Z').unwrap();
+        assert_eq!(frac.len(), 9);
+        assert!(frac.chars().all(|c| c.is_ascii_digit()));
+        assert!(existing < returned);
+    }
+
+    #[test]
+    fn unique_snapshot_path_returns_base_when_free() {
+        let dir = TempDir::new().unwrap();
+        let t = Utc
+            .with_ymd_and_hms(2026, 11, 22, 10, 30, 9)
+            .unwrap()
+            .with_nanosecond(123_456_789)
+            .unwrap();
+        let returned = unique_snapshot_path(dir.path(), t);
+        assert_eq!(returned, dir.path().join(snapshot_file_name(t)));
     }
 }
