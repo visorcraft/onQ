@@ -560,7 +560,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `field-offset` 0.3.6 — https://github.com/Diggsey/rust-field-offset
 - `find-msvc-tools` 0.1.9 — https://github.com/rust-lang/cc-rs
 - `flate2` 1.1.9 — https://github.com/rust-lang/flate2-rs
-- `form_urlencoded` 1.2.2 — https://github.com/servo/rust-url
+- `form_urlencoded` 1.2.3 — https://github.com/servo/rust-url
 - `futures` 0.3.33 — https://github.com/rust-lang/futures-rs
 - `futures-channel` 0.3.33 — https://github.com/rust-lang/futures-rs
 - `futures-core` 0.3.33 — https://github.com/rust-lang/futures-rs
@@ -771,7 +771,7 @@ Regenerate with `scripts/regen-credits.sh`.
 - `universal-hash` 0.6.1 — https://github.com/RustCrypto/traits
 - `ureq` 3.3.0 — https://github.com/algesten/ureq
 - `ureq-proto` 0.6.0 — https://github.com/algesten/ureq-proto
-- `url` 2.5.8 — https://github.com/servo/rust-url
+- `url` 2.5.9 — https://github.com/servo/rust-url
 - `utf8-zero` 0.8.1 — https://github.com/algesten/utf8-zero
 - `wasm-bindgen` 0.2.126 — https://github.com/wasm-bindgen/wasm-bindgen
 - `wasm-bindgen-futures` 0.4.76 — https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures
