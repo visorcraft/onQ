@@ -7,6 +7,9 @@ import type { SearchHit, SearchQuery } from '$lib/types/search';
 /** Latest hybrid-search results. Empty array until the first search completes. */
 export const results = writable<SearchHit[]>([]);
 
+/** Monotonic sequence counter for the stale-response guard in `runSearch`. */
+let searchSeq = 0;
+
 /**
  * Debounced (150 ms) hybrid-search invocation. Wire this to the palette's
  * query input — every keystroke schedules a new search; only the latest
@@ -16,8 +19,15 @@ export const results = writable<SearchHit[]>([]);
  * on the encrypted mongreldb query path.
  */
 export const runSearch = debounce(async (query: SearchQuery) => {
+  // Stale-response guard: later keystrokes win. Capture the sequence
+  // number before the await; if a newer query has been scheduled by the
+  // time this response resolves, discard it silently.
+  const seq = ++searchSeq;
   try {
     const hits = await searchApi(query);
+    if (seq !== searchSeq) {
+      return;
+    }
     results.set(hits);
     // Palette "Recent" now lists recently used prompts, not typed query
     // fragments. Still keep vault recent-search history for non-empty

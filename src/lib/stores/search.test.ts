@@ -48,6 +48,59 @@ describe('search store', () => {
     );
   });
 
+  it('runSearch discards a slower stale response in favor of the newer query', async () => {
+    let resolveStale!: (hits: unknown[]) => void;
+    const stalePromise = new Promise<unknown[]>((resolve) => {
+      resolveStale = resolve;
+    });
+
+    // First (stale) search: manually deferred promise.
+    invokeMock.mockImplementationOnce(() => stalePromise);
+    // Second (newer) search: resolves immediately with its own hit.
+    invokeMock.mockResolvedValueOnce([
+      {
+        id: '2',
+        title: 'Newer',
+        folder: null,
+        tags: ['b'],
+        favorite: false,
+        locked: false,
+        char_count: 10,
+        updated_at: 0,
+        rrf_score: 0.9,
+      },
+    ]);
+
+    runSearch({ text: 'a', limit: 10 });
+    await vi.advanceTimersByTimeAsync(200);
+    // First search is in flight, waiting on the deferred promise.
+
+    runSearch({ text: 'ab', limit: 10 });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(get(results)[0].title).toBe('Newer');
+
+    // The stale search resolves late — it must not overwrite the newer result.
+    resolveStale([
+      {
+        id: '1',
+        title: 'Stale',
+        folder: null,
+        tags: ['a'],
+        favorite: false,
+        locked: false,
+        char_count: 10,
+        updated_at: 0,
+        rrf_score: 0.5,
+      },
+    ]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(get(results)[0].title).toBe('Newer');
+    const recordCalls = invokeMock.mock.calls.filter((c) => c[0] === 'record_search');
+    expect(recordCalls.some((c) => c[1].query === 'a')).toBe(false);
+    expect(recordCalls.some((c) => c[1].query === 'ab')).toBe(true);
+  });
+
   it('runSearch keeps previous results on error', async () => {
     invokeMock.mockResolvedValueOnce([
       {
