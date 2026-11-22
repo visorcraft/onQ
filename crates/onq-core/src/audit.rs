@@ -39,12 +39,17 @@ pub fn append(vault: &Vault, kind: &str, detail: Option<&str>) -> CoreResult<()>
 }
 
 /// Read the last `limit` events (newest last in file order, returned newest-first).
+///
+/// Invalid UTF-8 is decoded lossily, so a torn write (e.g. a truncated
+/// multi-byte character) cannot break future reads; the damaged line is
+/// dropped by the JSON parse filter below.
 pub fn read_recent(vault: &Vault, limit: usize) -> CoreResult<Vec<AuditEvent>> {
     let path = audit_path(vault);
     if !path.is_file() {
         return Ok(Vec::new());
     }
-    let raw = std::fs::read_to_string(&path)?;
+    let bytes = std::fs::read(&path)?;
+    let raw = String::from_utf8_lossy(&bytes);
     let mut events: Vec<AuditEvent> = raw
         .lines()
         .filter(|l| !l.trim().is_empty())
@@ -114,5 +119,45 @@ mod tests {
         assert!(should_remind_backup("", 7, now));
         assert!(!should_remind_backup(&now.to_rfc3339(), 7, now));
         assert!(!should_remind_backup("x", 0, now));
+    }
+
+    #[test]
+    fn read_recent_skips_torn_invalid_utf8_line() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        append(&vault, "vault_unlock", Some("first")).unwrap();
+        append(&vault, "vault_lock", Some("second")).unwrap();
+        let path = audit_path(&vault);
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap();
+            f.write_all(b"\xE2\x82 partial json").unwrap();
+            f.write_all(b"\n").unwrap();
+        }
+        append(&vault, "vault_unlock", Some("third")).unwrap();
+        let events = read_recent(&vault, 10).unwrap();
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[0].kind, "vault_unlock");
+        assert_eq!(events[0].detail.as_deref(), Some("third"));
+        assert_eq!(events[1].kind, "vault_lock");
+        assert_eq!(events[1].detail.as_deref(), Some("second"));
+        assert_eq!(events[2].kind, "vault_unlock");
+        assert_eq!(events[2].detail.as_deref(), Some("first"));
+    }
+
+    #[test]
+    fn read_recent_returns_empty_for_whitespace_and_garbage_only() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let path = audit_path(&vault);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&path, b"\n\xFF\xFE\n").unwrap();
+        let events = read_recent(&vault, 10).unwrap();
+        assert!(events.is_empty());
     }
 }
