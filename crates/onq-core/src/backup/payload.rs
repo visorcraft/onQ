@@ -42,8 +42,23 @@ pub fn unpack_tree(payload: &[u8], dest: &Path) -> CoreResult<()> {
         let mut entry = entry?;
         let entry_path = entry.path()?.into_owned();
         let safe_path = path_util::safe_join(&canonical_dest, &entry_path)?;
-        if entry.header().entry_type().is_dir() || entry_path.to_str().unwrap_or("").ends_with('/')
-        {
+        let entry_type = entry.header().entry_type();
+        match entry_type {
+            tar::EntryType::Regular | tar::EntryType::Directory => {}
+            tar::EntryType::Symlink | tar::EntryType::Link => {
+                return Err(CoreError::Other(format!(
+                    "backup contains link entry (unsupported): {}",
+                    entry_path.display()
+                )));
+            }
+            _ => {
+                return Err(CoreError::Other(format!(
+                    "backup contains unsupported entry type: {} ({entry_type:?})",
+                    entry_path.display()
+                )));
+            }
+        }
+        if entry_type.is_dir() || entry_path.to_str().unwrap_or("").ends_with('/') {
             std::fs::create_dir_all(&safe_path)?;
         } else {
             if let Some(parent) = safe_path.parent() {
@@ -118,6 +133,60 @@ mod tests {
         let base = Path::new("/tmp/onq-stage");
         assert!(path_util::safe_join(base, Path::new("../x")).is_err());
         assert!(path_util::safe_join(base, Path::new("ok/a.md")).is_ok());
+    }
+
+    fn special_entry_payload(
+        entry_type: tar::EntryType,
+        entry_path: &str,
+        link_name: Option<&str>,
+    ) -> Vec<u8> {
+        let mut raw = Vec::new();
+        {
+            let enc = GzEncoder::new(&mut raw, Compression::default());
+            let mut builder = Builder::new(enc);
+            let mut header = Header::new_gnu();
+            header.set_entry_type(entry_type);
+            header.set_size(0);
+            header.set_path(entry_path).unwrap();
+            if let Some(link_name) = link_name {
+                header.set_link_name(link_name).unwrap();
+            }
+            header.set_cksum();
+            builder.append(&header, std::io::empty()).unwrap();
+            let enc = builder.into_inner().unwrap();
+            enc.finish().unwrap();
+        }
+        raw
+    }
+
+    #[test]
+    fn unpack_rejects_symlink_entries() {
+        for link_name in ["../../evil", "/etc/passwd"] {
+            let payload =
+                special_entry_payload(tar::EntryType::Symlink, "link.md", Some(link_name));
+            let dest = TempDir::new().unwrap();
+            let err = unpack_tree(&payload, dest.path()).unwrap_err();
+            assert!(err.to_string().contains("link entry"));
+            assert!(!dest.path().join("link.md").exists());
+        }
+    }
+
+    #[test]
+    fn unpack_rejects_hardlink_entries() {
+        let payload = special_entry_payload(tar::EntryType::Link, "link.md", Some("note.md"));
+        let dest = TempDir::new().unwrap();
+        let err = unpack_tree(&payload, dest.path()).unwrap_err();
+        assert!(err.to_string().contains("link entry"));
+        assert!(!dest.path().join("link.md").exists());
+    }
+
+    #[test]
+    fn unpack_rejects_special_entries() {
+        let payload = special_entry_payload(tar::EntryType::Fifo, "fifo.md", None);
+        let dest = TempDir::new().unwrap();
+        let err = unpack_tree(&payload, dest.path()).unwrap_err();
+        assert!(err.to_string().contains("unsupported entry type"));
+        assert!(!dest.path().join("fifo.md").exists());
     }
 
     #[test]
