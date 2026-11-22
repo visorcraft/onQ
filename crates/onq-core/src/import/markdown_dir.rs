@@ -3,6 +3,7 @@ use std::path::Path;
 use chrono::Utc;
 
 use crate::error::CoreResult;
+use crate::folder_path;
 use crate::frontmatter::{self, Frontmatter};
 use crate::import::{ImportReport, OnConflict};
 use crate::ulid::PromptId;
@@ -83,6 +84,11 @@ fn import_one(vault: &Vault, path: &Path, on_conflict: OnConflict) -> CoreResult
     if fm.id.as_str().is_empty() {
         fm.id = PromptId::new();
     }
+    if let Some(raw) = fm.folder.take() {
+        if !raw.trim().is_empty() {
+            fm.folder = Some(folder_path::normalize(&raw)?);
+        }
+    }
     let exists = vault.read(&fm.id).is_ok();
     if exists && matches!(on_conflict, OnConflict::Skip) {
         return Ok(false);
@@ -108,5 +114,41 @@ mod tests {
         assert_eq!(report.created, 1);
         assert!(report.errors.is_empty());
         assert_eq!(vault.list().unwrap().len(), 1);
+    }
+
+    fn frontmatter_doc(id: &str, folder: &str) -> String {
+        format!(
+            "---\nid: {id}\ntitle: T\nfolder: \"{folder}\"\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\nbody"
+        )
+    }
+
+    #[test]
+    fn normalizes_frontmatter_folder_on_import() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        let id = PromptId::new();
+        std::fs::write(src.join("note.md"), frontmatter_doc(id.as_str(), "A // B")).unwrap();
+        let report = import_markdown_dir(&vault, &src, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        assert!(report.errors.is_empty());
+        let prompt = vault.read(&id).unwrap();
+        assert_eq!(prompt.fm.folder.as_deref(), Some("A/B"));
+    }
+
+    #[test]
+    fn reports_file_with_invalid_folder() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        let id = PromptId::new();
+        std::fs::write(src.join("bad.md"), frontmatter_doc(id.as_str(), "..")).unwrap();
+        let report = import_markdown_dir(&vault, &src, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 0);
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.errors[0].contains("bad.md"));
+        assert!(vault.read(&id).is_err());
     }
 }
