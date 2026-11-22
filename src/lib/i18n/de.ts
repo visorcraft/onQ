@@ -373,6 +373,34 @@ export const de: Record<MessageKey, string> = {
   'about.licenseDocs': 'Lizenzdokumente',
   'about.findPlaceholder': 'Nach Crate, Paket, Lizenz oder Phrase suchen…',
   'about.close': 'Schließen',
+  'about.credits.title': 'Danksagung',
+  'about.credits.summary':
+    '{crates} Cargo crates · {packages} npm-Pakete · {runtime} Runtime-Komponenten',
+  'about.credits.loading': 'Inventar wird geladen…',
+  'about.credits.runtime.title': 'Runtime-Komponenten',
+  'about.credits.runtime.subtitle':
+    'Systembibliotheken, gegen die die Shell zur Ausführungszeit verlinkt. Keine davon ist gebündelt — das Host-Betriebssystem oder die Packager stellen sie bereit.',
+  'about.credits.runtime.noLicenseText':
+    'Kein gebündelter Lizenztext für diese System-Runtime (vom Host-Betriebssystem bereitgestellt).',
+  'about.credits.runtime.licenseText': 'Lizenztext',
+  'about.credits.runtime.licenseTextFor': 'Lizenztext für {name}',
+  'about.credits.runtime.projectSite': 'Projektseite',
+  'about.credits.runtime.openProjectFor': 'Projekt für {name} öffnen',
+  'about.credits.npm.title': 'NPM-Pakete',
+  'about.credits.npm.hint':
+    'Installierte JavaScript-Pakete aus dem Workspace-Lockfile (Laufzeit-UI plus Build-Tooling). Volltexte: Licenses → Frontend (npm).',
+  'about.credits.npm.filterPlaceholder': 'Nach Paketname, Rolle oder Lizenz filtern…',
+  'about.credits.crates.title': 'Cargo-Crates',
+  'about.credits.crates.hint':
+    'Jedes direkte und transitive Rust-Crate. Volltexte: Licenses → Third-party (Rust).',
+  'about.credits.crates.filterPlaceholder': 'Nach Crate-Name oder Lizenz filtern…',
+  'about.credits.col.package': 'Paket',
+  'about.credits.col.crate': 'Crate',
+  'about.credits.col.version': 'Version',
+  'about.credits.col.role': 'Rolle',
+  'about.credits.col.license': 'Lizenz-Expression',
+  'about.credits.openItem': '{name} öffnen',
+
   'conflict.resolveAria': 'Sync-Konflikt lösen',
   'conflict.eyebrow': 'Merge erfordert Ihre Entscheidung',
   'conflict.title': 'Konflikt lösen',

@@ -373,6 +373,34 @@ export const th: Record<MessageKey, string> = {
   'about.licenseDocs': 'เอกสารใบอนุญาต',
   'about.findPlaceholder': 'ค้นหาตาม crate แพ็กเกจ ใบอนุญาต หรือวลี…',
   'about.close': 'ปิด',
+  'about.credits.title': 'เครดิต',
+  'about.credits.summary':
+    '{crates} รายการ Cargo crate · {packages} แพ็กเกจ npm · {runtime} คอมโพเนนต์ runtime',
+  'about.credits.loading': 'กำลังโหลดรายการ…',
+  'about.credits.runtime.title': 'คอมโพเนนต์ runtime',
+  'about.credits.runtime.subtitle':
+    'ไลบรารีระบบที่ shell ลิงก์ตอนรัน ไม่ได้รวมมา — ระบบโฮสต์หรือแพ็กเกอร์จัดให้',
+  'about.credits.runtime.noLicenseText':
+    'ไม่มีข้อความใบอนุญาตที่รวมมาสำหรับ runtime ระบบนี้ (จัดเตรียมโดยระบบโฮสต์)',
+  'about.credits.runtime.licenseText': 'ข้อความใบอนุญาต',
+  'about.credits.runtime.licenseTextFor': 'ข้อความใบอนุญาตสำหรับ {name}',
+  'about.credits.runtime.projectSite': 'เว็บไซต์โครงการ',
+  'about.credits.runtime.openProjectFor': 'เปิดโครงการสำหรับ {name}',
+  'about.credits.npm.title': 'แพ็กเกจ NPM',
+  'about.credits.npm.hint':
+    'แพ็กเกจ JavaScript ที่ติดตั้งจาก lockfile ของ workspace (UI รันไทม์และเครื่องมือ build) ข้อความเต็ม: Licenses → Frontend (npm)',
+  'about.credits.npm.filterPlaceholder': 'กรองตามชื่อแพ็กเกจ บทบาท หรือใบอนุญาต…',
+  'about.credits.crates.title': 'Cargo crate',
+  'about.credits.crates.hint':
+    'ทุก Cargo crate โดยตรงและแบบส่งต่อ ข้อความเต็ม: Licenses → Third-party (Rust)',
+  'about.credits.crates.filterPlaceholder': 'กรองตามชื่อ crate หรือใบอนุญาต…',
+  'about.credits.col.package': 'แพ็กเกจ',
+  'about.credits.col.crate': 'crate',
+  'about.credits.col.version': 'เวอร์ชัน',
+  'about.credits.col.role': 'บทบาท',
+  'about.credits.col.license': 'นิพจน์ใบอนุญาต',
+  'about.credits.openItem': 'เปิด {name}',
+
   'conflict.resolveAria': 'แก้ความขัดแย้งการซิงค์',
   'conflict.eyebrow': 'การรวมต้องการการตัดสินใจของคุณ',
   'conflict.title': 'แก้ความขัดแย้ง',

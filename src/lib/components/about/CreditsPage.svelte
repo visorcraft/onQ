@@ -46,7 +46,7 @@
     if (!spdxId) {
       licenseDialog = {
         title: name,
-        body: 'No bundled license text for this system runtime (provided by the host OS).',
+        body: t('about.credits.runtime.noLicenseText', undefined, $locale),
       };
       return;
     }
@@ -66,13 +66,12 @@
 <div class="about-page credits-page">
   <header class="row-header">
     <div class="header-grow">
-      <h1>Credits</h1>
+      <h1>{t('about.credits.title', undefined, $locale)}</h1>
       <p class="sub">
         {#if data}
-          {data.crateCount} Cargo crates · {data.packageCount} npm packages ·
-          {data.runtimeCount} runtime components
+          {t('about.credits.summary', { crates: data.crateCount, packages: data.packageCount, runtime: data.runtimeCount }, $locale)}
         {:else}
-          Loading inventory…
+          {t('about.credits.loading', undefined, $locale)}
         {/if}
       </p>
     </div>
@@ -85,11 +84,8 @@
   {#if data}
     <section class="credits-runtime">
       <div class="section-head">
-        <h2>Runtime components</h2>
-        <p>
-          System libraries the shell links against at execution. None are
-          bundled — host OS / packagers provide them.
-        </p>
+        <h2>{t('about.credits.runtime.title', undefined, $locale)}</h2>
+        <p>{t('about.credits.runtime.subtitle', undefined, $locale)}</p>
       </div>
       <ul class="runtime-list">
         {#each data.runtime as r (r.name)}
@@ -103,8 +99,8 @@
               <button
                 type="button"
                 class="icon-btn"
-                title="License text"
-                aria-label="License text for {r.name}"
+                title={t('about.credits.runtime.licenseText', undefined, $locale)}
+                aria-label={t('about.credits.runtime.licenseTextFor', { name: r.name }, $locale)}
                 onclick={() => void openRuntimeLicense(r.name, r.spdxId)}
               >
                 ☰
@@ -112,8 +108,8 @@
               <button
                 type="button"
                 class="icon-btn"
-                title="Project site"
-                aria-label="Open project for {r.name}"
+                title={t('about.credits.runtime.projectSite', undefined, $locale)}
+                aria-label={t('about.credits.runtime.openProjectFor', { name: r.name }, $locale)}
                 disabled={!r.projectUrl}
                 onclick={() => openUrl(r.projectUrl)}
               >
@@ -125,16 +121,13 @@
       </ul>
     </section>
 
-    <div class="table-section-label">NPM packages</div>
-    <p class="table-hint">
-      Installed JavaScript packages from the workspace lockfile (runtime UI
-      plus build tooling). Full texts: Licenses → Frontend (npm).
-    </p>
+    <div class="table-section-label">{t('about.credits.npm.title', undefined, $locale)}</div>
+    <p class="table-hint">{t('about.credits.npm.hint', undefined, $locale)}</p>
     <div class="filter-row">
       <input
         class="filter-input"
         type="search"
-        placeholder="Filter by package name, role, or license…"
+        placeholder={t('about.credits.npm.filterPlaceholder', undefined, $locale)}
         bind:value={npmFilter}
       />
       <span class="count">{filteredPackages.length} / {data.packageCount}</span>
@@ -143,10 +136,10 @@
       <table class="credits-table">
         <thead>
           <tr>
-            <th>Package</th>
-            <th>Version</th>
-            <th>Role</th>
-            <th>License expression</th>
+            <th>{t('about.credits.col.package', undefined, $locale)}</th>
+            <th>{t('about.credits.col.version', undefined, $locale)}</th>
+            <th>{t('about.credits.col.role', undefined, $locale)}</th>
+            <th>{t('about.credits.col.license', undefined, $locale)}</th>
             <th></th>
           </tr>
         </thead>
@@ -162,7 +155,7 @@
                   <button
                     type="button"
                     class="icon-btn"
-                    aria-label="Open {p.name}"
+                    aria-label={t('about.credits.openItem', { name: p.name }, $locale)}
                     onclick={() => openUrl(p.repository)}
                   >
                     ↗
@@ -175,16 +168,13 @@
       </table>
     </div>
 
-    <div class="table-section-label">Cargo crates</div>
-    <p class="table-hint">
-      Every direct and transitive Rust crate. Full texts: Licenses →
-      Third-party (Rust).
-    </p>
+    <div class="table-section-label">{t('about.credits.crates.title', undefined, $locale)}</div>
+    <p class="table-hint">{t('about.credits.crates.hint', undefined, $locale)}</p>
     <div class="filter-row">
       <input
         class="filter-input"
         type="search"
-        placeholder="Filter by crate name or license…"
+        placeholder={t('about.credits.crates.filterPlaceholder', undefined, $locale)}
         bind:value={crateFilter}
       />
       <span class="count">{filteredCrates.length} / {data.crateCount}</span>
@@ -193,9 +183,9 @@
       <table class="credits-table">
         <thead>
           <tr>
-            <th>Crate</th>
-            <th>Version</th>
-            <th>License expression</th>
+            <th>{t('about.credits.col.crate', undefined, $locale)}</th>
+            <th>{t('about.credits.col.version', undefined, $locale)}</th>
+            <th>{t('about.credits.col.license', undefined, $locale)}</th>
             <th></th>
           </tr>
         </thead>
@@ -210,7 +200,7 @@
                   <button
                     type="button"
                     class="icon-btn"
-                    aria-label="Open {c.name}"
+                    aria-label={t('about.credits.openItem', { name: c.name }, $locale)}
                     onclick={() => openUrl(c.repository)}
                   >
                     ↗

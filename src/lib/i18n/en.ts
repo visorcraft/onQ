@@ -433,6 +433,34 @@ export const en = {
   'about.licenseDocs': 'License documents',
   'about.findPlaceholder': 'Find by crate, package, license, or phrase…',
   'about.close': 'Close',
+  'about.credits.title': 'Credits',
+  'about.credits.summary':
+    '{crates} Cargo crates · {packages} npm packages · {runtime} runtime components',
+  'about.credits.loading': 'Loading inventory…',
+  'about.credits.runtime.title': 'Runtime components',
+  'about.credits.runtime.subtitle':
+    'System libraries the shell links against at execution. None are bundled — host OS / packagers provide them.',
+  'about.credits.runtime.noLicenseText':
+    'No bundled license text for this system runtime (provided by the host OS).',
+  'about.credits.runtime.licenseText': 'License text',
+  'about.credits.runtime.licenseTextFor': 'License text for {name}',
+  'about.credits.runtime.projectSite': 'Project site',
+  'about.credits.runtime.openProjectFor': 'Open project for {name}',
+  'about.credits.npm.title': 'NPM packages',
+  'about.credits.npm.hint':
+    'Installed JavaScript packages from the workspace lockfile (runtime UI plus build tooling). Full texts: Licenses → Frontend (npm).',
+  'about.credits.npm.filterPlaceholder':
+    'Filter by package name, role, or license…',
+  'about.credits.crates.title': 'Cargo crates',
+  'about.credits.crates.hint':
+    'Every direct and transitive Rust crate. Full texts: Licenses → Third-party (Rust).',
+  'about.credits.crates.filterPlaceholder': 'Filter by crate name or license…',
+  'about.credits.col.package': 'Package',
+  'about.credits.col.crate': 'Crate',
+  'about.credits.col.version': 'Version',
+  'about.credits.col.role': 'Role',
+  'about.credits.col.license': 'License expression',
+  'about.credits.openItem': 'Open {name}',
 
   // Conflict / diff (product surfaces)
   'conflict.resolveAria': 'Resolve sync conflict',

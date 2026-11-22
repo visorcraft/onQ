@@ -373,6 +373,34 @@ export const es: Record<MessageKey, string> = {
   'about.licenseDocs': 'Documentos de licencia',
   'about.findPlaceholder': 'Buscar por crate, paquete, licencia o frase…',
   'about.close': 'Cerrar',
+  'about.credits.title': 'Créditos',
+  'about.credits.summary':
+    '{crates} crates Cargo · {packages} paquetes npm · {runtime} componentes de runtime',
+  'about.credits.loading': 'Cargando inventario…',
+  'about.credits.runtime.title': 'Componentes de runtime',
+  'about.credits.runtime.subtitle':
+    'Bibliotecas del sistema a las que el shell enlaza en tiempo de ejecución. Ninguna se incluye: el SO host o los empaquetadores las proporcionan.',
+  'about.credits.runtime.noLicenseText':
+    'Este runtime del sistema no incluye texto de licencia (proporcionado por el SO host).',
+  'about.credits.runtime.licenseText': 'Texto de licencia',
+  'about.credits.runtime.licenseTextFor': 'Texto de licencia para {name}',
+  'about.credits.runtime.projectSite': 'Sitio del proyecto',
+  'about.credits.runtime.openProjectFor': 'Abrir el proyecto de {name}',
+  'about.credits.npm.title': 'Paquetes NPM',
+  'about.credits.npm.hint':
+    'Paquetes JavaScript instalados desde el lockfile del workspace (UI de runtime y herramientas de compilación). Textos completos: Licenses → Frontend (npm).',
+  'about.credits.npm.filterPlaceholder': 'Filtrar por nombre de paquete, rol o licencia…',
+  'about.credits.crates.title': 'Crates Cargo',
+  'about.credits.crates.hint':
+    'Cada crate Rust directo y transitivo. Textos completos: Licenses → Third-party (Rust).',
+  'about.credits.crates.filterPlaceholder': 'Filtrar por nombre de crate o licencia…',
+  'about.credits.col.package': 'Paquete',
+  'about.credits.col.crate': 'Crate',
+  'about.credits.col.version': 'Versión',
+  'about.credits.col.role': 'Rol',
+  'about.credits.col.license': 'Expresión de licencia',
+  'about.credits.openItem': 'Abrir {name}',
+
   'conflict.resolveAria': 'Resolver conflicto de sincronización',
   'conflict.eyebrow': 'La fusión requiere tu decisión',
   'conflict.title': 'Resolver conflicto',

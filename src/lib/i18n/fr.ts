@@ -373,6 +373,34 @@ export const fr: Record<MessageKey, string> = {
   'about.licenseDocs': 'Documents de licence',
   'about.findPlaceholder': 'Rechercher par crate, paquet, licence ou phrase…',
   'about.close': 'Fermer',
+  'about.credits.title': 'Crédits',
+  'about.credits.summary':
+    '{crates} crates Cargo · {packages} paquets npm · {runtime} composants runtime',
+  'about.credits.loading': 'Chargement de l’inventaire…',
+  'about.credits.runtime.title': 'Composants runtime',
+  'about.credits.runtime.subtitle':
+    'Bibliothèques système liées par le shell à l’exécution. Aucune n’est incluse — le système hôte ou les packagers les fournissent.',
+  'about.credits.runtime.noLicenseText':
+    'Aucun texte de licence inclus pour ce runtime système (fourni par le système hôte).',
+  'about.credits.runtime.licenseText': 'Texte de licence',
+  'about.credits.runtime.licenseTextFor': 'Texte de licence pour {name}',
+  'about.credits.runtime.projectSite': 'Site du projet',
+  'about.credits.runtime.openProjectFor': 'Ouvrir le projet de {name}',
+  'about.credits.npm.title': 'Paquets NPM',
+  'about.credits.npm.hint':
+    'Paquets JavaScript installés depuis le lockfile de l’espace de travail (UI d’exécution et outils de build). Textes complets : Licenses → Frontend (npm).',
+  'about.credits.npm.filterPlaceholder': 'Filtrer par nom de paquet, rôle ou licence…',
+  'about.credits.crates.title': 'Crates Cargo',
+  'about.credits.crates.hint':
+    'Chaque crate Rust direct et transitif. Textes complets : Licenses → Third-party (Rust).',
+  'about.credits.crates.filterPlaceholder': 'Filtrer par nom de crate ou licence…',
+  'about.credits.col.package': 'Paquet',
+  'about.credits.col.crate': 'Crate',
+  'about.credits.col.version': 'Version',
+  'about.credits.col.role': 'Rôle',
+  'about.credits.col.license': 'Expression de licence',
+  'about.credits.openItem': 'Ouvrir {name}',
+
   'conflict.resolveAria': 'Résoudre le conflit de sync',
   'conflict.eyebrow': 'La fusion nécessite votre décision',
   'conflict.title': 'Résoudre le conflit',
