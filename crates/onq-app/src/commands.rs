@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -2650,15 +2651,20 @@ fn run_hybrid_search(
                     Some(q),
                 )
                 .map_err(|e| e.to_string())?;
+                let id_to_row_id: HashMap<Vec<u8>, mongreldb_core::RowId> = candidates
+                    .iter()
+                    .filter_map(|r| match r.columns.get(&col::PROMPTS_ID) {
+                        Some(Value::Bytes(b)) => Some((b.clone(), r.row_id)),
+                        _ => None,
+                    })
+                    .fold(HashMap::new(), |mut map, (id, row_id)| {
+                        map.entry(id).or_insert(row_id);
+                        map
+                    });
                 let mut hits = Vec::with_capacity(scored.len());
                 for (id_str, _) in &scored {
-                    if let Some(row) = candidates.iter().find(|r| {
-                        matches!(
-                            r.columns.get(&col::PROMPTS_ID),
-                            Some(Value::Bytes(b)) if b.as_slice() == id_str.as_bytes()
-                        )
-                    }) {
-                        hits.push(row.row_id);
+                    if let Some(row_id) = id_to_row_id.get(id_str.as_bytes()) {
+                        hits.push(*row_id);
                     }
                 }
                 hits
@@ -2696,17 +2702,27 @@ fn run_hybrid_search(
     };
 
     let now = chrono::Utc::now().timestamp();
+    let ann_ranks: HashMap<mongreldb_core::RowId, usize> =
+        ann_hits
+            .iter()
+            .enumerate()
+            .fold(HashMap::new(), |mut map, (index, row_id)| {
+                map.entry(*row_id).or_insert(index + 1);
+                map
+            });
+    let sparse_ranks: HashMap<mongreldb_core::RowId, usize> =
+        sparse_hits
+            .iter()
+            .enumerate()
+            .fold(HashMap::new(), |mut map, (index, row_id)| {
+                map.entry(*row_id).or_insert(index + 1);
+                map
+            });
     let mut hits: Vec<SearchHit> = candidates
         .into_iter()
         .filter_map(|row| {
-            let ann_rank = ann_hits
-                .iter()
-                .position(|row_id| *row_id == row.row_id)
-                .map(|index| index + 1);
-            let sparse_rank = sparse_hits
-                .iter()
-                .position(|row_id| *row_id == row.row_id)
-                .map(|index| index + 1);
+            let ann_rank = ann_ranks.get(&row.row_id).copied();
+            let sparse_rank = sparse_ranks.get(&row.row_id).copied();
             if ann_rank.is_none() && sparse_rank.is_none() {
                 return None;
             }
@@ -4562,6 +4578,90 @@ mod tests {
             hits.iter().map(|hit| hit.id.as_str()).collect::<Vec<_>>(),
             vec!["lexical"]
         );
+    }
+
+    #[test]
+    fn hybrid_search_fuses_ranks_with_candidate_set_larger_than_limit() {
+        let dir = TempDir::new().unwrap();
+        let db = std::sync::Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+
+        let mut semantic_embed = vec![0.0; EMBED_DIM];
+        semantic_embed[0] = 1.0;
+        let mut lexical_embed = vec![0.0; EMBED_DIM];
+        lexical_embed[1] = 1.0;
+        let filler_embed = vec![0.0; EMBED_DIM];
+
+        // One clearly semantic-matching prompt: shared embedding direction.
+        insert_prompt_with_embedding(
+            &db,
+            b"semantic",
+            "storage engine internals",
+            &[],
+            semantic_embed,
+        );
+        // Lexical matches: repeated token in the body.
+        for i in 0..6 {
+            let id = format!("lexical-{i:02}");
+            let body = format!("zebra zebra zebra filler-{i}");
+            insert_prompt_with_embedding(&db, id.as_bytes(), &body, &[], lexical_embed.clone());
+        }
+        // Fillers: no shared token, zero embedding.
+        for i in 0..5 {
+            let id = format!("filler-{i:02}");
+            let body = format!("unrelated filler body {i}");
+            insert_prompt_with_embedding(&db, id.as_bytes(), &body, &[], filler_embed.clone());
+        }
+
+        let mut query_vec = vec![0.0; EMBED_DIM];
+        query_vec[0] = 1.0;
+        let query = AppSearchQuery::new("zebra");
+        let hard_filters = query.to_query(&query_vec);
+        let retrievers = query.to_retrievers(&query_vec);
+
+        for mode in ["binary", "dense"] {
+            let hits =
+                run_hybrid_search(&db, &hard_filters, &retrievers, 5, mode, 30.0, "zebra").unwrap();
+            assert!(
+                hits.len() <= 5,
+                "result must honor the limit in {mode} mode, got {}",
+                hits.len()
+            );
+            assert!(!hits.is_empty(), "{mode} mode must return hits");
+            for pair in hits.windows(2) {
+                let (a, b) = (&pair[0], &pair[1]);
+                assert!(
+                    a.rrf_score > b.rrf_score
+                        || (a.rrf_score == b.rrf_score && a.id < b.id),
+                    "hits must sort by rrf_score desc with id asc tiebreak in {mode} mode: {:?} then {:?}",
+                    a.id,
+                    b.id,
+                );
+            }
+        }
+
+        // Dense mode takes the pending exact-cosine path through the
+        // id -> row_id map; the semantic-only hit must survive truncation.
+        let dense_hits =
+            run_hybrid_search(&db, &hard_filters, &retrievers, 5, "dense", 30.0, "zebra").unwrap();
+        assert!(
+            dense_hits.iter().any(|hit| hit.id == "semantic"),
+            "semantic-only hit must survive in dense pending exact-cosine mode: {:?}",
+            dense_hits.iter().map(|h| h.id.as_str()).collect::<Vec<_>>(),
+        );
+
+        // Sparse-only retrievers: only lexical matches, via the rank maps.
+        let sparse_only = query.to_retrievers(&[]);
+        let hits = run_hybrid_search(&db, &hard_filters, &sparse_only, 5, "binary", 30.0, "zebra")
+            .unwrap();
+        assert!(hits.len() <= 5, "sparse-only run must honor the limit");
+        assert!(!hits.is_empty(), "sparse-only run must return hits");
+        for hit in &hits {
+            assert!(
+                hit.id.starts_with("lexical-"),
+                "sparse-only run must return only lexical matches, got {}",
+                hit.id
+            );
+        }
     }
 
     #[test]
