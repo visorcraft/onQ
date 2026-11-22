@@ -436,6 +436,10 @@ export const en = {
     'Bundled license and attribution documents, available without opening a browser.',
   'about.licenseDocs': 'License documents',
   'about.findPlaceholder': 'Find by crate, package, license, or phrase…',
+  'about.licenseLineCount': '{count} lines',
+  'about.licenseWrap': 'Wrap',
+  'about.licenseClearFilter': 'Clear',
+  'about.licenseNoMatch': '(no matching lines)',
   'about.close': 'Close',
   'about.credits.title': 'Credits',
   'about.credits.summary':

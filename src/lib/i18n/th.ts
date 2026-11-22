@@ -376,6 +376,10 @@ export const th: Record<MessageKey, string> = {
   'about.licensesSub': 'เอกสารใบอนุญาตและ attribution ที่มาพร้อมแอป โดยไม่ต้องเปิดเบราว์เซอร์',
   'about.licenseDocs': 'เอกสารใบอนุญาต',
   'about.findPlaceholder': 'ค้นหาตาม crate แพ็กเกจ ใบอนุญาต หรือวลี…',
+  'about.licenseLineCount': '{count} บรรทัด',
+  'about.licenseWrap': 'ตัดบรรทัด',
+  'about.licenseClearFilter': 'ล้าง',
+  'about.licenseNoMatch': '(ไม่พบบรรทัดที่ตรงกัน)',
   'about.close': 'ปิด',
   'about.credits.title': 'เครดิต',
   'about.credits.summary':

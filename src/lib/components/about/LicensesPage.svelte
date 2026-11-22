@@ -95,7 +95,7 @@
       <h2>{activeMeta?.title ?? '…'}</h2>
       <p>{activeMeta?.subtitle ?? ''}</p>
     </div>
-    <span class="line-count">{lineCount} lines</span>
+    <span class="line-count">{t('about.licenseLineCount', { count: lineCount }, $locale)}</span>
   </div>
 
   <div class="licenses-filter-row">
@@ -107,12 +107,12 @@
     />
     <label class="wrap-toggle">
       <input type="checkbox" bind:checked={wrap} />
-      Wrap
+      {t('about.licenseWrap', undefined, $locale)}
     </label>
-    <button type="button" class="btn-ghost sm" onclick={() => (filter = '')}>Clear</button>
+    <button type="button" class="btn-ghost sm" onclick={() => (filter = '')}>{t('about.licenseClearFilter', undefined, $locale)}</button>
   </div>
 
-  <pre class="licenses-body" class:wrap>{loading ? 'Loading…' : visible || '(no matching lines)'}</pre>
+  <pre class="licenses-body" class:wrap>{loading ? t('common.loading', undefined, $locale) : visible || t('about.licenseNoMatch', undefined, $locale)}</pre>
 
 </div>
 

@@ -376,6 +376,10 @@ export const es: Record<MessageKey, string> = {
   'about.licensesSub': 'Documentos de licencia y atribución incluidos, sin abrir el navegador.',
   'about.licenseDocs': 'Documentos de licencia',
   'about.findPlaceholder': 'Buscar por crate, paquete, licencia o frase…',
+  'about.licenseLineCount': '{count} líneas',
+  'about.licenseWrap': 'Ajustar líneas',
+  'about.licenseClearFilter': 'Limpiar',
+  'about.licenseNoMatch': '(ninguna línea coincide)',
   'about.close': 'Cerrar',
   'about.credits.title': 'Créditos',
   'about.credits.summary':

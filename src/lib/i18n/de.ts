@@ -376,6 +376,10 @@ export const de: Record<MessageKey, string> = {
   'about.licensesSub': 'Gebündelte Lizenz- und Attributionstexte, ohne Browser.',
   'about.licenseDocs': 'Lizenzdokumente',
   'about.findPlaceholder': 'Nach Crate, Paket, Lizenz oder Phrase suchen…',
+  'about.licenseLineCount': '{count} Zeilen',
+  'about.licenseWrap': 'Zeilenumbruch',
+  'about.licenseClearFilter': 'Löschen',
+  'about.licenseNoMatch': '(keine passenden Zeilen)',
   'about.close': 'Schließen',
   'about.credits.title': 'Danksagung',
   'about.credits.summary':
