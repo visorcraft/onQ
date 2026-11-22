@@ -2654,9 +2654,23 @@ fn run_hybrid_search(
     if limit == 0 {
         return Ok(Vec::new());
     }
+    // Project only the columns the hit-construction closure reads. The
+    // embedding, sparse and minhash columns are never materialized here; the
+    // exact-cosine fallback reads its own embedding column.
+    const HIT_COLUMNS: [u16; 9] = [
+        col::PROMPTS_ID,
+        col::PROMPTS_TITLE,
+        col::PROMPTS_FOLDER,
+        col::PROMPTS_TAGS,
+        col::PROMPTS_UPDATED,
+        col::PROMPTS_FAVORITE,
+        col::PROMPTS_LOCKED,
+        col::PROMPTS_CHAR,
+        col::PROMPTS_BODY,
+    ];
     let candidates: Vec<Row> = db
         .handle()
-        .query_for_current_principal("prompts", q, None)
+        .query_for_current_principal("prompts", q, Some(&HIT_COLUMNS))
         .map_err(|e| e.to_string())?;
 
     if candidates.is_empty() {
@@ -2760,13 +2774,13 @@ fn run_hybrid_search(
                 return None;
             }
 
-            let id_bytes = match row.columns.get(&col::PROMPTS_ID) {
-                Some(Value::Bytes(b)) => b.clone(),
-                _ => Vec::new(),
+            let id = match row.columns.get(&col::PROMPTS_ID) {
+                Some(Value::Bytes(b)) => String::from_utf8_lossy(b).into_owned(),
+                _ => String::new(),
             };
-            let title_bytes = match row.columns.get(&col::PROMPTS_TITLE) {
-                Some(Value::Bytes(b)) => b.clone(),
-                _ => Vec::new(),
+            let title = match row.columns.get(&col::PROMPTS_TITLE) {
+                Some(Value::Bytes(b)) => String::from_utf8_lossy(b).into_owned(),
+                _ => String::new(),
             };
             let folder = match row.columns.get(&col::PROMPTS_FOLDER) {
                 Some(Value::Bytes(b)) if !b.is_empty() => {
@@ -2774,8 +2788,8 @@ fn run_hybrid_search(
                 }
                 _ => None,
             };
-            let tags_bytes = match row.columns.get(&col::PROMPTS_TAGS) {
-                Some(Value::Json(b)) => b.clone(),
+            let tags = match row.columns.get(&col::PROMPTS_TAGS) {
+                Some(Value::Json(b)) => serde_json::from_slice(b).unwrap_or_default(),
                 _ => Vec::new(),
             };
             let updated = match row.columns.get(&col::PROMPTS_UPDATED) {
@@ -2815,10 +2829,10 @@ fn run_hybrid_search(
             };
 
             Some(SearchHit {
-                id: String::from_utf8_lossy(&id_bytes).into_owned(),
-                title: String::from_utf8_lossy(&title_bytes).into_owned(),
+                id,
+                title,
                 folder,
-                tags: serde_json::from_slice(&tags_bytes).unwrap_or_default(),
+                tags,
                 favorite,
                 locked,
                 char_count: *char_count,
@@ -4576,6 +4590,104 @@ mod tests {
         assert_eq!(id, b"01H");
         assert_eq!(title, b"hi");
         assert!(folder.is_none(), "absent folder must read as None");
+    }
+
+    #[test]
+    fn hybrid_search_hit_columns_survive_the_projection() {
+        // Regression guard for the candidate-query projection in
+        // `run_hybrid_search`: seed one unlocked and one locked prompt whose
+        // bodies contain the query term, run a sparse-only search, and assert
+        // every column the hit-construction closure reads still arrives. An
+        // omitted column would degrade the hit (empty tags, zero char_count,
+        // zero updated_at) rather than error.
+        let dir = TempDir::new().unwrap();
+        let db = std::sync::Arc::new(Db::open(dir.path(), "test-pass").unwrap());
+
+        let seed = |id: &[u8], body: &str, locked: bool, favorite: bool| {
+            db.handle()
+                .transaction_for_current_principal(|tx| {
+                    tx.put(
+                        "prompts",
+                        vec![
+                            (col::PROMPTS_ID, Value::Bytes(id.to_vec())),
+                            (col::PROMPTS_TITLE, Value::Bytes(b"hit-title".to_vec())),
+                            (col::PROMPTS_FOLDER, Value::Bytes(b"inbox".to_vec())),
+                            (col::PROMPTS_BODY, Value::Bytes(body.as_bytes().to_vec())),
+                            (
+                                col::PROMPTS_TAGS,
+                                Value::Json(br#"["alpha","beta"]"#.to_vec()),
+                            ),
+                            (col::PROMPTS_FAVORITE, Value::Bool(favorite)),
+                            (col::PROMPTS_LOCKED, Value::Bool(locked)),
+                            (col::PROMPTS_CHAR, Value::Int64(body.len() as i64)),
+                            (col::PROMPTS_CREATED, Value::Int64(0)),
+                            (col::PROMPTS_UPDATED, Value::Int64(1_700_000_000)),
+                            (
+                                col::PROMPTS_BODY_SPARSE,
+                                Value::Bytes(sparse_bytes(body).unwrap()),
+                            ),
+                            (col::PROMPTS_EMBED, Value::Embedding(vec![0.0; EMBED_DIM])),
+                        ],
+                    )?;
+                    Ok(())
+                })
+                .expect("seed prompt");
+        };
+
+        seed(b"unlocked", "zebra alpha unlocked body", false, true);
+        seed(b"locked", "zebra alpha locked body", true, false);
+
+        let query = AppSearchQuery::new("zebra");
+        let hard_filters = query.to_query(&[]);
+        let sparse_only = query.to_retrievers(&[]);
+        let hits = run_hybrid_search(
+            &db,
+            &hard_filters,
+            &sparse_only,
+            10,
+            "binary",
+            30.0,
+            "zebra",
+        )
+        .expect("hybrid search");
+
+        let unlocked = hits
+            .iter()
+            .find(|hit| hit.id == "unlocked")
+            .expect("unlocked hit");
+        let locked = hits
+            .iter()
+            .find(|hit| hit.id == "locked")
+            .expect("locked hit");
+
+        // The unlocked snippet is built from the projected PROMPTS_BODY.
+        assert!(
+            !unlocked.snippet.is_empty(),
+            "unlocked snippet must be non-empty"
+        );
+        assert!(
+            unlocked.snippet.contains("zebra"),
+            "unlocked snippet must contain the query term: {:?}",
+            unlocked.snippet
+        );
+        assert!(locked.snippet.is_empty(), "locked snippet must be empty");
+
+        for hit in [unlocked, locked] {
+            assert!(!hit.id.is_empty(), "id must be non-empty");
+            assert!(!hit.title.is_empty(), "title must be non-empty");
+            assert_eq!(
+                hit.tags,
+                vec!["alpha".to_string(), "beta".to_string()],
+                "tags must parse from the projected column"
+            );
+            assert_eq!(hit.folder.as_deref(), Some("inbox"));
+            assert!(hit.char_count > 0, "char_count must be non-zero");
+            assert!(hit.updated_at > 0, "updated_at must be non-zero");
+        }
+        assert!(unlocked.favorite, "favorite must carry through");
+        assert!(!locked.favorite, "favorite must carry through");
+        assert!(!unlocked.locked, "unlocked hit must not be locked");
+        assert!(locked.locked, "locked hit must be locked");
     }
 
     #[test]
