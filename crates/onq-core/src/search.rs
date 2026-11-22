@@ -142,6 +142,23 @@ pub fn searchable_text(title: &str, tags: &[String], folder: Option<&str>, body:
     parts.join("\n")
 }
 
+/// FNV-1a 32-bit hash of a single token. ASCII tokens are lowercased and
+/// hashed in place with zero heap allocations; non-ASCII tokens fall back to
+/// whole-string Unicode lowercasing so persisted term IDs are unchanged.
+fn token_hash(token: &str) -> u32 {
+    let mut hash = 0x811c9dc5u32;
+    if token.is_ascii() {
+        for byte in token.bytes() {
+            hash = (hash ^ u32::from(byte.to_ascii_lowercase())).wrapping_mul(0x01000193);
+        }
+    } else {
+        for byte in token.to_lowercase().bytes() {
+            hash = (hash ^ u32::from(byte)).wrapping_mul(0x01000193);
+        }
+    }
+    hash
+}
+
 /// Deterministic hashing-trick sparse vector shared by document writes and
 /// queries. L2-normalized term frequency prevents long prompts from winning
 /// only because they contain more words.
@@ -151,10 +168,7 @@ pub fn sparse_vector(text: &str) -> Vec<(u32, f32)> {
         .split(|character: char| !character.is_alphanumeric())
         .filter(|token| !token.is_empty())
     {
-        let mut hash = 0x811c9dc5u32;
-        for byte in token.to_lowercase().bytes() {
-            hash = (hash ^ u32::from(byte)).wrapping_mul(0x01000193);
-        }
+        let hash = token_hash(token);
         *terms.entry(hash).or_default() += 1.0;
     }
     let norm = terms
@@ -423,6 +437,43 @@ mod tests {
         assert!(
             doc.iter().any(|(h, _)| *h == q_hash),
             "tag token must be present in document sparse vector"
+        );
+    }
+
+    fn reference_hash(token: &str) -> u32 {
+        let mut hash = 0x811c9dc5u32;
+        for byte in token.to_lowercase().bytes() {
+            hash = (hash ^ u32::from(byte)).wrapping_mul(0x01000193);
+        }
+        hash
+    }
+
+    #[test]
+    fn token_hash_matches_reference_hash() {
+        let long_token = "a".repeat(1024);
+        let tokens = [
+            "Rust",
+            "rust",
+            "RUST",
+            "abc123",
+            "token-with-punctuation",
+            "",
+            "café",
+            "ΟΣ",
+            "中文字符",
+            "emoji 🚀",
+            long_token.as_str(),
+        ];
+        for token in tokens {
+            assert_eq!(token_hash(token), reference_hash(token), "token: {token:?}");
+        }
+    }
+
+    #[test]
+    fn sparse_vector_is_case_insensitive() {
+        assert_eq!(
+            sparse_vector("Rust Search API"),
+            sparse_vector("rust search api")
         );
     }
 }

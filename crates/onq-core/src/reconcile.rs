@@ -128,10 +128,12 @@ fn read_db_body(db: &Db, id: &PromptId) -> CoreResult<Option<String>> {
 }
 
 fn sha256(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let digest = Sha256::digest(value.as_bytes());
-    let mut hex = String::with_capacity(digest.len() * 2);
+    let mut hex = String::with_capacity(64);
     for byte in digest {
-        hex.push_str(&format!("{byte:02x}"));
+        hex.push(HEX[(byte >> 4) as usize] as char);
+        hex.push(HEX[(byte & 0x0f) as usize] as char);
     }
     hex
 }
@@ -291,6 +293,22 @@ mod tests {
 
     fn insert_prompt(db: &Db, id: &PromptId, body: &str) {
         upsert_prompt(db, id, b"Unchanged", body);
+    }
+
+    #[test]
+    fn sha256_matches_known_answer_vectors() {
+        assert_eq!(
+            sha256(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            sha256("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
+        );
     }
 
     fn upsert_prompt(db: &Db, id: &PromptId, title: &[u8], body: &str) {
