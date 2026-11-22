@@ -100,14 +100,24 @@ export function renderConflict(
   segments: readonly ConflictSegment[],
   choices: ReadonlyMap<number, ConflictChoice> = new Map(),
 ): string {
-  return segments
-    .map((segment) => {
-      if (segment.kind === 'context') return segment.text;
-      const choice = choices.get(segment.id);
-      if (choice) return selectedHunk(segment, choice);
-      return `<<<<<<< ours\n${segment.ours}\n=======\n${segment.theirs}\n>>>>>>> theirs`;
-    })
-    .join('\n');
+  const parts: string[] = [];
+  for (const segment of segments) {
+    if (segment.kind === 'context') {
+      parts.push(segment.text);
+      continue;
+    }
+    const choice = choices.get(segment.id);
+    if (choice) {
+      // A resolved hunk that renders to the empty string contributes nothing:
+      // no text and no separator, so neighbouring context lines join cleanly.
+      // Empty context parts (e.g. a trailing newline) are preserved.
+      const rendered = selectedHunk(segment, choice);
+      if (rendered.length > 0) parts.push(rendered);
+      continue;
+    }
+    parts.push(`<<<<<<< ours\n${segment.ours}\n=======\n${segment.theirs}\n>>>>>>> theirs`);
+  }
+  return parts.join('\n');
 }
 
 /** Resolve every conflict hunk in a diffy-style document with one choice. */
