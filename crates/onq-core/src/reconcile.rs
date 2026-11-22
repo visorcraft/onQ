@@ -1,5 +1,7 @@
 //! Reconcile a prompt's vault file with its indexed database row.
 
+use std::borrow::Cow;
+
 use chrono::Utc;
 use mongreldb_core::{query::Condition, Query, Value};
 use sha2::{Digest, Sha256};
@@ -24,18 +26,20 @@ pub enum ReconcileOutcome {
 /// recorded as `ours_sha`, while `theirs_sha` remains empty so the file takes
 /// the ingest path. Reconciliation returns the work for the caller to apply to
 /// the database; this function persists the clean sidecar and a content-addressed
-/// base snapshot for an ingest.
+/// base snapshot for an ingest. An unchanged file returns `Noop` before the
+/// database row is read, so a malformed row is only reported once the file
+/// actually differs from its sidecar.
 pub fn reconcile(vault: &Vault, db: &Db, id: &PromptId) -> CoreResult<ReconcileOutcome> {
     let disk = vault.read(id)?;
     let disk_hash = sha256(&disk.body);
     let mut sidecar = sync_state::read(&vault.root, id)?
         .unwrap_or_else(|| fresh_sidecar(id.clone(), disk_hash.clone()));
-    let db_body = read_db_body(db, id)?;
 
     if !sidecar.theirs_sha.is_empty() && disk_hash == sidecar.theirs_sha {
         return Ok(ReconcileOutcome::Noop);
     }
 
+    let db_body = read_db_body(db, id)?;
     let db_hash = match db_body.as_ref() {
         Some(body) => sha256(body),
         None => String::new(),
@@ -54,13 +58,12 @@ pub fn reconcile(vault: &Vault, db: &Db, id: &PromptId) -> CoreResult<ReconcileO
     }
 
     let ours = db_body.ok_or_else(|| CoreError::Db(format!("prompt {id} not found")))?;
-    let ours_hash = sha256(&ours);
-    let base = if sidecar.base_sha == ours_hash {
-        ours.clone()
+    let base = if sidecar.base_sha == db_hash {
+        Cow::Borrowed(ours.as_str())
     } else if sidecar.base_sha == disk_hash {
-        disk.body.clone()
+        Cow::Borrowed(disk.body.as_str())
     } else {
-        read_base(vault, &sidecar.base_sha)?
+        Cow::Owned(read_base(vault, &sidecar.base_sha)?)
     };
     let merged = merge::three_way(&base, &ours, &disk.body)?;
     Ok(ReconcileOutcome::Merged(merged))
@@ -114,11 +117,11 @@ fn read_db_body(db: &Db, id: &PromptId) -> CoreResult<Option<String>> {
         )
         .map_err(|error| CoreError::Db(format!("read prompt {id}: {error}")))?;
 
-    let Some(row) = rows.into_iter().next() else {
+    let Some(mut row) = rows.into_iter().next() else {
         return Ok(None);
     };
-    match row.columns.get(&col::PROMPTS_BODY) {
-        Some(Value::Bytes(body)) => String::from_utf8(body.clone())
+    match row.columns.remove(&col::PROMPTS_BODY) {
+        Some(Value::Bytes(body)) => String::from_utf8(body)
             .map(Some)
             .map_err(|error| CoreError::Db(format!("prompt {id} body is not UTF-8: {error}"))),
         _ => Err(CoreError::Db(format!(
@@ -137,7 +140,6 @@ fn sha256(value: &str) -> String {
     }
     hex
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -327,6 +329,239 @@ mod tests {
                         (col::PROMPTS_FAVORITE, Value::Bool(false)),
                         (col::PROMPTS_LOCKED, Value::Bool(false)),
                         (col::PROMPTS_CHAR, Value::Int64(body.len() as i64)),
+                        (col::PROMPTS_CREATED, Value::Int64(0)),
+                        (col::PROMPTS_UPDATED, Value::Int64(0)),
+                        (col::PROMPTS_EMBED, Value::Embedding(vec![0.0; 384])),
+                    ],
+                )
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn read_db_body_missing_row_returns_none() {
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let id = PromptId::new();
+        assert!(read_db_body(&db, &id).unwrap().is_none());
+    }
+
+    #[test]
+    fn read_db_body_rejects_wrong_type_body() {
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let id = PromptId::new();
+        insert_prompt_with_body_value(&db, &id, Value::Null);
+        let error = read_db_body(&db, &id).unwrap_err();
+        match error {
+            CoreError::Db(msg) => assert!(msg.contains("body is missing or has the wrong type")),
+            _ => panic!("expected CoreError::Db"),
+        }
+    }
+
+    #[test]
+    fn read_db_body_rejects_non_utf8_body() {
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let id = PromptId::new();
+        insert_prompt_with_body_value(&db, &id, Value::Bytes(vec![0xff, 0xfe]));
+        let error = read_db_body(&db, &id).unwrap_err();
+        match error {
+            CoreError::Db(msg) => assert!(msg.contains("body is not UTF-8")),
+            _ => panic!("expected CoreError::Db"),
+        }
+    }
+
+    #[test]
+    fn unchanged_disk_file_is_noop_without_validating_db_row() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("Unchanged").unwrap();
+        prompt.body = "same body".into();
+        vault.write(&prompt).unwrap();
+
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        insert_prompt_with_body_value(&db, &prompt.fm.id, Value::Null);
+
+        let hash = sha256(&prompt.body);
+        let sidecar = Sidecar {
+            id: prompt.fm.id.clone(),
+            base_sha: hash.clone(),
+            ours_sha: hash.clone(),
+            theirs_sha: hash,
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        sync_state::write(&vault.root, &sidecar).unwrap();
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        assert!(matches!(outcome, ReconcileOutcome::Noop));
+        assert_eq!(
+            sync_state::read(&vault.root, &prompt.fm.id)
+                .unwrap()
+                .unwrap(),
+            sidecar
+        );
+    }
+
+    #[test]
+    fn unchanged_disk_file_with_missing_db_row_is_noop() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("Unchanged").unwrap();
+        prompt.body = "same body".into();
+        vault.write(&prompt).unwrap();
+
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+
+        let hash = sha256(&prompt.body);
+        let sidecar = Sidecar {
+            id: prompt.fm.id.clone(),
+            base_sha: hash.clone(),
+            ours_sha: hash.clone(),
+            theirs_sha: hash,
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        sync_state::write(&vault.root, &sidecar).unwrap();
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        assert!(matches!(outcome, ReconcileOutcome::Noop));
+    }
+
+    #[test]
+    fn base_matching_db_body_takes_disk_version() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("BaseMatchesDB").unwrap();
+        prompt.body = "line 1\nline 2\nline 3\n".into();
+        vault.write(&prompt).unwrap();
+
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        insert_prompt(&db, &prompt.fm.id, &prompt.body);
+
+        let hash = sha256(&prompt.body);
+        write_base(&vault, &hash, &prompt.body).unwrap();
+        let sidecar = Sidecar {
+            id: prompt.fm.id.clone(),
+            base_sha: hash.clone(),
+            ours_sha: "stale".into(),
+            theirs_sha: hash,
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        sync_state::write(&vault.root, &sidecar).unwrap();
+
+        // External editor mutates only the disk file.
+        prompt.body = "line 1\nline TWO\nline 3\n".into();
+        vault.write(&prompt).unwrap();
+
+        let expected = vault.read(&prompt.fm.id).unwrap().body;
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        match outcome {
+            ReconcileOutcome::Merged(MergeOutcome::Clean(text)) => {
+                assert_eq!(text, expected);
+            }
+            _ => panic!("expected Merged(Clean)"),
+        }
+    }
+
+    #[test]
+    fn base_matching_disk_body_keeps_db_version() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("BaseMatchesDisk").unwrap();
+        prompt.body = "line 1\nline 2\nline 3\n".into();
+        vault.write(&prompt).unwrap();
+
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        insert_prompt(&db, &prompt.fm.id, &prompt.body);
+
+        let hash = sha256(&prompt.body);
+        write_base(&vault, &hash, &prompt.body).unwrap();
+        let sidecar = Sidecar {
+            id: prompt.fm.id.clone(),
+            base_sha: hash.clone(),
+            ours_sha: hash.clone(),
+            theirs_sha: "stale".into(),
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        sync_state::write(&vault.root, &sidecar).unwrap();
+
+        // User edits inside the app (DB) while the file is unchanged.
+        let db_body = "line 1\nDB line 2\nline 3\n";
+        upsert_prompt(&db, &prompt.fm.id, b"BaseMatchesDisk", db_body);
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        match outcome {
+            ReconcileOutcome::Merged(MergeOutcome::Clean(text)) => {
+                assert_eq!(text, db_body);
+            }
+            _ => panic!("expected Merged(Clean)"),
+        }
+    }
+
+    #[test]
+    fn base_read_from_snapshot_when_neither_side_matches() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let mut prompt = vault.new_prompt("BaseFromSnapshot").unwrap();
+        prompt.body = "line 1\nline 2\nline 3\nline 4\nline 5\n".into();
+        vault.write(&prompt).unwrap();
+
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        insert_prompt(&db, &prompt.fm.id, &prompt.body);
+
+        let hash = sha256(&prompt.body);
+        write_base(&vault, &hash, &prompt.body).unwrap();
+        let sidecar = Sidecar {
+            id: prompt.fm.id.clone(),
+            base_sha: hash.clone(),
+            ours_sha: "stale-ours".into(),
+            theirs_sha: "stale".into(),
+            last_synced_at: "2026-07-19T00:00:00Z".into(),
+            external_edit_count: 0,
+            tombstone: false,
+        };
+        sync_state::write(&vault.root, &sidecar).unwrap();
+
+        // DB edits line 2; disk edits line 5.
+        let db_body = "line 1\nDB line 2\nline 3\nline 4\nline 5\n";
+        upsert_prompt(&db, &prompt.fm.id, b"BaseFromSnapshot", db_body);
+        prompt.body = "line 1\nline 2\nline 3\nline 4\nDISK line 5\n".into();
+        vault.write(&prompt).unwrap();
+
+        let outcome = reconcile(&vault, &db, &prompt.fm.id).unwrap();
+        match outcome {
+            ReconcileOutcome::Merged(MergeOutcome::Clean(text)) => {
+                assert!(text.contains("DB line 2"));
+                assert!(text.contains("DISK line 5"));
+            }
+            _ => panic!("expected Merged(Clean)"),
+        }
+    }
+
+    fn insert_prompt_with_body_value(db: &Db, id: &PromptId, body: Value) {
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                tx.put(
+                    "prompts",
+                    vec![
+                        (
+                            col::PROMPTS_ID,
+                            Value::Bytes(id.as_str().as_bytes().to_vec()),
+                        ),
+                        (col::PROMPTS_TITLE, Value::Bytes(b"Unchanged".to_vec())),
+                        (col::PROMPTS_BODY, body),
+                        (col::PROMPTS_TAGS, Value::Json(b"[]".to_vec())),
+                        (col::PROMPTS_FAVORITE, Value::Bool(false)),
+                        (col::PROMPTS_LOCKED, Value::Bool(false)),
+                        (col::PROMPTS_CHAR, Value::Int64(1)),
                         (col::PROMPTS_CREATED, Value::Int64(0)),
                         (col::PROMPTS_UPDATED, Value::Int64(0)),
                         (col::PROMPTS_EMBED, Value::Embedding(vec![0.0; 384])),
