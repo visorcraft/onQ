@@ -262,6 +262,9 @@ fn assert_vault_path_exists(vault_path: &Path) -> Result<(), String> {
 
 /// Read the per-vault salt from `<vault>/.onq/salt`. If absent,
 /// generate a fresh 32-byte salt and persist it. Returns the raw 32 bytes.
+///
+/// Creation is atomic: the salt is written to a sibling temp file, fsynced,
+/// then renamed over the target, so a crash cannot truncate an existing salt.
 fn load_or_create_salt(vault_path: &Path) -> Result<[u8; 32], String> {
     let salt = salt_path(vault_path);
     if salt.exists() {
@@ -275,7 +278,20 @@ fn load_or_create_salt(vault_path: &Path) -> Result<[u8; 32], String> {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let s = generate_salt();
-        std::fs::write(&salt, s).map_err(|e| e.to_string())?;
+        let tmp = salt.with_file_name(format!("{SALT_FILE}.tmp"));
+        let write_result = (|| -> Result<(), String> {
+            use std::io::Write;
+            let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+            file.write_all(&s).map_err(|e| e.to_string())?;
+            file.sync_all().map_err(|e| e.to_string())?;
+            drop(file);
+            std::fs::rename(&tmp, &salt).map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+        if let Err(e) = write_result {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e);
+        }
         Ok(s)
     }
 }
@@ -4260,6 +4276,67 @@ mod tests {
         // Second call must read the persisted file and return identical bytes.
         let again = load_or_create_salt(dir.path()).unwrap();
         assert_eq!(salt, again);
+    }
+
+    #[test]
+    fn load_or_create_salt_is_stable_across_calls() {
+        let dir = TempDir::new().unwrap();
+        let first = load_or_create_salt(dir.path()).unwrap();
+        let second = load_or_create_salt(dir.path()).unwrap();
+        assert_eq!(first, second);
+        let on_disk = std::fs::read(dir.path().join(".onq").join("salt")).unwrap();
+        assert_eq!(on_disk.len(), 32);
+        assert_eq!(on_disk, first);
+    }
+
+    #[test]
+    fn load_or_create_salt_leaves_no_temp_file() {
+        let dir = TempDir::new().unwrap();
+        load_or_create_salt(dir.path()).unwrap();
+        let entries: Vec<_> = std::fs::read_dir(dir.path().join(".onq"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries, vec!["salt".to_string()]);
+    }
+
+    #[test]
+    fn load_or_create_salt_preserves_existing_salt() {
+        let dir = TempDir::new().unwrap();
+        let salt = dir.path().join(".onq").join("salt");
+        std::fs::create_dir_all(salt.parent().unwrap()).unwrap();
+        let known = [0xABu8; 32];
+        std::fs::write(&salt, known).unwrap();
+
+        let loaded = load_or_create_salt(dir.path()).unwrap();
+        assert_eq!(loaded, known);
+        assert_eq!(std::fs::read(&salt).unwrap(), known);
+    }
+
+    #[test]
+    fn load_or_create_salt_overwrites_stale_temp() {
+        let dir = TempDir::new().unwrap();
+        let onq_dir = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq_dir).unwrap();
+        let tmp = onq_dir.join("salt.tmp");
+        std::fs::write(&tmp, b"garbage").unwrap();
+
+        let salt = load_or_create_salt(dir.path()).unwrap();
+        assert_eq!(salt.len(), 32);
+        let on_disk = std::fs::read(onq_dir.join("salt")).unwrap();
+        assert_eq!(on_disk, salt);
+        assert!(!tmp.exists());
+    }
+
+    #[test]
+    fn load_or_create_salt_rejects_wrong_length() {
+        let dir = TempDir::new().unwrap();
+        let salt = dir.path().join(".onq").join("salt");
+        std::fs::create_dir_all(salt.parent().unwrap()).unwrap();
+        std::fs::write(&salt, [0u8; 31]).unwrap();
+
+        let err = load_or_create_salt(dir.path()).unwrap_err();
+        assert!(err.contains("is not 32 bytes"), "unexpected error: {err}");
     }
 
     #[test]
