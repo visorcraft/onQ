@@ -474,11 +474,11 @@
             >
               {#if recordingShortcut}
                 <span class="rec-dot" aria-hidden="true"></span>
-                Press shortcut…
+                {t('settings.shortcutRecording', undefined, $locale)}
               {:else if $globalShortcut}
                 <kbd>{$globalShortcut}</kbd>
               {:else}
-                Record shortcut
+                {t('settings.shortcutRecord', undefined, $locale)}
               {/if}
             </button>
           </div>

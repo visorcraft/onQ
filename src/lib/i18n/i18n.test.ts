@@ -83,6 +83,9 @@ describe('catalog completeness', () => {
       'common.dialog',
       'tutorial.dialogAria',
       'tutorial.finish',
+      'settings.shortcutRecord',
+      'settings.shortcutRecording',
+      'editor.loadingPrompt',
     ] as const;
     for (const key of newKeys) {
       const got = resolve(loc, key);

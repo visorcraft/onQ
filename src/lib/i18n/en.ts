@@ -76,6 +76,8 @@ export const en = {
     'Restores onQ from the tray and opens the prompt palette. Default: Win+Q / Meta+Q / ⌘+Q.',
   'settings.shortcutHint':
     'Press Ctrl, Alt, or {meta} plus another key. Escape cancels.',
+  'settings.shortcutRecord': 'Record shortcut',
+  'settings.shortcutRecording': 'Press shortcut…',
   'settings.theme': 'Theme',
   'settings.themeHelp': 'Theme applies immediately across the shell.',
   'settings.themeDark': 'Dark',
@@ -272,6 +274,7 @@ export const en = {
   'editor.deleteConfirm': 'Delete prompt',
   'editor.save': 'Save',
   'editor.saving': 'Saving…',
+  'editor.loadingPrompt': 'Loading prompt…',
   'editor.delete': 'Delete',
   'editor.copyAction': 'Copy',
   'editor.copiedAction': 'Copied!',

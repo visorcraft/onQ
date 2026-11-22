@@ -70,6 +70,8 @@ export const zh: Record<MessageKey, string> = {
   'settings.shortcutDesc':
     '从系统托盘恢复 onQ 并打开提示词面板。默认：Win+Q / Meta+Q / ⌘+Q。',
   'settings.shortcutHint': '按 Ctrl、Alt 或 {meta} 再加另一个键。Escape 取消。',
+  'settings.shortcutRecord': '录制快捷键',
+  'settings.shortcutRecording': '请按下快捷键…',
   'settings.theme': '主题',
   'settings.themeHelp': '主题立即应用于整个界面。',
   'settings.themeDark': '深色',
@@ -243,6 +245,7 @@ export const zh: Record<MessageKey, string> = {
   'editor.deleteConfirm': '删除提示词',
   'editor.save': '保存',
   'editor.saving': '保存中…',
+  'editor.loadingPrompt': '正在加载提示词…',
   'editor.delete': '删除',
   'editor.copyAction': '复制',
   'editor.copiedAction': '已复制！',

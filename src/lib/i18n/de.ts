@@ -71,6 +71,8 @@ export const de: Record<MessageKey, string> = {
   'settings.shortcutDesc':
     'Stellt onQ aus dem Tray wieder her und öffnet die Prompt-Palette. Standard: Win+Q / Meta+Q / ⌘+Q.',
   'settings.shortcutHint': 'Drücken Sie Ctrl, Alt oder {meta} plus eine Taste. Escape bricht ab.',
+  'settings.shortcutRecord': 'Tastenkürzel aufnehmen',
+  'settings.shortcutRecording': 'Tastenkürzel drücken…',
   'settings.theme': 'Design',
   'settings.themeHelp': 'Design gilt sofort im gesamten Shell.',
   'settings.themeDark': 'Dunkel',
@@ -244,6 +246,7 @@ export const de: Record<MessageKey, string> = {
   'editor.deleteConfirm': 'Prompt löschen',
   'editor.save': 'Speichern',
   'editor.saving': 'Speichern…',
+  'editor.loadingPrompt': 'Prompt wird geladen…',
   'editor.delete': 'Löschen',
   'editor.copyAction': 'Kopieren',
   'editor.copiedAction': 'Kopiert!',

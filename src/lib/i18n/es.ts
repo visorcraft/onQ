@@ -71,6 +71,8 @@ export const es: Record<MessageKey, string> = {
   'settings.shortcutDesc':
     'Restaura onQ desde la bandeja y abre la paleta de prompts. Predeterminado: Win+Q / Meta+Q / ⌘+Q.',
   'settings.shortcutHint': 'Pulsa Ctrl, Alt o {meta} más otra tecla. Escape cancela.',
+  'settings.shortcutRecord': 'Grabar atajo',
+  'settings.shortcutRecording': 'Pulsa el atajo…',
   'settings.theme': 'Tema',
   'settings.themeHelp': 'El tema se aplica de inmediato en toda la app.',
   'settings.themeDark': 'Oscuro',
@@ -244,6 +246,7 @@ export const es: Record<MessageKey, string> = {
   'editor.deleteConfirm': 'Eliminar prompt',
   'editor.save': 'Guardar',
   'editor.saving': 'Guardando…',
+  'editor.loadingPrompt': 'Cargando prompt…',
   'editor.delete': 'Eliminar',
   'editor.copyAction': 'Copiar',
   'editor.copiedAction': '¡Copiado!',

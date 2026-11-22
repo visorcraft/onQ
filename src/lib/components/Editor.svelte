@@ -273,7 +273,7 @@
   {#if loading}
     <div class="loading-state">
       <div class="loading-pulse" aria-hidden="true"></div>
-      <p>Loading prompt…</p>
+      <p>{t('editor.loadingPrompt', undefined, $locale)}</p>
     </div>
   {:else}
     <EditorHeader

@@ -71,6 +71,8 @@ export const th: Record<MessageKey, string> = {
   'settings.shortcutDesc':
     'เรียก onQ จากถาดระบบและเปิดพาเลทพรอมต์ ค่าเริ่มต้น: Win+Q / Meta+Q / ⌘+Q',
   'settings.shortcutHint': 'กด Ctrl, Alt หรือ {meta} กับปุ่มอื่น Escape เพื่อยกเลิก',
+  'settings.shortcutRecord': 'บันทึกทางลัด',
+  'settings.shortcutRecording': 'กดทางลัด…',
   'settings.theme': 'ธีม',
   'settings.themeHelp': 'ธีมมีผลทันทีทั้งแอป',
   'settings.themeDark': 'มืด',
@@ -244,6 +246,7 @@ export const th: Record<MessageKey, string> = {
   'editor.deleteConfirm': 'ลบพรอมต์',
   'editor.save': 'บันทึก',
   'editor.saving': 'กำลังบันทึก…',
+  'editor.loadingPrompt': 'กำลังโหลดพรอมต์…',
   'editor.delete': 'ลบ',
   'editor.copyAction': 'คัดลอก',
   'editor.copiedAction': 'คัดลอกแล้ว!',
