@@ -162,9 +162,16 @@ pub fn extract_query_vec(embedder: &mut Embedder, query: &SearchQuery) -> CoreRe
     embedder.embed(&query.text)
 }
 
+/// L2 norm of a vector.
+fn l2_norm(a: &[f32]) -> f32 {
+    a.iter().map(|x| x * x).sum::<f32>().sqrt()
+}
+
 /// Brute-force exact cosine similarity over every row of `table` that
 /// matches `candidate_filter`. Used only while Dense replace-index has not
-/// published (`DenseReadiness::PendingExactFallback`).
+/// published (`DenseReadiness::PendingExactFallback`). The query vector's
+/// L2 norm is computed once; ids are materialised as strings only for the
+/// returned top-`k` rows.
 pub fn exact_cosine_search(
     db: &Database,
     table: &str,
@@ -176,6 +183,7 @@ pub fn exact_cosine_search(
     if k == 0 {
         return Ok(Vec::new());
     }
+    let query_norm = l2_norm(query_vec);
 
     let default_filter = Query::default();
     let filter: &Query = candidate_filter.unwrap_or(&default_filter);
@@ -183,39 +191,45 @@ pub fn exact_cosine_search(
         .query_for_current_principal(table, filter, Some(&[col::PROMPTS_ID, column_id]))
         .map_err(|e| CoreError::Db(format!("exact_cosine_search query: {e}")))?;
 
-    let mut scored: Vec<(String, f32)> = rows
-        .into_iter()
-        .filter_map(|row| {
-            let id_bytes = match row.columns.get(&col::PROMPTS_ID) {
-                Some(Value::Bytes(b)) => b,
-                _ => return None,
-            };
-            let embed = match row.columns.get(&column_id) {
-                Some(Value::Embedding(v)) => v,
-                _ => return None,
-            };
-            let score = cosine_similarity(query_vec, embed);
-            let id = String::from_utf8_lossy(id_bytes).into_owned();
-            Some((id, score))
-        })
-        .collect();
+    let mut scored: Vec<(&[u8], f32)> = Vec::with_capacity(rows.len());
+    scored.extend(rows.iter().filter_map(|row| {
+        let id_bytes = match row.columns.get(&col::PROMPTS_ID) {
+            Some(Value::Bytes(b)) => b.as_slice(),
+            _ => return None,
+        };
+        let embed = match row.columns.get(&column_id) {
+            Some(Value::Embedding(v)) => v,
+            _ => return None,
+        };
+        let score = cosine_similarity_with_norm(query_vec, query_norm, embed);
+        Some((id_bytes, score))
+    }));
 
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     scored.truncate(k);
-    Ok(scored)
+    Ok(scored
+        .into_iter()
+        .map(|(id, score)| (String::from_utf8_lossy(id).into_owned(), score))
+        .collect())
 }
 
-/// Cosine similarity between two equal-length vectors. Returns `0.0`
-/// for any zero-norm input.
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+/// Cosine similarity between two equal-length vectors, given the precomputed
+/// L2 norm of `a`. Returns `0.0` for any zero-norm input.
+fn cosine_similarity_with_norm(a: &[f32], na: f32, b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len(), "cosine_similarity: dim mismatch");
     let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-    let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
     if na == 0.0 || nb == 0.0 {
         return 0.0;
     }
     dot / (na * nb)
+}
+
+/// Cosine similarity between two equal-length vectors. Returns `0.0`
+/// for any zero-norm input.
+#[cfg(test)]
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    cosine_similarity_with_norm(a, l2_norm(a), b)
 }
 
 #[cfg(test)]
@@ -451,5 +465,130 @@ mod tests {
         assert_eq!(cosine_similarity(&zero, &nonzero), 0.0);
         assert_eq!(cosine_similarity(&nonzero, &zero), 0.0);
         assert_eq!(cosine_similarity(&zero, &zero), 0.0);
+    }
+
+    #[test]
+    fn cosine_similarity_with_norm_matches_cosine_similarity() {
+        let unit_a = vec![1.0f32, 0.0, 0.0];
+        let unit_b = vec![0.0f32, 1.0, 0.0];
+        let non_unit_a = vec![3.0f32, 1.0, 0.0];
+        let non_unit_b = vec![0.5f32, 2.5f32, 1.0];
+        let neg_a = vec![-1.0f32, 4.0, 0.5];
+        let neg_b = vec![2.0f32, -3.0, 1.5];
+        let zero = vec![0.0f32; 3];
+        let nonzero = vec![1.0f32, -2.0, 0.5];
+
+        let pairs: Vec<(Vec<f32>, Vec<f32>)> = vec![
+            (unit_a, unit_b),
+            (non_unit_a, non_unit_b),
+            (neg_a, neg_b),
+            (zero.clone(), nonzero.clone()),
+            (nonzero, zero.clone()),
+            (zero.clone(), zero),
+        ];
+        for (a, b) in &pairs {
+            assert_eq!(
+                cosine_similarity_with_norm(a, l2_norm(a), b).to_bits(),
+                cosine_similarity(a, b).to_bits(),
+                "bit-mismatch for a={a:?} b={b:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn exact_cosine_search_zero_query_vector_scores_all_zero() {
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+
+        let mut unit_a = vec![0.0f32; 384];
+        unit_a[0] = 1.0;
+        let mut unit_b = vec![0.0f32; 384];
+        unit_b[1] = 1.0;
+        let mut unit_c = vec![0.0f32; 384];
+        unit_c[2] = 1.0;
+
+        insert_prompt_with_embed(&db, "alpha", unit_a);
+        insert_prompt_with_embed(&db, "beta", unit_b);
+        insert_prompt_with_embed(&db, "gamma", unit_c);
+
+        let zero_query = vec![0.0f32; 384];
+        let hits = exact_cosine_search(
+            db.handle(),
+            "prompts",
+            col::PROMPTS_EMBED,
+            &zero_query,
+            2,
+            None,
+        )
+        .expect("exact_cosine_search ok");
+
+        assert_eq!(hits.len(), 2, "expected exactly 2 hits, got {}", hits.len());
+        for (id, score) in &hits {
+            assert_eq!(score.to_bits(), 0, "zero-query score must be exactly 0.0");
+            assert!(
+                ["alpha", "beta", "gamma"].contains(&id.as_str()),
+                "unexpected id {id}"
+            );
+        }
+    }
+
+    #[test]
+    fn exact_cosine_search_scores_are_bit_exact_vs_reference() {
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+
+        let mut query = vec![0.0f32; 384];
+        query[0] = 1.0;
+        query[1] = 2.0;
+
+        let mut alpha = vec![0.0f32; 384];
+        alpha[0] = 3.0;
+        alpha[1] = 1.0;
+
+        let mut beta = vec![0.0f32; 384];
+        beta[0] = -1.0;
+        beta[1] = 4.0;
+
+        let gamma = vec![0.0f32; 384];
+
+        let mut delta = vec![0.0f32; 384];
+        delta[0] = 5.0;
+        delta[1] = 5.0;
+
+        insert_prompt_with_embed(&db, "alpha", alpha.clone());
+        insert_prompt_with_embed(&db, "beta", beta.clone());
+        insert_prompt_with_embed(&db, "gamma", gamma.clone());
+        insert_prompt_with_embed(&db, "delta", delta.clone());
+
+        let hits = exact_cosine_search(db.handle(), "prompts", col::PROMPTS_EMBED, &query, 3, None)
+            .expect("exact_cosine_search ok");
+
+        assert_eq!(hits.len(), 3, "expected exactly 3 hits, got {}", hits.len());
+        for window in hits.windows(2) {
+            assert!(
+                window[0].1 > window[1].1,
+                "scores must be strictly non-increasing: {hits:?}"
+            );
+        }
+
+        let embeds: std::collections::HashMap<&str, Vec<f32>> = [
+            ("alpha", alpha),
+            ("beta", beta),
+            ("gamma", gamma),
+            ("delta", delta),
+        ]
+        .into_iter()
+        .collect();
+
+        for (id, score) in &hits {
+            let embed = embeds
+                .get(id.as_str())
+                .expect("hit id must be an inserted prompt");
+            assert_eq!(
+                score.to_bits(),
+                cosine_similarity(&query, embed).to_bits(),
+                "bit-mismatch for id {id}"
+            );
+        }
     }
 }
