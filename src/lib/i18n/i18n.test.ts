@@ -86,6 +86,7 @@ describe('catalog completeness', () => {
       'settings.shortcutRecord',
       'settings.shortcutRecording',
       'editor.loadingPrompt',
+      'editor.title',
     ] as const;
     for (const key of newKeys) {
       const got = resolve(loc, key);

@@ -71,7 +71,7 @@
           type="button"
           class="icon-chip"
           class:locked
-          title={locked ? 'Unlock' : 'Lock'}
+          title={locked ? t('editor.unlock', undefined, $locale) : t('editor.lock', undefined, $locale)}
           aria-label={locked
             ? t('editor.unlock', undefined, $locale)
             : t('editor.lock', undefined, $locale)}
@@ -138,7 +138,7 @@
     </div>
   </div>
   <label class="title-field">
-    <span class="field-label">Title</span>
+    <span class="field-label">{t('editor.title', undefined, $locale)}</span>
     <input
       class="title field-input"
       bind:value={title}

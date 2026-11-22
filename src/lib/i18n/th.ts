@@ -221,6 +221,7 @@ export const th: Record<MessageKey, string> = {
   'editor.closeEditor': 'ปิดตัวแก้ไข',
   'editor.titlePlaceholder': 'พรอมต์ไม่มีชื่อ',
   'editor.titleAria': 'ชื่อพรอมต์',
+  'editor.title': 'ชื่อ',
   'editor.favorite': 'รายการโปรด',
   'editor.unfavorite': 'เอาออกจากรายการโปรด',
   'editor.lock': 'ล็อกพรอมต์',

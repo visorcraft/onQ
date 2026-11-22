@@ -221,6 +221,7 @@ export const de: Record<MessageKey, string> = {
   'editor.closeEditor': 'Editor schließen',
   'editor.titlePlaceholder': 'Unbenannter Prompt',
   'editor.titleAria': 'Prompt-Titel',
+  'editor.title': 'Titel',
   'editor.favorite': 'Favorit',
   'editor.unfavorite': 'Favorit entfernen',
   'editor.lock': 'Prompt sperren',

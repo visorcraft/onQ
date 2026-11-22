@@ -249,6 +249,7 @@ export const en = {
   'editor.closeEditor': 'Close editor',
   'editor.titlePlaceholder': 'Untitled prompt',
   'editor.titleAria': 'Prompt title',
+  'editor.title': 'Title',
   'editor.favorite': 'Favorite',
   'editor.unfavorite': 'Unfavorite',
   'editor.lock': 'Lock prompt',

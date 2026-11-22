@@ -220,6 +220,7 @@ export const zh: Record<MessageKey, string> = {
   'editor.closeEditor': '关闭编辑器',
   'editor.titlePlaceholder': '未命名提示词',
   'editor.titleAria': '提示词标题',
+  'editor.title': '标题',
   'editor.favorite': '收藏',
   'editor.unfavorite': '取消收藏',
   'editor.lock': '锁定提示词',

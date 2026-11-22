@@ -221,6 +221,7 @@ export const es: Record<MessageKey, string> = {
   'editor.closeEditor': 'Cerrar editor',
   'editor.titlePlaceholder': 'Prompt sin título',
   'editor.titleAria': 'Título del prompt',
+  'editor.title': 'Título',
   'editor.favorite': 'Favorito',
   'editor.unfavorite': 'Quitar de favoritos',
   'editor.lock': 'Bloquear prompt',
