@@ -1,6 +1,6 @@
 <script lang="ts">
   import { visualToDsl, type VisualPredicate, type VisualQuery } from '$lib/api/smartFolderVisual';
-  import { t, locale } from '$lib/i18n';
+  import { t, locale, type MessageKey } from '$lib/i18n';
 
   let {
     predicates = $bindable<VisualPredicate[]>([]),
@@ -21,6 +21,19 @@
     favorite: ['is'],
     locked: ['is'],
     text: ['contains'],
+  };
+
+  const fieldLabelKeys: Record<string, MessageKey> = {
+    tag: 'smart.fieldTag',
+    folder: 'smart.fieldFolder',
+    favorite: 'smart.fieldFavorite',
+    locked: 'smart.fieldLocked',
+    text: 'smart.fieldText',
+  };
+  const opLabelKeys: Record<string, MessageKey> = {
+    is: 'smart.opIs',
+    not: 'smart.opNot',
+    contains: 'smart.opContains',
   };
 
   $effect(() => {
@@ -80,21 +93,21 @@
   </div>
   <div class="add-row">
     <select bind:value={field} aria-label={t('smart.field', undefined, $locale)}>
-      <option value="tag">tag</option>
-      <option value="folder">folder</option>
-      <option value="favorite">favorite</option>
-      <option value="locked">locked</option>
-      <option value="text">text</option>
+      <option value="tag">{t(fieldLabelKeys.tag, undefined, $locale)}</option>
+      <option value="folder">{t(fieldLabelKeys.folder, undefined, $locale)}</option>
+      <option value="favorite">{t(fieldLabelKeys.favorite, undefined, $locale)}</option>
+      <option value="locked">{t(fieldLabelKeys.locked, undefined, $locale)}</option>
+      <option value="text">{t(fieldLabelKeys.text, undefined, $locale)}</option>
     </select>
     <select bind:value={op} aria-label={t('smart.operator', undefined, $locale)}>
       {#each fieldOps[field] ?? ['is'] as o (o)}
-        <option value={o}>{o}</option>
+        <option value={o}>{opLabelKeys[o] ? t(opLabelKeys[o], undefined, $locale) : o}</option>
       {/each}
     </select>
     {#if field === 'favorite' || field === 'locked'}
       <select bind:value={value} aria-label={t('smart.value', undefined, $locale)}>
-        <option value="true">true</option>
-        <option value="false">false</option>
+        <option value="true">{t('smart.valueTrue', undefined, $locale)}</option>
+        <option value="false">{t('smart.valueFalse', undefined, $locale)}</option>
       </select>
     {:else}
       <input

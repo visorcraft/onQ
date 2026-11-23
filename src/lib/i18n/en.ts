@@ -426,6 +426,16 @@ export const en = {
   'smart.value': 'Value',
   'smart.valueRequired': 'Value required',
   'smart.valuePlaceholder': 'value',
+  'smart.fieldTag': 'Tag',
+  'smart.fieldFolder': 'Folder',
+  'smart.fieldFavorite': 'Favorite',
+  'smart.fieldLocked': 'Locked',
+  'smart.fieldText': 'Text',
+  'smart.opIs': 'is',
+  'smart.opNot': 'is not',
+  'smart.opContains': 'contains',
+  'smart.valueTrue': 'true',
+  'smart.valueFalse': 'false',
 
   // About / licenses chrome
   'about.eyebrow': 'App',

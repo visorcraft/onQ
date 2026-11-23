@@ -87,6 +87,16 @@ describe('catalog completeness', () => {
       'settings.shortcutRecording',
       'editor.loadingPrompt',
       'editor.title',
+      'smart.fieldTag',
+      'smart.fieldFolder',
+      'smart.fieldFavorite',
+      'smart.fieldLocked',
+      'smart.fieldText',
+      'smart.opIs',
+      'smart.opNot',
+      'smart.opContains',
+      'smart.valueTrue',
+      'smart.valueFalse',
     ] as const;
     for (const key of newKeys) {
       const got = resolve(loc, key);
