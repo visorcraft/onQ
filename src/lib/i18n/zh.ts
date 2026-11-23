@@ -211,6 +211,8 @@ export const zh: Record<MessageKey, string> = {
   'library.kindPrompt': '提示词',
   'library.kindProject': '项目',
   'library.kindSmart': '智能文件夹',
+  'library.renameLeafOnly': '只能重命名末级名称——嵌套路径请使用“添加子项目”。',
+  'library.newPromptEditorUnavailable': '无法打开新提示词编辑器。',
   'pager.label': '分页',
   'pager.previous': '上一页',
   'pager.next': '下一页',

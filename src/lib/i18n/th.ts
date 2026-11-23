@@ -212,6 +212,8 @@ export const th: Record<MessageKey, string> = {
   'library.kindPrompt': 'พรอมต์',
   'library.kindProject': 'โปรเจกต์',
   'library.kindSmart': 'โฟลเดอร์อัจฉริยะ',
+  'library.renameLeafOnly': 'เปลี่ยนชื่อได้เฉพาะชื่อระดับปลายทาง — ใช้ “เพิ่มโปรเจกต์ย่อย” สำหรับเส้นทางซ้อนกัน',
+  'library.newPromptEditorUnavailable': 'ไม่สามารถเปิดตัวแก้ไขพรอมต์ใหม่ได้',
   'pager.label': 'การแบ่งหน้า',
   'pager.previous': 'หน้าก่อนหน้า',
   'pager.next': 'หน้าถัดไป',

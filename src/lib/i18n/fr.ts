@@ -212,6 +212,8 @@ export const fr: Record<MessageKey, string> = {
   'library.kindPrompt': 'Prompt',
   'library.kindProject': 'Projet',
   'library.kindSmart': 'Dossier intelligent',
+  'library.renameLeafOnly': 'Renommez uniquement le nom du niveau final — utilisez « ajouter un sous-projet » pour les chemins imbriqués.',
+  'library.newPromptEditorUnavailable': 'Impossible d’ouvrir l’éditeur de nouveau prompt.',
   'pager.label': 'Pagination',
   'pager.previous': 'Page précédente',
   'pager.next': 'Page suivante',

@@ -369,7 +369,7 @@
     }
     const leaf = renameValue.trim();
     if (leaf.includes('/')) {
-      errorMessage = 'Rename the leaf name only — use “add sub-project” for nested paths.';
+      errorMessage = t('library.renameLeafOnly', undefined, $locale);
       return;
     }
     const from = renamingPath;
@@ -477,7 +477,7 @@
     }
     // Fallback: open via parent open handler with a draft signal if only
     // onOpenPrompt is wired (should not happen in the shipped app).
-    errorMessage = 'Unable to open new prompt editor.';
+    errorMessage = t('library.newPromptEditorUnavailable', undefined, $locale);
   }
 
   async function toggleFavorite(p: PromptSummary) {

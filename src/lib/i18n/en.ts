@@ -237,6 +237,8 @@ export const en = {
   'library.kindPrompt': 'Prompt',
   'library.kindProject': 'Project',
   'library.kindSmart': 'Smart folder',
+  'library.renameLeafOnly': 'Rename the leaf name only — use “add sub-project” for nested paths.',
+  'library.newPromptEditorUnavailable': 'Unable to open new prompt editor.',
 
   // Pager
   'pager.label': 'Pagination',

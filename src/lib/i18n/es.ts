@@ -212,6 +212,8 @@ export const es: Record<MessageKey, string> = {
   'library.kindPrompt': 'Prompt',
   'library.kindProject': 'Proyecto',
   'library.kindSmart': 'Carpeta inteligente',
+  'library.renameLeafOnly': 'Renombra solo el nombre del nivel final; usa «añadir subproyecto» para rutas anidadas.',
+  'library.newPromptEditorUnavailable': 'No se pudo abrir el editor de prompts nuevos.',
   'pager.label': 'Paginación',
   'pager.previous': 'Página anterior',
   'pager.next': 'Página siguiente',

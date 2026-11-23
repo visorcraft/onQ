@@ -115,6 +115,8 @@ describe('catalog completeness', () => {
       'smart.opContains',
       'smart.valueTrue',
       'smart.valueFalse',
+      'library.renameLeafOnly',
+      'library.newPromptEditorUnavailable',
     ] as const;
     for (const key of newKeys) {
       const got = resolve(loc, key);

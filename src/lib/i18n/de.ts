@@ -212,6 +212,8 @@ export const de: Record<MessageKey, string> = {
   'library.kindPrompt': 'Prompt',
   'library.kindProject': 'Projekt',
   'library.kindSmart': 'Intelligenter Ordner',
+  'library.renameLeafOnly': 'Benenne nur den Namen der untersten Ebene um — verwende „Unterprojekt hinzufügen“ für verschachtelte Pfade.',
+  'library.newPromptEditorUnavailable': 'Editor für neue Prompts konnte nicht geöffnet werden.',
   'pager.label': 'Seitennavigation',
   'pager.previous': 'Vorherige Seite',
   'pager.next': 'Nächste Seite',
