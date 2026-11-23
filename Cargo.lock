@@ -3498,9 +3498,9 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-core"
-version = "0.66.2"
+version = "0.67.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a972e3be4966e3387800c107f2fa8acb5fc4a558bab9bad6191db6f1174e5edd"
+checksum = "e3a33cefda6ccd8085b35fcdba70055aaa7749853e45d2ae21d91bc3afe3474b"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -3539,18 +3539,18 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-fault"
-version = "0.66.2"
+version = "0.67.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99d85f25304084ad7cb168a1f4cc5e782774ea7a9ed23962833d5d409ed39365"
+checksum = "b5a79803bcd766da59ce34c0afe124fa4583aef46077af4e42752f4810b2c65f"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "mongreldb-log"
-version = "0.66.2"
+version = "0.67.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b09bdf8b9c880d2b68a57445a6b3ef448b9e06b9b2cdca34ff48711e477f38d"
+checksum = "c20d5e5cc1c2fece9e985951c24bd2c05077d4441e1d49cb4557429afd519694"
 dependencies = [
  "mongreldb-types",
  "serde",
@@ -3560,9 +3560,9 @@ dependencies = [
 
 [[package]]
 name = "mongreldb-types"
-version = "0.66.2"
+version = "0.67.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fbdf887e6e1e6870cb7a7f2f7cf33844939a09b6b164440de6b022f3146e8cd"
+checksum = "1c5b59629a81704d1e27f446fd656b7b97e405cffd784c17ed46390aceb516a5"
 dependencies = [
  "getrandom 0.4.3",
  "serde",
@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "onQ"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -4151,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "onq-core"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -4188,11 +4188,11 @@ dependencies = [
 
 [[package]]
 name = "onq-plugin-sdk"
-version = "1.17.0"
+version = "1.18.0"
 
 [[package]]
 name = "onq-test-utils"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "mongreldb-core",
  "onq-core",

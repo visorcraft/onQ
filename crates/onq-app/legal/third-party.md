@@ -620,10 +620,10 @@ Regenerate with `scripts/regen-credits.sh`.
 - `markup5ever` 0.40.0 — https://github.com/servo/html5ever
 - `memmap2` 0.9.11 — https://github.com/RazrFalcon/memmap2-rs
 - `mime` 0.3.17 — https://github.com/hyperium/mime
-- `mongreldb-core` 0.66.2 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-fault` 0.66.2 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-log` 0.66.2 — https://github.com/visorcraft/MongrelDB
-- `mongreldb-types` 0.66.2 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-core` 0.67.0 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-fault` 0.67.0 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-log` 0.67.0 — https://github.com/visorcraft/MongrelDB
+- `mongreldb-types` 0.67.0 — https://github.com/visorcraft/MongrelDB
 - `monostate` 0.1.18 — https://github.com/dtolnay/monostate
 - `monostate-impl` 0.1.18 — https://github.com/dtolnay/monostate
 - `ndarray` 0.17.2 — https://github.com/rust-ndarray/ndarray
