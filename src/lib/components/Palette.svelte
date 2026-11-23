@@ -165,7 +165,10 @@
           const def = field.default ?? '';
           const answer =
             typeof window !== 'undefined'
-              ? window.prompt(`Value for {{${field.name}}}`, def)
+              ? window.prompt(
+                  t('palette.templateValuePrompt', { name: field.name }, $locale),
+                  def,
+                )
               : def;
           if (answer === null) {
             statusMessage = t('palette.copyCancelled');

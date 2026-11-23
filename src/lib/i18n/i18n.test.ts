@@ -42,6 +42,23 @@ describe('i18n resolve', () => {
   });
 });
 
+describe('palette.templateValuePrompt', () => {
+  it('exists in all six catalogs', () => {
+    for (const loc of SUPPORTED_LOCALES) {
+      expect(
+        catalogs[loc]['palette.templateValuePrompt'].trim().length,
+        `missing palette.templateValuePrompt in ${loc}`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it('formats the field name inside literal braces', () => {
+    expect(
+      resolve('en', 'palette.templateValuePrompt', { name: 'client_name' }),
+    ).toBe('Value for {{client_name}}');
+  });
+});
+
 describe('catalog completeness', () => {
   it.each(SUPPORTED_LOCALES.filter((l) => l !== 'en') as Locale[])(
     '%s has every English key filled',

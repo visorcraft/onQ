@@ -34,6 +34,7 @@ export const es: Record<MessageKey, string> = {
   'palette.close': 'Cerrar paleta',
   'palette.copyCancelled': 'Copia cancelada.',
   'palette.unlockToCopy': 'Desbloquea este prompt para copiarlo.',
+  'palette.templateValuePrompt': 'Valor para {{{name}}}',
   'settings.nav': 'Secciones de ajustes',
   'settings.title': 'Ajustes',
   'settings.preferences': 'Preferencias',

@@ -34,6 +34,7 @@ export const zh: Record<MessageKey, string> = {
   'palette.close': '关闭命令面板',
   'palette.copyCancelled': '已取消复制。',
   'palette.unlockToCopy': '请先解锁此提示词再复制。',
+  'palette.templateValuePrompt': '请输入 {{{name}}} 的值',
   'settings.nav': '设置分区',
   'settings.title': '设置',
   'settings.preferences': '偏好设置',

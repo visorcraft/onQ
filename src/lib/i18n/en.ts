@@ -35,6 +35,7 @@ export const en = {
   'palette.close': 'Close palette',
   'palette.copyCancelled': 'Copy cancelled.',
   'palette.unlockToCopy': 'Unlock this prompt to copy it.',
+  'palette.templateValuePrompt': 'Value for {{{name}}}',
 
   // Settings sections
   'settings.nav': 'Settings sections',

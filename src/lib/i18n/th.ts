@@ -34,6 +34,7 @@ export const th: Record<MessageKey, string> = {
   'palette.close': 'ปิดพาเลท',
   'palette.copyCancelled': 'ยกเลิกการคัดลอก',
   'palette.unlockToCopy': 'ปลดล็อกพรอมต์นี้เพื่อคัดลอก',
+  'palette.templateValuePrompt': 'ป้อนค่าสำหรับ {{{name}}}',
   'settings.nav': 'ส่วนการตั้งค่า',
   'settings.title': 'การตั้งค่า',
   'settings.preferences': 'การตั้งค่า',
