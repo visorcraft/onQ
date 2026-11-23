@@ -78,8 +78,15 @@ pub fn list_snapshots(vault: &Vault, id: &PromptId) -> CoreResult<Vec<PathBuf>> 
             paths.push(path);
         }
     }
-    paths.sort_by(|a, b| (timestamp_from_filename(a), a).cmp(&(timestamp_from_filename(b), b)));
-    Ok(paths)
+    // Decorate once (one timestamp parse per path), sort, undecorate. Tuple
+    // Ord gives the old order: unparseable names first, then chronological,
+    // ties by path.
+    let mut decorated: Vec<(Option<DateTime<Utc>>, PathBuf)> = paths
+        .into_iter()
+        .map(|path| (timestamp_from_filename(&path), path))
+        .collect();
+    decorated.sort();
+    Ok(decorated.into_iter().map(|(_, path)| path).collect())
 }
 
 /// Read snapshot body text from an absolute path under the vault history tree.
@@ -127,17 +134,36 @@ fn snapshot_dir(vault: &Vault, id: &PromptId) -> PathBuf {
     history_root(vault).join(id.as_str())
 }
 
+/// Parse the timestamp embedded in a snapshot filename.
+///
+/// Supports both name formats: legacy RFC 3339 names with `:` time
+/// separators (e.g. `2026-11-22T10:30:09.123456789Z.md`) and the portable
+/// format with `-` time separators and a fixed-width 9-digit fractional
+/// part (e.g. `2026-11-22T10-30-09.123456789Z.md`). This function is
+/// allocation-free and runs once per snapshot on every save.
 fn timestamp_from_filename(path: &Path) -> Option<DateTime<Utc>> {
     let stem = path.file_stem()?.to_str()?;
-    if let Ok(dt) = DateTime::parse_from_rfc3339(stem) {
-        return Some(dt.with_timezone(&Utc)); // legacy ...+00:00 / ...Z
+    if stem.contains(':') {
+        // Legacy RFC 3339 name.
+        return DateTime::parse_from_rfc3339(stem)
+            .ok()
+            .map(|dt| dt.with_timezone(&Utc));
     }
-    // Portable names use '-' as the time separator; restore ':' after 'T'.
-    let (date, time) = stem.split_once('T')?;
-    if time.contains(':') {
-        return None;
+    let (date, _time) = stem.split_once('T')?;
+    if stem.len() > 64 {
+        return None; // no valid RFC 3339 timestamp is that long
     }
-    DateTime::parse_from_rfc3339(&format!("{}T{}", date, time.replace('-', ":")))
+    // Copy the stem byte for byte, restoring ':' after 'T' (the date part
+    // keeps its dashes). Stack-allocated; no String/format!.
+    let mut buf = [0u8; 64];
+    buf[..stem.len()].copy_from_slice(stem.as_bytes());
+    for byte in &mut buf[date.len() + 1..stem.len()] {
+        if *byte == b'-' {
+            *byte = b':';
+        }
+    }
+    let rewritten = std::str::from_utf8(&buf[..stem.len()]).ok()?;
+    DateTime::parse_from_rfc3339(rewritten)
         .ok()
         .map(|dt| dt.with_timezone(&Utc))
 }
@@ -350,5 +376,175 @@ mod tests {
             .unwrap();
         let returned = unique_snapshot_path(dir.path(), t);
         assert_eq!(returned, dir.path().join(snapshot_file_name(t)));
+    }
+
+    #[test]
+    fn timestamp_from_filename_accepts_legacy_and_portable_names() {
+        let expected = Utc.with_ymd_and_hms(2026, 11, 22, 10, 30, 9).unwrap()
+            + Duration::nanoseconds(123_456_789);
+        for name in [
+            "2026-11-22T10-30-09.123456789Z.md",
+            "2026-11-22T10:30:09.123456789Z.md",
+            "2026-11-22T10:30:09.123456789+00:00.md",
+        ] {
+            assert_eq!(timestamp_from_filename(Path::new(name)), Some(expected));
+        }
+        let expected_no_frac = Utc.with_ymd_and_hms(2026, 11, 22, 10, 30, 9).unwrap();
+        assert_eq!(
+            timestamp_from_filename(Path::new("2026-11-22T10-30-09Z.md")),
+            Some(expected_no_frac)
+        );
+    }
+
+    #[test]
+    fn timestamp_from_filename_rejects_non_timestamps() {
+        let name_100 = "T-a-".repeat(25); // 100 chars of letters and dashes
+        assert_eq!(name_100.len(), 100);
+        for name in [
+            "notes.md",
+            "2026-11-22.md",
+            "2026-13-45T99-99-99Z.md",
+            "2026-11-22T10:30-09Z.md",
+            "T10-30-09.md",
+            &name_100,
+        ] {
+            assert_eq!(timestamp_from_filename(Path::new(name)), None);
+        }
+    }
+
+    #[test]
+    fn timestamp_from_filename_matches_previous_implementation() {
+        fn legacy_timestamp_from_filename(path: &Path) -> Option<DateTime<Utc>> {
+            let stem = path.file_stem()?.to_str()?;
+            if let Ok(dt) = DateTime::parse_from_rfc3339(stem) {
+                return Some(dt.with_timezone(&Utc));
+            }
+            let (date, time) = stem.split_once('T')?;
+            if time.contains(':') {
+                return None;
+            }
+            DateTime::parse_from_rfc3339(&format!("{}T{}", date, time.replace('-', ":")))
+                .ok()
+                .map(|dt| dt.with_timezone(&Utc))
+        }
+
+        let name_100 = "T-a-".repeat(25);
+        let name_64 = "1".repeat(63) + "-";
+        let name_65 = "1".repeat(64) + "-";
+        assert_eq!(name_64.len(), 64);
+        assert_eq!(name_65.len(), 65);
+
+        let names = [
+            "2026-11-22T10-30-09.123456789Z.md",
+            "2026-11-22T10:30:09.123456789Z.md",
+            "2026-11-22T10:30:09.123456789+00:00.md",
+            "2026-11-22T10-30-09Z.md",
+            "notes.md",
+            "2026-11-22.md",
+            "2026-13-45T99-99-99Z.md",
+            "2026-11-22T10:30-09Z.md",
+            "T10-30-09.md",
+            &name_100,
+            "2026-11-22T10-30-09+00-00.md",
+            "2026-11-22T10-30-09.5Z.md",
+            "2026-11-22T10:30:09.md",
+            "2026-11-22T10-30-09Z-é.md",
+            "2026-11-22T10-30-09.123456789-05-00.md",
+            &name_64,
+            &name_65,
+        ];
+        for name in names {
+            assert_eq!(
+                timestamp_from_filename(Path::new(name)),
+                legacy_timestamp_from_filename(Path::new(name)),
+                "mismatch for {name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn list_snapshots_sorts_mixed_formats_with_unparseable_first() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id = PromptId::new();
+        let snap_dir = snapshot_dir(&vault, &id);
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        let portable_0900 =
+            snapshot_file_name(Utc.with_ymd_and_hms(2026, 11, 22, 9, 0, 0).unwrap());
+        let legacy_1000 = "2026-11-22T10:00:00Z.md";
+        let portable_1100 =
+            snapshot_file_name(Utc.with_ymd_and_hms(2026, 11, 22, 11, 0, 59).unwrap());
+        std::fs::write(snap_dir.join("notes.md"), b"x").unwrap();
+        std::fs::write(snap_dir.join(&portable_0900), b"x").unwrap();
+        std::fs::write(snap_dir.join(legacy_1000), b"x").unwrap();
+        std::fs::write(snap_dir.join(&portable_1100), b"x").unwrap();
+        std::fs::write(snap_dir.join("skip.txt"), b"x").unwrap();
+        let paths = list_snapshots(&vault, &id).unwrap();
+        let names: Vec<String> = paths
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "notes.md".to_string(),
+                portable_0900,
+                legacy_1000.to_string(),
+                portable_1100,
+            ]
+        );
+    }
+
+    #[test]
+    fn prune_older_than_removes_old_snapshots_in_both_formats() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path()).unwrap();
+        let id_a = PromptId::new();
+        let id_b = PromptId::new();
+        let old = Utc::now() - Duration::days(40);
+        let fresh = Utc::now();
+        let old_b = Utc::now() - Duration::days(31);
+
+        let dir_a = snapshot_dir(&vault, &id_a);
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::write(dir_a.join(snapshot_file_name(old)), b"x").unwrap();
+        std::fs::write(
+            dir_a.join(format!(
+                "{}.md",
+                fresh.to_rfc3339_opts(SecondsFormat::Nanos, true)
+            )),
+            b"x",
+        )
+        .unwrap();
+
+        let dir_b = snapshot_dir(&vault, &id_b);
+        std::fs::create_dir_all(&dir_b).unwrap();
+        std::fs::write(dir_b.join(snapshot_file_name(old_b)), b"x").unwrap();
+        std::fs::write(dir_b.join("keep.txt"), b"x").unwrap();
+
+        let history_root = vault.root.join(".onq").join("history");
+        std::fs::write(history_root.join("stray.md"), b"x").unwrap();
+
+        assert_eq!(prune_older_than(&vault, 30).unwrap(), 2);
+
+        let mut remaining_a: Vec<String> = std::fs::read_dir(&dir_a)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        let mut remaining_b: Vec<String> = std::fs::read_dir(&dir_b)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        remaining_a.sort();
+        remaining_b.sort();
+        assert!(history_root.join("stray.md").exists());
+        assert_eq!(
+            remaining_a,
+            vec![format!(
+                "{}.md",
+                fresh.to_rfc3339_opts(SecondsFormat::Nanos, true)
+            )]
+        );
+        assert_eq!(remaining_b, vec!["keep.txt".to_string()]);
     }
 }
