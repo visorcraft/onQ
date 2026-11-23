@@ -69,13 +69,23 @@ fn auth_mode_path(vault_path: &Path) -> PathBuf {
     vault_path.join(".onq").join(AUTH_MODE_FILE)
 }
 
+/// Missing file = legacy default; an empty/blank file carries no mode (torn
+/// truncate-write from older builds, or a sync placeholder) and is treated the
+/// same as missing.
 fn read_auth_mode(vault_path: &Path) -> Result<VaultAuthMode, String> {
-    match std::fs::read_to_string(auth_mode_path(vault_path)) {
-        Ok(mode) if mode.trim() == "password" => Ok(VaultAuthMode::Password),
-        Ok(mode) if mode.trim() == "keychain" => Ok(VaultAuthMode::Keychain),
-        Ok(_) => Err("invalid vault auth mode".into()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(VaultAuthMode::Keychain),
-        Err(error) => Err(error.to_string()),
+    let bytes = match std::fs::read(auth_mode_path(vault_path)) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(VaultAuthMode::Keychain);
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+    let lossy = String::from_utf8_lossy(&bytes);
+    let mode = lossy.trim_start_matches('\u{feff}').trim();
+    match mode {
+        "" | "keychain" => Ok(VaultAuthMode::Keychain),
+        "password" => Ok(VaultAuthMode::Password),
+        _ => Err("invalid vault auth mode".into()),
     }
 }
 
@@ -84,7 +94,18 @@ fn write_auth_mode(vault_path: &Path, mode: VaultAuthMode) -> Result<(), String>
         VaultAuthMode::Keychain => "keychain",
         VaultAuthMode::Password => "password",
     };
-    std::fs::write(auth_mode_path(vault_path), value).map_err(|error| error.to_string())
+    let target = auth_mode_path(vault_path);
+    let tmp = target.with_file_name(format!("{AUTH_MODE_FILE}.tmp"));
+    let write_result = (|| -> Result<(), String> {
+        std::fs::write(&tmp, value).map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, &target).map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+    if let Err(e) = write_result {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    Ok(())
 }
 
 fn write_last_vault(config_dir: &Path, vault_path: &Path) -> Result<(), String> {
@@ -4627,6 +4648,71 @@ mod tests {
         assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Keychain);
         write_auth_mode(dir.path(), VaultAuthMode::Password).unwrap();
         assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Password);
+    }
+
+    #[test]
+    fn read_auth_mode_treats_empty_file_as_keychain() {
+        let dir = TempDir::new().unwrap();
+        let onq = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq).unwrap();
+        std::fs::write(onq.join(AUTH_MODE_FILE), b"").unwrap();
+
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Keychain);
+    }
+
+    #[test]
+    fn read_auth_mode_treats_blank_file_as_keychain() {
+        let dir = TempDir::new().unwrap();
+        let onq = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq).unwrap();
+        std::fs::write(onq.join(AUTH_MODE_FILE), b" \r\n").unwrap();
+
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Keychain);
+    }
+
+    #[test]
+    fn read_auth_mode_strips_utf8_bom() {
+        let dir = TempDir::new().unwrap();
+        let onq = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq).unwrap();
+
+        std::fs::write(onq.join(AUTH_MODE_FILE), b"\xef\xbb\xbfpassword").unwrap();
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Password);
+
+        std::fs::write(onq.join(AUTH_MODE_FILE), b"\xef\xbb\xbfkeychain\r\n").unwrap();
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Keychain);
+    }
+
+    #[test]
+    fn read_auth_mode_rejects_torn_prefix_and_invalid_utf8() {
+        let dir = TempDir::new().unwrap();
+        let onq = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq).unwrap();
+
+        for content in [b"pass".as_slice(), b"\xff\xfe".as_slice()] {
+            std::fs::write(onq.join(AUTH_MODE_FILE), content).unwrap();
+            let err = read_auth_mode(dir.path()).unwrap_err();
+            assert_eq!(err, "invalid vault auth mode");
+        }
+    }
+
+    #[test]
+    fn write_auth_mode_replaces_existing_value_without_leftover_temp_file() {
+        let dir = TempDir::new().unwrap();
+        let onq = dir.path().join(".onq");
+        std::fs::create_dir_all(&onq).unwrap();
+
+        write_auth_mode(dir.path(), VaultAuthMode::Password).unwrap();
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Password);
+
+        write_auth_mode(dir.path(), VaultAuthMode::Keychain).unwrap();
+        assert_eq!(read_auth_mode(dir.path()).unwrap(), VaultAuthMode::Keychain);
+
+        let entries: Vec<_> = std::fs::read_dir(&onq)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries, vec![AUTH_MODE_FILE.to_string()]);
     }
 
     #[test]
