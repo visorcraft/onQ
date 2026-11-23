@@ -48,7 +48,7 @@ fn write_item(vault: &Vault, item: JsonPrompt, on_conflict: OnConflict) -> CoreR
     let now = Utc::now();
     let id = match item.id.as_deref() {
         Some(s) if !s.is_empty() => {
-            PromptId::from_string(s.to_string()).unwrap_or_else(|_| PromptId::new())
+            PromptId::from_string(s.to_string()).map_err(|e| CoreError::Other(e.to_string()))?
         }
         _ => PromptId::new(),
     };
@@ -136,6 +136,45 @@ mod tests {
         assert_eq!(ids.len(), 1);
         let prompt = vault.read(&ids[0]).unwrap();
         assert_eq!(prompt.fm.title, "Good");
+    }
+
+    #[test]
+    fn reports_item_with_invalid_id() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json_path = dir.path().join("prompts.json");
+        std::fs::write(
+            &json_path,
+            r#"[{"id":"not-a-ulid","title":"Bad"},{"title":"Good","body":"y"}]"#,
+        )
+        .unwrap();
+        let report = import_json_array(&vault, &json_path, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.errors[0].contains("invalid prompt id"));
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        let prompt = vault.read(&ids[0]).unwrap();
+        assert_eq!(prompt.fm.title, "Good");
+    }
+
+    #[test]
+    fn valid_id_still_skips_on_reimport() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json_path = dir.path().join("prompts.json");
+        std::fs::write(
+            &json_path,
+            r#"[{"id":"01HXY3K9F2N8PQRSTVWXYZABCD","title":"A"}]"#,
+        )
+        .unwrap();
+        let report1 = import_json_array(&vault, &json_path, OnConflict::Skip).unwrap();
+        assert_eq!(report1.created, 1);
+        assert!(report1.errors.is_empty());
+        let report2 = import_json_array(&vault, &json_path, OnConflict::Skip).unwrap();
+        assert_eq!(report2.skipped, 1);
+        assert_eq!(report2.created, 0);
+        assert_eq!(vault.list().unwrap().len(), 1);
     }
 
     #[test]

@@ -138,6 +138,26 @@ mod tests {
     }
 
     #[test]
+    fn imports_traversal_id_file_as_plain_markdown() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join("evil.md"),
+            "---\nid: ../../evil\ntitle: T\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\nbody",
+        )
+        .unwrap();
+        let report = import_markdown_dir(&vault, &src, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        assert!(report.errors.is_empty());
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        assert!(PromptId::is_valid_str(ids[0].as_str()));
+        assert!(!dir.path().join("evil.md").exists());
+    }
+
+    #[test]
     fn reports_file_with_invalid_folder() {
         let dir = TempDir::new().unwrap();
         let vault = Vault::new(dir.path().join("vault")).unwrap();

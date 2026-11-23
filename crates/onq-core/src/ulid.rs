@@ -1,10 +1,22 @@
 use std::sync::{Mutex, OnceLock};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(transparent)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PromptId(String);
+
+impl Serialize for PromptId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for PromptId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        PromptId::from_string(s).map_err(|e| serde::de::Error::custom(e.to_string()))
+    }
+}
 
 fn monotonic_generator() -> &'static Mutex<ulid::Generator> {
     static GEN: OnceLock<Mutex<ulid::Generator>> = OnceLock::new();
@@ -19,8 +31,12 @@ impl PromptId {
         let ulid = gen.generate().expect("monotonic ulid overflow").to_string();
         Self(ulid)
     }
+    pub fn is_valid_str(s: &str) -> bool {
+        s.len() == 26 && s.bytes().all(|b| b.is_ascii_alphanumeric())
+    }
+
     pub fn from_string(s: String) -> Result<Self, IdError> {
-        if s.len() == 26 && s.chars().all(|c| c.is_ascii_alphanumeric()) {
+        if Self::is_valid_str(&s) {
             Ok(Self(s))
         } else {
             Err(IdError::Invalid(s))
@@ -74,5 +90,20 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(2));
         let b = PromptId::new();
         assert!(a.as_str() < b.as_str());
+    }
+    #[test]
+    fn serde_valid_id_roundtrips() {
+        let id: PromptId = serde_json::from_str(r#""01HXY3K9F2N8PQRSTVWXYZABCD""#).unwrap();
+        assert_eq!(id.as_str(), "01HXY3K9F2N8PQRSTVWXYZABCD");
+        let serialized = serde_json::to_string(&id).unwrap();
+        let back: PromptId = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(back, id);
+    }
+    #[test]
+    fn serde_rejects_invalid_ids() {
+        let err = serde_json::from_str::<PromptId>(r#""../../evil""#).unwrap_err();
+        assert!(err.to_string().contains("invalid prompt id"));
+        let err = serde_json::from_str::<PromptId>(r#""short""#).unwrap_err();
+        assert!(err.to_string().contains("invalid prompt id"));
     }
 }

@@ -55,6 +55,12 @@ impl Vault {
         prompt: &Prompt,
         history_retention_days: u32,
     ) -> CoreResult<()> {
+        if !PromptId::is_valid_str(prompt.fm.id.as_str()) {
+            return Err(CoreError::Other(format!(
+                "invalid prompt id: {}",
+                prompt.fm.id.as_str()
+            )));
+        }
         let path = self.prompt_path(&prompt.fm.id);
         let rendered = frontmatter::render(&prompt.fm, &prompt.body);
         history::snapshot(self, &prompt.fm.id, &prompt.body)?;
@@ -180,6 +186,33 @@ mod tests {
         std::fs::create_dir_all(vault.prompt_path(&id)).unwrap();
         let err = vault.read(&id).unwrap_err();
         assert!(!matches!(err, CoreError::NotFound(_)));
+    }
+    #[test]
+    fn frontmatter_parse_rejects_invalid_id() {
+        let raw = "---\nid: ../../evil\ntitle: T\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\nbody";
+        assert!(frontmatter::parse(raw).is_err());
+    }
+    #[test]
+    fn is_valid_str_boundaries() {
+        assert!(PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABCD"));
+        assert!(!PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABC")); // 25
+        assert!(!PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABCDE")); // 27
+        assert!(!PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABC/")); // 26, bad char
+        assert!(!PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABC.")); // 26, bad char
+        assert!(!PromptId::is_valid_str("01HXY3K9F2N8PQRSTVWXYZABé")); // 26 bytes, non-ASCII
+        assert!(!PromptId::is_valid_str(""));
+    }
+    #[test]
+    fn write_guard_rejects_invalid_id() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let res: Result<Prompt, _> = serde_json::from_str(
+            r#"{"fm":{"id":"../../evil","title":"T","created":"2026-07-18T10:30:00Z","updated":"2026-07-18T10:30:00Z"},"body":"b"}"#,
+        );
+        assert!(res.is_err());
+        let p = vault.new_prompt("Test").unwrap();
+        vault.write(&p).unwrap();
+        assert!(!dir.path().join("evil.md").exists());
     }
     #[test]
     fn read_malformed_frontmatter_still_frontmatter_error() {

@@ -77,7 +77,7 @@ mod tests {
     use super::*;
     #[test]
     fn parse_roundtrip() {
-        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCDE\ntitle: Test\ntags: [a, b]\nfavorite: true\nlocked: false\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\nBody text";
+        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCD\ntitle: Test\ntags: [a, b]\nfavorite: true\nlocked: false\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\nBody text";
         let (fm, body) = parse(raw).unwrap();
         assert_eq!(fm.title, "Test");
         assert_eq!(fm.tags, vec!["a", "b"]);
@@ -103,7 +103,7 @@ mod tests {
     }
     #[test]
     fn parse_accepts_closer_with_trailing_space() {
-        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCDE\ntitle: T\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n--- \nbody";
+        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCD\ntitle: T\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n--- \nbody";
         let (fm, body) = parse(raw).unwrap();
         assert_eq!(fm.title, "T");
         assert_eq!(body, "body");
@@ -128,14 +128,14 @@ mod tests {
     }
     #[test]
     fn parse_skips_interior_partial_fence_in_multiline_value() {
-        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCDE\ntitle: |\n  line 1\n---embedded\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\nbody";
+        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCD\ntitle: |\n  line 1\n---embedded\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\nbody";
         let (fm, body) = split(raw).unwrap();
         assert!(fm.contains("---embedded"));
         assert_eq!(body, "body");
     }
     #[test]
     fn parse_roundtrip_empty_body() {
-        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCDE\ntitle: Test\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\n";
+        let raw = "---\nid: 01HXY3K9F2N8PQRSTVWXYZABCD\ntitle: Test\ncreated: 2026-07-18T10:30:00Z\nupdated: 2026-07-18T10:30:00Z\n---\n\n";
         let (fm, body) = parse(raw).unwrap();
         assert_eq!(body, "");
         let rendered = render(&fm, "");
