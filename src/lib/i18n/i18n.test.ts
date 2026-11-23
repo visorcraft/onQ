@@ -3,6 +3,7 @@ import { ALL_KEYS, catalogs } from './catalogs';
 import { loadLocale, readStoredLocale, setLocale, getLocale, t } from './index';
 import { matchNavigatorLanguage, missingKeys, resolve } from './resolve';
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, type Locale } from './types';
+import type { MessageKey } from '$lib/i18n';
 
 describe('i18n resolve', () => {
   it('returns English for en locale', () => {
@@ -161,5 +162,36 @@ describe('locale store + persistence', () => {
     expect(t('settings.language')).toBe('语言');
     setLocale('th');
     expect(t('settings.language')).toBe('ภาษา');
+  });
+});
+
+const canon = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+
+const SHARED_WITH_ENGLISH = {
+  th: ['about.credits.col.crate', 'locale.de', 'locale.en', 'locale.es', 'locale.fr', 'locale.th', 'locale.zh', 'settings.palette'],
+  es: ['about.credits.col.crate', 'about.eyebrow', 'about.feature.plugins.title', 'diff.base', 'editor.editorTab', 'editor.promptHeading', 'library.kindPrompt', 'locale.de', 'locale.en', 'locale.es', 'locale.fr', 'locale.th', 'locale.zh', 'palette.prompts', 'plugins.filterName', 'settings.general', 'settings.palette', 'settings.plugins', 'tutorial.dialogAria'],
+  zh: ['about.credits.col.crate', 'locale.de', 'locale.en', 'locale.es', 'locale.fr', 'locale.th', 'locale.zh', 'settings.palette'],
+  fr: ['about.credits.col.crate', 'about.credits.col.version', 'about.eyebrow', 'about.feature.plugins.title', 'common.ok', 'diff.base', 'editor.promptHeading', 'library.kindPrompt', 'locale.de', 'locale.en', 'locale.es', 'locale.fr', 'locale.th', 'locale.zh', 'pager.label', 'palette.prompts', 'plugins.filterName', 'settings.dense', 'settings.palette', 'settings.plugins'],
+  de: ['about.credits.col.crate', 'about.credits.col.version', 'about.eyebrow', 'about.feature.plugins.title', 'common.dialog', 'common.ok', 'editor.editorTab', 'editor.promptHeading', 'editor.tags', 'library.kindPrompt', 'library.name', 'library.tags', 'locale.de', 'locale.en', 'locale.es', 'locale.fr', 'locale.th', 'locale.zh', 'palette.prompts', 'plugins.filterName', 'settings.backups', 'settings.dense', 'settings.palette', 'settings.plugins', 'settings.updates', 'smart.fieldTag', 'smart.fieldText', 'smart.operator', 'tutorial.dialogAria'],
+} satisfies Record<Locale, readonly MessageKey[]>;
+
+describe('untranslated catalog values', () => {
+  it.each(
+    SUPPORTED_LOCALES.filter((l) => l !== 'en') as Exclude<Locale, 'en'>[],
+  )('%s shares English values only for intentional cognates', (loc) => {
+    const allow: readonly MessageKey[] = SHARED_WITH_ENGLISH[loc];
+    const shared = ALL_KEYS.filter(
+      (key) => canon(catalogs[loc][key]) === canon(catalogs.en[key]),
+    );
+    const unexpected = shared.filter((key) => !allow.includes(key));
+    expect(
+      unexpected,
+      `untranslated (identical to English) in ${loc}: ${unexpected.join(', ')}`,
+    ).toEqual([]);
+    const stale = allow.filter((key) => !shared.includes(key));
+    expect(
+      stale,
+      `stale allow-list entry in ${loc}: ${stale.join(', ')}`,
+    ).toEqual([]);
   });
 });

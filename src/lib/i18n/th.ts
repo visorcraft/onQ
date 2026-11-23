@@ -94,7 +94,7 @@ export const th: Record<MessageKey, string> = {
   'settings.sparseOnly': 'เฉพาะ sparse (ไม่มี ANN)',
   'settings.denseLive': 'Dense ANN พร้อมใช้',
   'settings.densePending': 'Dense รอดำเนินการ (cosine ตรง)',
-  'settings.binaryAnn': 'Binary ANN + rerank',
+  'settings.binaryAnn': 'ANN ไบนารี + rerank',
   'settings.loadingModel': 'กำลังโหลดโมเดล…',
   'settings.reembed': 'ฝัง vault ใหม่',
   'settings.loadMinilm': 'โหลดโมเดล MiniLM',

@@ -28,7 +28,7 @@
 
 <div class="meta">
   <span class="char-count">
-    <span class="char-num">{charCount.toLocaleString()}</span>
+    <span class="char-num">{charCount.toLocaleString($locale)}</span>
     {t('editor.characters', undefined, $locale)}
   </span>
   <span class="meta-right">
