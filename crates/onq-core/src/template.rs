@@ -61,8 +61,12 @@ fn split_field(inner: &str) -> (String, Option<String>) {
 }
 
 /// Substitute template fields. Unknown fields use their default or empty.
+///
+/// A blank field renders with the default of the *first* occurrence of that
+/// name in the body, consistent with what `parse_template` presents to the UI.
 pub fn render_template(body: &str, values: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(body.len());
+    let mut first_default: HashMap<String, Option<String>> = HashMap::new();
     let mut chars = body.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\\' {
@@ -89,10 +93,14 @@ pub fn render_template(body: &str, values: &HashMap<String, String>) -> String {
                 continue;
             }
             let (name, default) = split_field(&inner);
+            if name.is_empty() {
+                continue;
+            }
+            first_default.entry(name.clone()).or_insert(default.clone());
             if let Some(v) = values.get(&name) {
                 out.push_str(v);
-            } else if let Some(d) = default {
-                out.push_str(&d);
+            } else if let Some(Some(d)) = first_default.get(&name) {
+                out.push_str(d);
             }
             // else empty
             continue;
@@ -136,6 +144,32 @@ mod tests {
         values.insert("name".into(), "Ada".into());
         let out = render_template("{{name}} lives in {{city|London}} and {{x}}!", &values);
         assert_eq!(out, "Ada lives in London and !");
+    }
+
+    #[test]
+    fn duplicate_name_blank_uses_first_default() {
+        let out = render_template("Tone: {{tone|formal}} and {{tone|casual}}", &HashMap::new());
+        assert_eq!(out, "Tone: formal and formal");
+    }
+
+    #[test]
+    fn duplicate_name_user_value_wins_everywhere() {
+        let mut values = HashMap::new();
+        values.insert("tone".into(), "friendly".into());
+        let out = render_template("Tone: {{tone|formal}} and {{tone|casual}}", &values);
+        assert_eq!(out, "Tone: friendly and friendly");
+    }
+
+    #[test]
+    fn first_occurrence_without_default_stays_empty() {
+        let out = render_template("{{a}} {{a|x}}", &HashMap::new());
+        assert_eq!(out, " ");
+    }
+
+    #[test]
+    fn empty_name_placeholder_renders_empty() {
+        let out = render_template("a {{|hidden}} b", &HashMap::new());
+        assert_eq!(out, "a  b");
     }
 
     #[test]
