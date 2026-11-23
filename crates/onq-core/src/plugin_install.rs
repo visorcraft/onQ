@@ -45,6 +45,47 @@ const SIGNATURE_FILE: &str = "signature.sig";
 /// `install` writes the extracted tree here, named by `manifest.id`.
 const INSTALLED_SUBDIR: &str = "installed";
 
+/// Bounds on pre-verification extraction of an untrusted archive. A gzip
+/// "tar bomb" (kilobytes compressed -> gigabytes decompressed, or millions
+/// of entries) must be rejected before the signature is verified, so the
+/// disk / inode table is never filled by an unsigned archive. These are
+/// bomb stoppers, not a plugin-size policy.
+const MAX_EXTRACTED_BYTES: u64 = 1 << 30;
+const MAX_EXTRACTED_ENTRIES: usize = 10_000;
+
+/// Message used when a decompressed stream exceeds the byte cap.
+const SIZE_LIMIT_MSG: &str = "plugin archive exceeds the decompressed size limit";
+
+/// A reader that caps the decompressed byte stream flowing through it.
+///
+/// The cap applies to decompressed bytes (it wraps the `GzDecoder`), not to
+/// the compressed file size. A clean EOF exactly at the limit is fine; any
+/// further byte fails with `InvalidData` instead of reporting EOF.
+struct BoundedReader<R> {
+    inner: R,
+    remaining: u64,
+}
+
+impl<R: std::io::Read> std::io::Read for BoundedReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.remaining == 0 {
+            // A clean EOF exactly at the limit is fine; any further byte is not.
+            let mut probe = [0u8; 1];
+            return match self.inner.read(&mut probe)? {
+                0 => Ok(0),
+                _ => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    SIZE_LIMIT_MSG,
+                )),
+            };
+        }
+        let want = buf.len().min(self.remaining as usize);
+        let n = self.inner.read(&mut buf[..want])?;
+        self.remaining -= n as u64;
+        Ok(n)
+    }
+}
+
 /// Lowercase hex sha256 of `bytes` (64 chars).
 fn sha256_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -215,7 +256,13 @@ fn is_safe_plugin_id(id: &str) -> bool {
 /// success. Any error leaves no partial install behind. The temp
 /// extraction is dropped before the function returns.
 pub fn install(archive: &Path, plugins_dir: &Path) -> CoreResult<PathBuf> {
-    install_with_trust_anchor(archive, plugins_dir, None)
+    install_with_limits(
+        archive,
+        plugins_dir,
+        None,
+        MAX_EXTRACTED_BYTES,
+        MAX_EXTRACTED_ENTRIES,
+    )
 }
 
 /// Like [`install`], but lets the caller override the trust anchor used
@@ -228,9 +275,27 @@ pub fn install_with_trust_anchor(
     plugins_dir: &Path,
     trust_anchor: Option<&[u8; 32]>,
 ) -> CoreResult<PathBuf> {
+    install_with_limits(
+        archive,
+        plugins_dir,
+        trust_anchor,
+        MAX_EXTRACTED_BYTES,
+        MAX_EXTRACTED_ENTRIES,
+    )
+}
+
+/// Like [`install_with_trust_anchor`], but with explicit extraction caps so
+/// the pre-verify disk bound is testable without a 1 GiB archive.
+fn install_with_limits(
+    archive: &Path,
+    plugins_dir: &Path,
+    trust_anchor: Option<&[u8; 32]>,
+    max_bytes: u64,
+    max_entries: usize,
+) -> CoreResult<PathBuf> {
     // 1. Extract to a scratch tempdir (auto-cleaned on early return).
     let tmp = tempfile::tempdir()?;
-    extract_tar_gz(archive, tmp.path())?;
+    extract_tar_gz_with_limits(archive, tmp.path(), max_bytes, max_entries)?;
 
     // 2. Read + license-check the manifest.
     let manifest_path = tmp.path().join(MANIFEST_FILE);
@@ -308,39 +373,107 @@ pub fn install_with_trust_anchor(
 /// `dest`) and non-regular entries (symlinks, hardlinks, FIFOs, devices)
 /// are rejected before unpacking so a malicious archive cannot write
 /// outside the staging directory before signature verification runs.
+///
+/// Extraction is capped at `MAX_EXTRACTED_BYTES` of decompressed tar stream
+/// and `MAX_EXTRACTED_ENTRIES` entries, enforced before the manifest read
+/// and signature verification so pre-verify disk use is bounded.
+// Kept as the standard entry point; tests exercise the explicit-limit
+// variant directly.
+#[allow(dead_code)]
 fn extract_tar_gz(archive: &Path, dest: &Path) -> CoreResult<()> {
+    extract_tar_gz_with_limits(archive, dest, MAX_EXTRACTED_BYTES, MAX_EXTRACTED_ENTRIES)
+}
+
+/// Walk an io error's source chain looking for the size-limit marker
+/// produced by [`BoundedReader`]. `tar` wraps the underlying error in an
+/// opaque `failed to unpack` / `failed to read entire block` io error, so
+/// the original message only survives in the chain.
+fn is_size_limit_error(err: &std::io::Error) -> bool {
+    let mut current: Option<&(dyn std::error::Error + 'static)> = Some(err);
+    while let Some(e) = current {
+        if e.to_string().contains(SIZE_LIMIT_MSG) {
+            return true;
+        }
+        current = e.source();
+    }
+    false
+}
+
+/// Map an io error from the archive pipeline to a [`CoreError`], preserving
+/// the plugin-flavored size-limit message when the byte cap trips.
+fn map_extract_error(err: std::io::Error) -> CoreError {
+    if is_size_limit_error(&err) {
+        CoreError::Plugin(SIZE_LIMIT_MSG.to_string())
+    } else {
+        CoreError::Io(err)
+    }
+}
+
+/// Like [`extract_tar_gz`], but with explicit caps so the limits are
+/// testable without a 1 GiB archive.
+fn extract_tar_gz_with_limits(
+    archive: &Path,
+    dest: &Path,
+    max_bytes: u64,
+    max_entries: usize,
+) -> CoreResult<()> {
     std::fs::create_dir_all(dest)?;
     let file = File::open(archive)?;
-    let decoder = GzDecoder::new(file);
+    let decoder = BoundedReader {
+        inner: GzDecoder::new(file),
+        remaining: max_bytes,
+    };
     let mut archive = Archive::new(decoder);
     let canonical_dest = dest.canonicalize().unwrap_or_else(|_| dest.to_path_buf());
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        let entry_path = entry.path()?.into_owned();
-        let safe_path = path_util::safe_join(&canonical_dest, &entry_path).map_err(|e| {
-            // Preserve plugin-flavored errors for the install pipeline.
-            CoreError::Plugin(e.to_string())
-        })?;
-        let entry_type = entry.header().entry_type();
-        match entry_type {
-            tar::EntryType::Regular | tar::EntryType::Directory => {}
-            _ => {
-                return Err(CoreError::Plugin(format!(
-                    "unsupported non-regular entry in plugin archive: {}",
-                    entry_path.display()
-                )));
+    let mut entry_count = 0usize;
+    let result = (|| -> CoreResult<()> {
+        for entry in archive.entries()? {
+            let mut entry = entry.map_err(map_extract_error)?;
+            entry_count += 1;
+            if entry_count > max_entries {
+                return Err(CoreError::Plugin(
+                    "plugin archive exceeds the entry count limit".into(),
+                ));
+            }
+            let entry_path = entry.path().map_err(map_extract_error)?.into_owned();
+            let safe_path = path_util::safe_join(&canonical_dest, &entry_path).map_err(|e| {
+                // Preserve plugin-flavored errors for the install pipeline.
+                CoreError::Plugin(e.to_string())
+            })?;
+            let entry_type = entry.header().entry_type();
+            match entry_type {
+                tar::EntryType::Regular | tar::EntryType::Directory => {}
+                _ => {
+                    return Err(CoreError::Plugin(format!(
+                        "unsupported non-regular entry in plugin archive: {}",
+                        entry_path.display()
+                    )));
+                }
+            }
+            if entry_type.is_dir() || entry_path.to_str().unwrap_or("").ends_with('/') {
+                std::fs::create_dir_all(&safe_path)?;
+            } else {
+                if let Some(parent) = safe_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                entry.unpack(&safe_path).map_err(map_extract_error)?;
             }
         }
-        if entry_type.is_dir() || entry_path.to_str().unwrap_or("").ends_with('/') {
-            std::fs::create_dir_all(&safe_path)?;
-        } else {
-            if let Some(parent) = safe_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            entry.unpack(&safe_path)?;
+        Ok(())
+    })();
+    result?;
+    // Drain the stream so the byte cap applies to the whole decompressed
+    // stream, not just the entries that were unpacked. Tar writers pad the
+    // tail with zero blocks that the entry iterator never reads.
+    let mut decoder = archive.into_inner();
+    let mut buf = [0u8; 8192];
+    loop {
+        match decoder.read(&mut buf) {
+            Ok(0) => return Ok(()),
+            Ok(_) => continue,
+            Err(err) => return Err(map_extract_error(err)),
         }
     }
-    Ok(())
 }
 
 /// Recursively copy `src` into `dst`, creating `dst` if needed.
@@ -912,6 +1045,133 @@ mod tests {
         assert!(
             !outside.path().join("pwned.txt").exists(),
             "symlink write escape must be blocked before unpacking"
+        );
+    }
+
+    /// Build a gzipped tar of `n` regular entries `f{i}.txt`, each an
+    /// `entry_size`-byte zero-filled file, written to a temp file. Returns
+    /// the archive path.
+    fn build_zero_filled_archive(tmp: &Path, n: usize, entry_size: usize) -> PathBuf {
+        let buf = Vec::new();
+        let encoder = flate2::write::GzEncoder::new(buf, flate2::Compression::default());
+        let mut tar = tar::Builder::new(encoder);
+        let zeros = vec![0u8; entry_size];
+        for i in 0..n {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(entry_size as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar.append_data(&mut header, format!("f{i}.txt"), &zeros[..])
+                .unwrap();
+        }
+        tar.finish().unwrap();
+        let encoder = tar.into_inner().unwrap();
+        let bytes = encoder.finish().unwrap();
+        let path = tmp.join(format!("zero-{n}-{entry_size}.tar.gz"));
+        std::fs::write(&path, &bytes).unwrap();
+        path
+    }
+
+    /// Recursively sum the sizes of all files under `dir`.
+    fn sum_file_sizes(dir: &Path) -> u64 {
+        let mut total = 0u64;
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let file_type = entry.file_type().unwrap();
+            if file_type.is_dir() {
+                total += sum_file_sizes(&path);
+            } else if file_type.is_file() {
+                total += std::fs::metadata(&path).unwrap().len();
+            }
+        }
+        total
+    }
+
+    /// Measure the decompressed byte length of a `.tar.gz` archive by
+    /// streaming it through a `GzDecoder` into a counter.
+    fn decompressed_length(archive: &Path) -> u64 {
+        let file = File::open(archive).unwrap();
+        let mut decoder = GzDecoder::new(file);
+        let mut total = 0u64;
+        let mut buf = [0u8; 8192];
+        loop {
+            let n = decoder.read(&mut buf).unwrap();
+            if n == 0 {
+                break;
+            }
+            total += n as u64;
+        }
+        total
+    }
+
+    #[test]
+    fn extract_rejects_stream_over_decompressed_byte_limit() {
+        let staging = TempDir::new().unwrap();
+        let archive = build_zero_filled_archive(staging.path(), 4, 64 * 1024);
+        let dest = staging.path().join("dest");
+        let err = extract_tar_gz_with_limits(&archive, &dest, 128 * 1024, 10_000).unwrap_err();
+        assert!(
+            err.to_string().contains("decompressed size limit"),
+            "msg = {err}"
+        );
+        let total = sum_file_sizes(&dest);
+        assert!(
+            total <= 128 * 1024,
+            "extracted bytes {total} exceed the byte cap"
+        );
+    }
+
+    #[test]
+    fn extract_byte_limit_boundary_is_inclusive() {
+        let staging = TempDir::new().unwrap();
+        let archive = build_zero_filled_archive(staging.path(), 3, 100);
+        let len = decompressed_length(&archive);
+
+        let dest = staging.path().join("dest-ok");
+        extract_tar_gz_with_limits(&archive, &dest, len, 10_000)
+            .expect("exact-size limit succeeds");
+        for i in 0..3 {
+            assert!(dest.join(format!("f{i}.txt")).is_file());
+        }
+
+        let dest = staging.path().join("dest-fail");
+        let err = extract_tar_gz_with_limits(&archive, &dest, len - 1, 10_000).unwrap_err();
+        assert!(
+            err.to_string().contains("decompressed size limit"),
+            "msg = {err}"
+        );
+    }
+
+    #[test]
+    fn extract_rejects_archive_over_entry_count_limit() {
+        let staging = TempDir::new().unwrap();
+        let archive = build_zero_filled_archive(staging.path(), 12, 1);
+
+        let dest = staging.path().join("dest-limited");
+        let err = extract_tar_gz_with_limits(&archive, &dest, 1 << 30, 10).unwrap_err();
+        assert!(err.to_string().contains("entry count limit"), "msg = {err}");
+        assert!(!dest.join("f10.txt").exists(), "f10.txt must not exist");
+        assert!(!dest.join("f11.txt").exists(), "f11.txt must not exist");
+
+        let dest = staging.path().join("dest-ok");
+        extract_tar_gz_with_limits(&archive, &dest, 1 << 30, 12).expect("12 entries succeed");
+        for i in 0..12 {
+            assert!(dest.join(format!("f{i}.txt")).is_file(), "f{i}.txt missing");
+        }
+    }
+
+    #[test]
+    fn install_rejects_oversized_archive_before_signature_check() {
+        let staging = TempDir::new().unwrap();
+        // Unsigned archive: no manifest.toml, no signature.sig.
+        let archive = build_zero_filled_archive(staging.path(), 3, 64 * 1024);
+        let plugins_dir = TempDir::new().unwrap();
+        let err = install_with_limits(&archive, plugins_dir.path(), None, 128 * 1024, 10_000)
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("decompressed size limit"),
+            "msg = {err}"
         );
     }
 }
