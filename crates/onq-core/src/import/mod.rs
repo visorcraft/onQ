@@ -8,8 +8,17 @@ pub use chatgpt_export::import_chatgpt_export;
 pub use json_array::import_json_array;
 pub use markdown_dir::import_markdown_dir;
 
-use crate::error::CoreResult;
+use crate::error::{CoreError, CoreResult};
 use crate::vault::Vault;
+
+/// Read a JSON export file as UTF-8, tolerating one leading UTF-8 BOM.
+/// `label` prefixes errors (e.g. "json import", "chatgpt import").
+pub(crate) fn read_json_source(path: &std::path::Path, label: &str) -> CoreResult<String> {
+    let bytes = std::fs::read(path)?;
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
+    String::from_utf8(bytes.to_vec())
+        .map_err(|_| CoreError::Other(format!("{label}: file is not valid UTF-8")))
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ImportReport {

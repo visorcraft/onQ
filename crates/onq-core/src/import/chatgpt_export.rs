@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::error::{CoreError, CoreResult};
 use crate::frontmatter::Frontmatter;
-use crate::import::{ImportReport, OnConflict};
+use crate::import::{read_json_source, ImportReport, OnConflict};
 use crate::ulid::PromptId;
 use crate::vault::{Prompt, Vault};
 
@@ -46,7 +46,7 @@ pub fn import_chatgpt_export(
         ));
         return Ok(report);
     }
-    let raw = std::fs::read_to_string(&json_path)?;
+    let raw = read_json_source(&json_path, "chatgpt import")?;
     let conversations: Vec<Conversation> =
         serde_json::from_str(&raw).map_err(|e| CoreError::Other(format!("chatgpt import: {e}")))?;
 
@@ -126,6 +126,31 @@ fn extract_body(conv: &Conversation) -> Option<String> {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn imports_chatgpt_export_with_utf8_bom() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json = dir.path().join("conversations.json");
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(
+            br#"[{
+          "title": "Test chat",
+          "mapping": {
+            "n1": {
+              "message": {
+                "author": {"role": "user"},
+                "content": {"parts": ["Hello model"]}
+              }
+            }
+          }
+        }]"#,
+        );
+        std::fs::write(&json, bytes).unwrap();
+        let report = import_chatgpt_export(&vault, &json, OnConflict::Skip).unwrap();
+        assert!(report.errors.is_empty());
+        assert!(report.created >= 1);
+    }
 
     #[test]
     fn imports_minimal_conversations_json() {

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use crate::error::{CoreError, CoreResult};
 use crate::folder_path;
 use crate::frontmatter::Frontmatter;
-use crate::import::{ImportReport, OnConflict};
+use crate::import::{read_json_source, ImportReport, OnConflict};
 use crate::ulid::PromptId;
 use crate::vault::{Prompt, Vault};
 
@@ -31,7 +31,7 @@ pub fn import_json_array(
     on_conflict: OnConflict,
 ) -> CoreResult<ImportReport> {
     let mut report = ImportReport::default();
-    let raw = std::fs::read_to_string(path)?;
+    let raw = read_json_source(path, "json import")?;
     let items: Vec<JsonPrompt> =
         serde_json::from_str(&raw).map_err(|e| CoreError::Other(format!("json import: {e}")))?;
     for item in items {
@@ -84,6 +84,36 @@ fn write_item(vault: &Vault, item: JsonPrompt, on_conflict: OnConflict) -> CoreR
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn imports_json_array_with_utf8_bom() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json_path = dir.path().join("prompts.json");
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(br#"[{"title":"A","body":"one"}]"#);
+        std::fs::write(&json_path, bytes).unwrap();
+        let report = import_json_array(&vault, &json_path, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        assert!(report.errors.is_empty());
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        let prompt = vault.read(&ids[0]).unwrap();
+        assert_eq!(prompt.fm.title, "A");
+    }
+
+    #[test]
+    fn invalid_utf8_json_is_clear_error() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let json_path = dir.path().join("prompts.json");
+        std::fs::write(&json_path, b"[{\"title\":\"\xff\"}]").unwrap();
+        let err = import_json_array(&vault, &json_path, OnConflict::Skip).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("json import"));
+        assert!(msg.contains("not valid UTF-8"));
+        assert!(vault.list().unwrap().is_empty());
+    }
 
     #[test]
     fn imports_json_array() {

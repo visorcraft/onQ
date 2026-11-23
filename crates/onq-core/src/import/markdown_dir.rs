@@ -66,6 +66,7 @@ fn import_one(vault: &Vault, path: &Path, on_conflict: OnConflict) -> CoreResult
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "Imported".into());
             let now = Utc::now();
+            let body = raw.strip_prefix('\u{feff}').unwrap_or(&raw).to_string();
             (
                 Frontmatter {
                     id: PromptId::new(),
@@ -77,7 +78,7 @@ fn import_one(vault: &Vault, path: &Path, on_conflict: OnConflict) -> CoreResult
                     created: now,
                     updated: now,
                 },
-                raw,
+                body,
             )
         }
     };
@@ -102,6 +103,21 @@ fn import_one(vault: &Vault, path: &Path, on_conflict: OnConflict) -> CoreResult
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn bom_without_frontmatter_not_imported_into_body() {
+        let dir = TempDir::new().unwrap();
+        let vault = Vault::new(dir.path().join("vault")).unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("plain.md"), "\u{feff}Just text").unwrap();
+        let report = import_markdown_dir(&vault, &src, OnConflict::Skip).unwrap();
+        assert_eq!(report.created, 1);
+        let ids = vault.list().unwrap();
+        assert_eq!(ids.len(), 1);
+        let prompt = vault.read(&ids[0]).unwrap();
+        assert_eq!(prompt.body, "Just text");
+    }
 
     #[test]
     fn imports_plain_markdown_without_frontmatter() {
