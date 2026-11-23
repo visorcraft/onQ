@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "onQ"
-version = "1.16.0"
+version = "1.17.0"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -4151,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "onq-core"
-version = "1.16.0"
+version = "1.17.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -4188,11 +4188,11 @@ dependencies = [
 
 [[package]]
 name = "onq-plugin-sdk"
-version = "1.16.0"
+version = "1.17.0"
 
 [[package]]
 name = "onq-test-utils"
-version = "1.16.0"
+version = "1.17.0"
 dependencies = [
  "mongreldb-core",
  "onq-core",
