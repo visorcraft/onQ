@@ -231,16 +231,20 @@ fn signed_payload(staging_dir: &Path, manifest_text: &str) -> CoreResult<Vec<u8>
 }
 
 /// Return `true` only when `id` is a single normal path component:
-/// non-empty and at most 64 chars, no `/`, `\` or NUL, and not `.` / `..`
+/// non-empty and at most 64 chars, no `/`, `\`, `:` or NUL, and not `.` / `..`
 /// (equivalently, `Path::components` yields exactly one `Component::Normal`).
 /// The install pipeline joins this id into `plugins_dir/installed/<id>`, so a
 /// traversal or absolute id must be rejected before any signature or
-/// destination work happens.
-fn is_safe_plugin_id(id: &str) -> bool {
+/// destination work happens. The uninstall command joins the same id into
+/// `<vault>/.onq/plugins/installed/<id>` before `remove_dir_all`, so it must
+/// reuse this rule. `:` is rejected lexically because drive prefixes like
+/// `C:` are only path-special on Windows, and the rule must be platform-uniform
+/// so an id accepted on one OS can never resolve outside `installed/` on another.
+pub fn is_safe_plugin_id(id: &str) -> bool {
     if id.is_empty() || id.chars().count() > 64 {
         return false;
     }
-    if id.contains('/') || id.contains('\\') || id.contains('\0') {
+    if id.contains('/') || id.contains('\\') || id.contains('\0') || id.contains(':') {
         return false;
     }
     let mut components = Path::new(id).components();
@@ -730,6 +734,9 @@ mod tests {
         assert!(!is_safe_plugin_id("/tmp/onq-evil"));
         assert!(!is_safe_plugin_id("../escape"));
         assert!(!is_safe_plugin_id(&"x".repeat(65)));
+        assert!(!is_safe_plugin_id("a\0b"));
+        assert!(!is_safe_plugin_id("C:"));
+        assert!(!is_safe_plugin_id("a:b"));
     }
 
     #[test]

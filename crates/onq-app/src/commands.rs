@@ -3537,6 +3537,19 @@ fn plugins_root(vault_path: &Path) -> PathBuf {
     vault_path.join(".onq").join("plugins")
 }
 
+/// Resolve `<vault>/.onq/plugins/installed/<id>` from an untrusted command
+/// argument. Rejects any id that is not a single normal path component
+/// before it is joined, so `..`, `/`, `\`, NUL or absolute ids can never
+/// redirect the `remove_dir_all` in `uninstall_plugin`.
+fn installed_plugin_dir(vault_path: &Path, id: &str) -> Result<PathBuf, String> {
+    if !onq_core::plugin_install::is_safe_plugin_id(id) {
+        return Err("invalid plugin id".into());
+    }
+    Ok(plugins_root(vault_path)
+        .join(PLUGIN_INSTALLED_SUBDIR)
+        .join(id))
+}
+
 /// Per-plugin manifest cells used by both `install_plugin` and
 /// `set_plugin_enabled`. Centralising the column layout keeps the two
 /// commands in lockstep with `plugins_schema`. Eight columns is the
@@ -4073,7 +4086,8 @@ pub async fn set_plugin_enabled(
 }
 
 /// Uninstall a plugin: delete its row from the `plugins` table and remove
-/// its `<vault>/.onq/plugins/installed/<id>/` directory. Idempotent
+/// its `<vault>/.onq/plugins/installed/<id>/` directory. Ids are validated
+/// with the same single-component rule as install. Idempotent
 /// for the DB side (missing row is fine) but the directory removal surfaces
 /// I/O errors so the user sees them.
 #[tauri::command]
@@ -4084,6 +4098,7 @@ pub async fn uninstall_plugin(id: String, state: State<'_, AppState>) -> Result<
         .map_err(|e| e.to_string())?
         .clone()
         .ok_or_else(|| "vault not open".to_string())?;
+    let dir = installed_plugin_dir(&vault_path, &id)?;
     let db = require_db(&state)?;
     let _ = state.clear_plugin_commands(&id);
     tokio::task::spawn_blocking(move || -> Result<(), String> {
@@ -4111,9 +4126,6 @@ pub async fn uninstall_plugin(id: String, state: State<'_, AppState>) -> Result<
         }
         // 2. Remove the on-disk tree. Missing dir is fine — the row
         //    alone was authoritative.
-        let dir = plugins_root(&vault_path)
-            .join(PLUGIN_INSTALLED_SUBDIR)
-            .join(&id);
         if dir.exists() {
             std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
         }
@@ -6552,5 +6564,52 @@ mod tests {
         reopened
             .set_app_setting("theme", "dark")
             .expect("write on reopened index");
+    }
+
+    #[test]
+    fn installed_plugin_dir_accepts_simple_ids() {
+        let root = Path::new("/tmp/onq-test-vault");
+        for id in ["pdf-tools", "acme.foo", "a..b"] {
+            let dir = installed_plugin_dir(root, id).unwrap();
+            assert_eq!(dir, plugins_root(root).join("installed").join(id));
+        }
+    }
+
+    #[test]
+    fn installed_plugin_dir_rejects_unsafe_ids() {
+        let root = Path::new("/tmp/onq-test-vault");
+        let unsafe_ids = [
+            "..".to_string(),
+            "../..".to_string(),
+            "../../..".to_string(),
+            ".".to_string(),
+            String::new(),
+            "a/b".to_string(),
+            "a\\b".to_string(),
+            "a\0b".to_string(),
+            "/tmp/onq-evil".to_string(),
+            "C:".to_string(),
+            "x".repeat(65),
+        ];
+        for id in &unsafe_ids {
+            let err = installed_plugin_dir(root, id).unwrap_err();
+            assert_eq!(err, "invalid plugin id");
+        }
+    }
+
+    #[test]
+    fn installed_plugin_dir_accepted_ids_stay_under_installed_root() {
+        let root = Path::new("/tmp/onq-test-vault");
+        let installed_root = plugins_root(root).join("installed");
+        for id in ["pdf-tools", "acme.foo", "a..b"] {
+            let dir = installed_plugin_dir(root, id).unwrap();
+            assert!(
+                dir.starts_with(&installed_root),
+                "{dir:?} must stay under {installed_root:?}"
+            );
+            assert_ne!(dir, plugins_root(root));
+            assert_ne!(dir, root.join(".onq"));
+            assert_ne!(dir, root);
+        }
     }
 }
