@@ -2669,7 +2669,11 @@ pub async fn search(
     //    "binary" (default) = HNSW binary candidates + exact cosine rerank.
     //    "dense"            = native cosine HNSW after replace-index publishes;
     //                         exact scan only while Dense is not yet live.
-    let embedding_quant = read_app_setting(&db, col::APP_EMBED_QUANT)?;
+    // Both tunings in one projected query: 15-column singleton row -> 2 columns.
+    let [embedding_quant, recency_raw] =
+        read_app_settings(&db, &[col::APP_EMBED_QUANT, col::APP_SEARCH_RECENCY_DAYS])?
+            .try_into()
+            .map_err(|_| "read_app_settings returned wrong number of columns".to_string())?;
     let embedding_quant = if embedding_quant.is_empty() {
         "binary".to_string()
     } else {
@@ -2677,7 +2681,6 @@ pub async fn search(
     };
 
     // Recency half-life (days) from app_state; empty/invalid → default 30.
-    let recency_raw = read_app_setting(&db, col::APP_SEARCH_RECENCY_DAYS)?;
     let recency_half_life_days: f64 = recency_raw
         .parse()
         .ok()
@@ -2726,6 +2729,28 @@ fn read_app_setting(db: &Arc<Db>, column_id: u16) -> Result<String, String> {
         _ => return Ok(String::new()),
     };
     String::from_utf8(bytes).map_err(|e| e.to_string())
+}
+
+/// Read several settings columns from the singleton `app_state` row in a
+/// single projected query. Each requested column id yields a UTF-8 string;
+/// a missing column, a non-`Bytes` cell, or an empty result set degrades to
+/// `""`, and UTF-8 decoding errors propagate — the same degrade contract as
+/// [`read_app_setting`].
+fn read_app_settings(db: &Arc<Db>, columns: &[u16]) -> Result<Vec<String>, String> {
+    let rows = db
+        .handle()
+        .query_for_current_principal("app_state", &Query::default(), Some(columns))
+        .map_err(|e| e.to_string())?;
+    let Some(row) = rows.first() else {
+        return Ok(columns.iter().map(|_| String::new()).collect());
+    };
+    columns
+        .iter()
+        .map(|&column_id| match row.columns.get(&column_id) {
+            Some(Value::Bytes(b)) => String::from_utf8(b.clone()).map_err(|e| e.to_string()),
+            _ => Ok(String::new()),
+        })
+        .collect()
 }
 
 fn filtered_retriever_rows(
@@ -4615,6 +4640,51 @@ mod tests {
         // app_state; the helper must surface it.
         let v = read_app_setting(&db, col::APP_EMBED_QUANT).unwrap();
         assert_eq!(v, "binary");
+    }
+
+    #[test]
+    fn read_app_settings_returns_both_tunings_from_seeded_db() {
+        // Both tunings are seeded on a fresh vault: `embedding_quant = "binary"`
+        // by migration 0001, and `search_recency_days = "30"` by the `app_state`
+        // schema default (migration 0003 enforces the same default on older
+        // vaults). The helper must surface both cells.
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let db = std::sync::Arc::new(db);
+        let v =
+            read_app_settings(&db, &[col::APP_EMBED_QUANT, col::APP_SEARCH_RECENCY_DAYS]).unwrap();
+        assert_eq!(v, vec!["binary".to_string(), "30".to_string()]);
+    }
+
+    #[test]
+    fn read_app_settings_round_trips_recency_setting() {
+        // The settings-write path (Db::set_app_setting, same pattern as the
+        // beta-channel test) must surface through the projected helper, and
+        // the single-column helper must agree with it.
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let db = std::sync::Arc::new(db);
+
+        db.set_app_setting("search_recency_days", "7").unwrap();
+        let v =
+            read_app_settings(&db, &[col::APP_EMBED_QUANT, col::APP_SEARCH_RECENCY_DAYS]).unwrap();
+        assert_eq!(v, vec!["binary".to_string(), "7".to_string()]);
+        assert_eq!(
+            read_app_setting(&db, col::APP_SEARCH_RECENCY_DAYS).unwrap(),
+            "7"
+        );
+    }
+
+    #[test]
+    fn read_app_settings_degrades_missing_columns_to_empty() {
+        // A column id that is not a real app_state column (PROMPTS_TITLE is
+        // a prompts column) must degrade to "" without erroring, proving the
+        // graceful-degrade contract the callers rely on.
+        let dir = TempDir::new().unwrap();
+        let db = Db::open(dir.path(), "test-pass").unwrap();
+        let db = std::sync::Arc::new(db);
+        let v = read_app_settings(&db, &[col::APP_EMBED_QUANT, col::PROMPTS_TITLE]).unwrap();
+        assert_eq!(v, vec!["binary".to_string(), String::new()]);
     }
 
     #[test]
