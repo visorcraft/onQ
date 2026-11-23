@@ -622,12 +622,122 @@ fn persist_prompt_index(prompt: &Prompt, state: &AppState) -> Result<(), String>
     Ok(())
 }
 
-/// Re-index every vault prompt so sparse vectors include title/tags/folder
-/// (older builds only hashed the body). O(N) on unlock; acceptable for
-/// typical vault sizes.
+/// True when the indexed `prompts` row is byte-current with the on-disk
+/// prompt and already carries a sparse vector, so re-indexing is a no-op.
+fn row_matches_prompt(row: &Row, prompt: &Prompt) -> bool {
+    let id = match row.columns.get(&col::PROMPTS_ID) {
+        Some(Value::Bytes(b)) => b,
+        _ => return false,
+    };
+    if id.as_slice() != prompt.fm.id.as_str().as_bytes() {
+        return false;
+    }
+    let title = match row.columns.get(&col::PROMPTS_TITLE) {
+        Some(Value::Bytes(b)) => b,
+        _ => return false,
+    };
+    if title.as_slice() != prompt.fm.title.as_bytes() {
+        return false;
+    }
+    let folder = match row.columns.get(&col::PROMPTS_FOLDER) {
+        Some(Value::Bytes(b)) => b,
+        _ => return false,
+    };
+    if folder.as_slice() != prompt.fm.folder.as_deref().unwrap_or_default().as_bytes() {
+        return false;
+    }
+    let tags = match row.columns.get(&col::PROMPTS_TAGS) {
+        Some(Value::Json(b)) => b,
+        _ => return false,
+    };
+    let expected_tags = serde_json::to_vec(&prompt.fm.tags).unwrap_or_else(|_| b"[]".to_vec());
+    if tags.as_slice() != expected_tags.as_slice() {
+        return false;
+    }
+    let favorite = match row.columns.get(&col::PROMPTS_FAVORITE) {
+        Some(Value::Bool(b)) => *b,
+        _ => return false,
+    };
+    if favorite != prompt.fm.favorite {
+        return false;
+    }
+    let locked = match row.columns.get(&col::PROMPTS_LOCKED) {
+        Some(Value::Bool(b)) => *b,
+        _ => return false,
+    };
+    if locked != prompt.fm.locked {
+        return false;
+    }
+    let created = match row.columns.get(&col::PROMPTS_CREATED) {
+        Some(Value::Int64(i)) => *i,
+        _ => return false,
+    };
+    if created != prompt.fm.created.timestamp() {
+        return false;
+    }
+    let updated = match row.columns.get(&col::PROMPTS_UPDATED) {
+        Some(Value::Int64(i)) => *i,
+        _ => return false,
+    };
+    if updated != prompt.fm.updated.timestamp() {
+        return false;
+    }
+    let body = match row.columns.get(&col::PROMPTS_BODY) {
+        Some(Value::Bytes(b)) => b,
+        _ => return false,
+    };
+    if body.as_slice() != prompt.body.as_bytes() {
+        return false;
+    }
+    let sparse_present =
+        matches!(row.columns.get(&col::PROMPTS_BODY_SPARSE), Some(v) if !matches!(v, Value::Null));
+    if !sparse_present {
+        return false;
+    }
+    row.columns.contains_key(&col::PROMPTS_EMBED)
+}
+
+/// Change-detection safety net for vault open: re-indexes any prompt whose
+/// indexed row is not byte-current with the file on disk. Rows are skipped
+/// only when every indexed column matches the file byte-for-byte and a sparse
+/// vector exists, so vault open does work only for rows that actually changed.
 fn backfill_sparse_vectors(vault: &Vault, db: &Arc<Db>) -> Result<(), String> {
+    let rows = db
+        .handle()
+        .query_for_current_principal(
+            "prompts",
+            &Query::default(),
+            Some(&[
+                col::PROMPTS_ID,
+                col::PROMPTS_TITLE,
+                col::PROMPTS_FOLDER,
+                col::PROMPTS_TAGS,
+                col::PROMPTS_FAVORITE,
+                col::PROMPTS_LOCKED,
+                col::PROMPTS_CREATED,
+                col::PROMPTS_UPDATED,
+                col::PROMPTS_BODY,
+                col::PROMPTS_BODY_SPARSE,
+                col::PROMPTS_EMBED,
+            ]),
+        )
+        .map_err(|error| error.to_string())?;
+    let mut skip_rows: HashMap<Vec<u8>, Row> = HashMap::new();
+    for row in rows {
+        let id = match row.columns.get(&col::PROMPTS_ID) {
+            Some(Value::Bytes(b)) => b.clone(),
+            _ => continue,
+        };
+        skip_rows.entry(id).or_insert(row);
+    }
     for id in vault.list().map_err(|error| error.to_string())? {
         let prompt = vault.read(&id).map_err(|error| error.to_string())?;
+        let skipped = skip_rows
+            .get(id.as_str().as_bytes())
+            .is_some_and(|row| row_matches_prompt(row, &prompt));
+        if skipped {
+            continue;
+        }
         index_prompt(db, &prompt, None)?;
     }
     Ok(())
@@ -4692,6 +4802,213 @@ mod tests {
         assert!(!locked.favorite, "favorite must carry through");
         assert!(!unlocked.locked, "unlocked hit must not be locked");
         assert!(locked.locked, "locked hit must be locked");
+    }
+
+    // --- backfill_sparse_vectors / row_matches_prompt ----------------------
+
+    fn seed_backfill_vault(dir: &std::path::Path) -> (Vault, std::sync::Arc<Db>, Prompt) {
+        let vault = Vault::new(dir).unwrap();
+        let db = std::sync::Arc::new(Db::open(dir, "test-pass").unwrap());
+        let mut prompt = vault.new_prompt("alpha").unwrap();
+        prompt.body = "zebra alpha body".to_string();
+        prompt.fm.tags = vec!["alpha".to_string()];
+        prompt.fm.folder = Some("inbox".to_string());
+        vault.write(&prompt).unwrap();
+        // Re-read from disk exactly as the backfill does.
+        let prompt = vault.read(&prompt.fm.id).unwrap();
+        (vault, db, prompt)
+    }
+
+    fn fetch_backfill_row(db: &Db, id: &str) -> Row {
+        let rows = db
+            .handle()
+            .query_for_current_principal(
+                "prompts",
+                &Query {
+                    conditions: vec![Condition::Pk(id.as_bytes().to_vec())],
+                    ..Default::default()
+                },
+                Some(&[
+                    col::PROMPTS_ID,
+                    col::PROMPTS_TITLE,
+                    col::PROMPTS_FOLDER,
+                    col::PROMPTS_TAGS,
+                    col::PROMPTS_FAVORITE,
+                    col::PROMPTS_LOCKED,
+                    col::PROMPTS_CREATED,
+                    col::PROMPTS_UPDATED,
+                    col::PROMPTS_BODY,
+                    col::PROMPTS_BODY_SPARSE,
+                    col::PROMPTS_EMBED,
+                ]),
+            )
+            .unwrap();
+        rows.into_iter().next().expect("indexed row must exist")
+    }
+
+    #[test]
+    fn row_matches_prompt_true_for_freshly_indexed_row() {
+        let dir = TempDir::new().unwrap();
+        let (vault, db, prompt) = seed_backfill_vault(dir.path());
+        backfill_sparse_vectors(&vault, &db).unwrap();
+        let row = fetch_backfill_row(&db, prompt.fm.id.as_str());
+        assert!(row_matches_prompt(&row, &prompt));
+    }
+
+    #[test]
+    fn row_matches_prompt_false_on_each_divergence() {
+        let dir = TempDir::new().unwrap();
+        let (vault, db, prompt) = seed_backfill_vault(dir.path());
+        backfill_sparse_vectors(&vault, &db).unwrap();
+        let row = fetch_backfill_row(&db, prompt.fm.id.as_str());
+        assert!(
+            row_matches_prompt(&row, &prompt),
+            "freshly indexed row must match"
+        );
+
+        let mut divergent = prompt.clone();
+
+        // File body changed.
+        divergent.body = "zebra alpha body changed".to_string();
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.body = prompt.body.clone();
+
+        // Title changed.
+        divergent.fm.title = "beta".to_string();
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.title = prompt.fm.title.clone();
+
+        // Tag added.
+        divergent.fm.tags = vec!["alpha".to_string(), "beta".to_string()];
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.tags = prompt.fm.tags.clone();
+
+        // Folder goes None (row carries Some("inbox")).
+        divergent.fm.folder = None;
+        assert!(!row_matches_prompt(&row, &divergent));
+        // Folder goes to a different Some(..).
+        divergent.fm.folder = Some("other".to_string());
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.folder = prompt.fm.folder.clone();
+
+        // Favorite flips.
+        divergent.fm.favorite = !prompt.fm.favorite;
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.favorite = prompt.fm.favorite;
+
+        // Locked flips.
+        divergent.fm.locked = !prompt.fm.locked;
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.locked = prompt.fm.locked;
+
+        // Created bumped by 1s.
+        divergent.fm.created += chrono::Duration::seconds(1);
+        assert!(!row_matches_prompt(&row, &divergent));
+        divergent.fm.created = prompt.fm.created;
+
+        // Updated bumped by 1s.
+        divergent.fm.updated += chrono::Duration::seconds(1);
+        assert!(!row_matches_prompt(&row, &divergent));
+
+        // PROMPTS_BODY_SPARSE is Value::Null.
+        let mut null_sparse = row.clone();
+        null_sparse
+            .columns
+            .insert(col::PROMPTS_BODY_SPARSE, Value::Null);
+        assert!(!row_matches_prompt(&null_sparse, &prompt));
+
+        // PROMPTS_EMBED is absent.
+        let mut no_embed = row.clone();
+        no_embed.columns.remove(&col::PROMPTS_EMBED);
+        assert!(!row_matches_prompt(&no_embed, &prompt));
+
+        // PROMPTS_BODY column is missing.
+        let mut no_body = row.clone();
+        no_body.columns.remove(&col::PROMPTS_BODY);
+        assert!(!row_matches_prompt(&no_body, &prompt));
+    }
+
+    #[test]
+    fn backfill_reindexes_externally_edited_file() {
+        let dir = TempDir::new().unwrap();
+        let (vault, db, prompt) = seed_backfill_vault(dir.path());
+        backfill_sparse_vectors(&vault, &db).unwrap();
+
+        let mut edited = prompt.clone();
+        edited.body = "zebra alpha body edited externally".to_string();
+        vault.write(&edited).unwrap();
+
+        backfill_sparse_vectors(&vault, &db).unwrap();
+
+        let row = fetch_backfill_row(&db, prompt.fm.id.as_str());
+        let body = match row.columns.get(&col::PROMPTS_BODY) {
+            Some(Value::Bytes(b)) => b.clone(),
+            _ => panic!("row must carry a body"),
+        };
+        assert_eq!(body, edited.body.as_bytes());
+    }
+
+    #[test]
+    fn backfill_restores_null_sparse_vector() {
+        let dir = TempDir::new().unwrap();
+        let (vault, db, prompt) = seed_backfill_vault(dir.path());
+
+        // Seed a complete row directly, matching the on-disk prompt in every
+        // column except a null sparse vector.
+        let mut cells = build_prompt_cells(
+            &prompt,
+            prompt.body.as_bytes().to_vec(),
+            prompt.body.chars().count() as i64,
+            prompt.fm.locked,
+            None,
+            None,
+        );
+        for (column, value) in cells.iter_mut() {
+            if *column == col::PROMPTS_BODY_SPARSE {
+                *value = Value::Null;
+            }
+        }
+        db.handle()
+            .transaction_for_current_principal(|tx| {
+                tx.put("prompts", cells)?;
+                Ok(())
+            })
+            .unwrap();
+
+        backfill_sparse_vectors(&vault, &db).unwrap();
+
+        let row = fetch_backfill_row(&db, prompt.fm.id.as_str());
+        let sparse = row.columns.get(&col::PROMPTS_BODY_SPARSE).cloned();
+        assert!(
+            !matches!(sparse, None | Some(Value::Null)),
+            "backfill must restore a null sparse vector"
+        );
+    }
+
+    #[test]
+    fn backfill_second_run_keeps_search_working() {
+        let dir = TempDir::new().unwrap();
+        let (vault, db, prompt) = seed_backfill_vault(dir.path());
+        backfill_sparse_vectors(&vault, &db).unwrap();
+        backfill_sparse_vectors(&vault, &db).unwrap();
+
+        let query = AppSearchQuery::new("zebra");
+        let hard_filters = query.to_query(&[]);
+        let sparse_only = query.to_retrievers(&[]);
+        let hits = run_hybrid_search(
+            &db,
+            &hard_filters,
+            &sparse_only,
+            10,
+            "binary",
+            30.0,
+            "zebra",
+        )
+        .expect("hybrid search");
+        assert!(
+            hits.iter().any(|hit| hit.id == prompt.fm.id.as_str()),
+            "search must still return the prompt after a skip-path backfill"
+        );
     }
 
     #[test]
