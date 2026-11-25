@@ -1,11 +1,11 @@
 use base64::Engine;
-use bip39::{Language, Mnemonic};
+use bip39::{Language, Mnemonic, WordCount};
 
 use crate::error::{CoreError, CoreResult};
 
 /// Generate a fresh 24-word English BIP39 recovery phrase.
 pub fn generate_phrase() -> String {
-    Mnemonic::generate_in(Language::English, 24)
+    Mnemonic::generate_in(Language::English, WordCount::Words24)
         .expect("24 words is a valid BIP39 word count")
         .to_string()
 }

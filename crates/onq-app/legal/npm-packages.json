@@ -1,7 +1,7 @@
 [
   {
     "name": "@axe-core/playwright",
-    "version": "4.14.0",
+    "version": "4.14.1",
     "license": "MPL-2.0",
     "repository": "https://github.com/dequelabs/axe-core-npm",
     "role": "dev"
@@ -22,14 +22,14 @@
   },
   {
     "name": "@storybook/addon-a11y",
-    "version": "10.6.7",
+    "version": "10.6.9",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
   },
   {
     "name": "@storybook/addon-docs",
-    "version": "10.6.7",
+    "version": "10.6.9",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
@@ -43,14 +43,14 @@
   },
   {
     "name": "@storybook/svelte-vite",
-    "version": "10.6.7",
+    "version": "10.6.9",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
   },
   {
     "name": "@sveltejs/vite-plugin-svelte",
-    "version": "7.3.1",
+    "version": "7.3.2",
     "license": "MIT",
     "repository": "https://github.com/sveltejs/vite-plugin-svelte",
     "role": "dev"
@@ -71,7 +71,7 @@
   },
   {
     "name": "@tauri-apps/cli",
-    "version": "2.12.5",
+    "version": "2.12.6",
     "license": "Apache-2.0 OR MIT",
     "repository": "https://github.com/tauri-apps/tauri",
     "role": "dev"
@@ -106,35 +106,35 @@
   },
   {
     "name": "@typescript-eslint/eslint-plugin",
-    "version": "8.73.0",
+    "version": "8.74.0",
     "license": "MIT",
     "repository": "https://github.com/typescript-eslint/typescript-eslint",
     "role": "dev"
   },
   {
     "name": "@typescript-eslint/parser",
-    "version": "8.73.0",
+    "version": "8.74.0",
     "license": "MIT",
     "repository": "https://github.com/typescript-eslint/typescript-eslint",
     "role": "dev"
   },
   {
     "name": "@vitest/ui",
-    "version": "5.1.0",
+    "version": "5.1.2",
     "license": "MIT",
     "repository": "https://github.com/vitest-dev/vitest",
     "role": "dev"
   },
   {
     "name": "autoprefixer",
-    "version": "10.6.2",
+    "version": "10.7.0",
     "license": "MIT",
     "repository": "postcss/autoprefixer",
     "role": "dev"
   },
   {
     "name": "bits-ui",
-    "version": "2.21.0",
+    "version": "2.22.0",
     "license": "MIT",
     "repository": "github:huntabyte/bits-ui",
     "role": "runtime"
@@ -148,7 +148,7 @@
   },
   {
     "name": "eslint-plugin-storybook",
-    "version": "10.6.7",
+    "version": "10.6.9",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
@@ -183,14 +183,14 @@
   },
   {
     "name": "storybook",
-    "version": "10.6.7",
+    "version": "10.6.9",
     "license": "MIT",
     "repository": "https://github.com/storybookjs/storybook",
     "role": "dev"
   },
   {
     "name": "svelte",
-    "version": "5.57.3",
+    "version": "5.59.2",
     "license": "MIT",
     "repository": "https://github.com/sveltejs/svelte",
     "role": "dev"
@@ -204,7 +204,7 @@
   },
   {
     "name": "svelte-eslint-parser",
-    "version": "1.10.1",
+    "version": "1.12.0",
     "license": "MIT",
     "repository": "https://github.com/sveltejs/svelte-eslint-parser",
     "role": "dev"
@@ -246,7 +246,7 @@
   },
   {
     "name": "vitest",
-    "version": "5.1.0",
+    "version": "5.1.2",
     "license": "MIT",
     "repository": "https://github.com/vitest-dev/vitest",
     "role": "dev"

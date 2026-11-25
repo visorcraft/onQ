@@ -23,37 +23,37 @@ Packages from package.json. onQ is **GPL-3.0-only**.
 ## Apache-2.0 OR MIT
 
 - `@tauri-apps/api` 2.12.5 (runtime)
-- `@tauri-apps/cli` 2.12.5 (dev)
+- `@tauri-apps/cli` 2.12.6 (dev)
 
 ## MIT
 
 - `@eslint/js` 10.0.1 (dev)
-- `@storybook/addon-a11y` 10.6.7 (dev)
-- `@storybook/addon-docs` 10.6.7 (dev)
+- `@storybook/addon-a11y` 10.6.9 (dev)
+- `@storybook/addon-docs` 10.6.9 (dev)
 - `@storybook/addon-svelte-csf` 5.1.6 (dev)
-- `@storybook/svelte-vite` 10.6.7 (dev)
-- `@sveltejs/vite-plugin-svelte` 7.3.1 (dev)
+- `@storybook/svelte-vite` 10.6.9 (dev)
+- `@sveltejs/vite-plugin-svelte` 7.3.2 (dev)
 - `@tailwindcss/postcss` 4.3.5 (dev)
 - `@tsconfig/svelte` 5.0.9 (dev)
-- `@typescript-eslint/eslint-plugin` 8.73.0 (dev)
-- `@typescript-eslint/parser` 8.73.0 (dev)
-- `@vitest/ui` 5.1.0 (dev)
-- `autoprefixer` 10.6.2 (dev)
-- `bits-ui` 2.21.0 (runtime)
+- `@typescript-eslint/eslint-plugin` 8.74.0 (dev)
+- `@typescript-eslint/parser` 8.74.0 (dev)
+- `@vitest/ui` 5.1.2 (dev)
+- `autoprefixer` 10.7.0 (dev)
+- `bits-ui` 2.22.0 (runtime)
 - `eslint` 10.15.0 (dev)
-- `eslint-plugin-storybook` 10.6.7 (dev)
+- `eslint-plugin-storybook` 10.6.9 (dev)
 - `eslint-plugin-svelte` 3.24.1 (dev)
 - `globals` 17.14.0 (dev)
 - `jsdom` 31.0.1 (dev)
 - `postcss` 8.5.33 (dev)
-- `storybook` 10.6.7 (dev)
-- `svelte` 5.57.3 (dev)
+- `storybook` 10.6.9 (dev)
+- `svelte` 5.59.2 (dev)
 - `svelte-check` 4.7.8 (dev)
-- `svelte-eslint-parser` 1.10.1 (dev)
+- `svelte-eslint-parser` 1.12.0 (dev)
 - `tailwindcss` 4.3.5 (dev)
 - `vite` 8.3.8 (dev)
 - `vitepress` 2.0.0-alpha.21 (dev)
-- `vitest` 5.1.0 (dev)
+- `vitest` 5.1.2 (dev)
 
 ## MIT OR Apache-2.0
 
@@ -63,5 +63,5 @@ Packages from package.json. onQ is **GPL-3.0-only**.
 
 ## MPL-2.0
 
-- `@axe-core/playwright` 4.14.0 (dev)
+- `@axe-core/playwright` 4.14.1 (dev)
 

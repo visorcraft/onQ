@@ -8,14 +8,14 @@ members = [
 ]
 
 [workspace.package]
-version = "1.18.0"
+version = "1.19.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/visorcraft/onQ"
 rust-version = "1.95"
 
 [workspace.dependencies]
-bip39 = { version = "2", features = ["rand"] }
+bip39 = { version = "3", features = ["rand"] }
 ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -28,13 +28,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = "3"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
-# 9.0.0 is still a release candidate. 8.2 is the latest stable.
-notify = "8"
+notify = "9"
 # Dense ANN + replace_index. Keep aligned with MongrelDB releases on crates.io.
 # `encryption` documents at-rest encrypted open/create. Kit is not a direct dep.
-mongreldb-core = { version = "0.67.0", features = ["encryption"] }
-onq-core = { path = "crates/onq-core", version = "1.18.0" }
-onq-test-utils = { path = "crates/onq-test-utils", version = "1.18.0" }
+mongreldb-core = { version = "0.67.1", features = ["encryption"] }
+onq-core = { path = "crates/onq-core", version = "1.19.0" }
+onq-test-utils = { path = "crates/onq-test-utils", version = "1.19.0" }
 keyring = { version = "4", features = [] }
 argon2 = "0.6"
 rand = "0.10"
@@ -48,7 +47,7 @@ diffy = "0.5"
 sha2 = "0.11"
 aes-gcm = "0.11"
 libloading = "0.9"
-onq-plugin-sdk = { path = "crates/onq-plugin-sdk", version = "1.18.0" }
+onq-plugin-sdk = { path = "crates/onq-plugin-sdk", version = "1.19.0" }
 tar = "0.4"
 flate2 = "1"
 toml = "1"
